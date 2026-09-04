@@ -1,6 +1,6 @@
 # Stabx Web 交易台 — 规划文档
 
-> 状态：**P0 骨架已落地**（FastAPI headless + Vue 交易台）。产品入口是 **Web**：`./start.sh`。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。本目录是设计文档；实现按 `features/ + core/ + ui/` 放在本仓库根目录。
+> 状态：**P0 骨架已落地**（FastAPI headless + Vue 交易台）。产品入口是 **Web**：`./start.sh`。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。本目录是设计文档；实现按 `features/ + core/ + ui/` 放在本仓库根目录。功能说明、搭建命令、服务器配置与操作流程见仓库根目录 [README.md](../README.md)。
 
 ## 项目定位
 
@@ -10,6 +10,18 @@
 - 通过 **REST + WebSocket** 暴露能力
 - 前端用 **Vue 3** 做完整交易台
 - 支持**多用户**、**每用户独立账户**、**用户级隔离 + 管理员**
+
+## 后端与引擎归属
+
+本项目的**后端交易运行时是 vn.py（VeighNa）**，不是本仓库原创的交易引擎或撮合系统。
+
+具体来说：`MainEngine`、事件引擎（`EventEngine`）、OMS（`OmsEngine`），以及委托、持仓、资金、Tick 等对象，均来自 [vnpy](https://github.com/vnpy/vnpy)；CTP 柜台网关 `CtpGateway` 来自 [vnpy_ctp](https://github.com/vnpy/vnpy_ctp)。本仓库是围绕 vnpy 的 **Web UI + FastAPI 托管层**，**不重新实现**交易所撮合或柜台通信协议。
+
+**许可（事实说明，不构成法律意见）**：vn.py 与 vnpy_ctp 均为 MIT 许可（Copyright (c) 2015-present, Xiaoyou Chen）。使用或分发时须保留其版权与许可声明。本项目不主张对 vnpy 或其组件的所有权。本仓库根目录目前没有独立 LICENSE 文件；本包装层的许可需另行声明，且不覆盖、不替代 vnpy / vnpy_ctp 的许可。
+
+**柜台与接口**：CTP API 由上海期货信息技术有限公司（上期技术）提供，与 vnpy 项目相互独立。SimNow / CTP 账号凭证以及交易所、期货公司接口各有其使用条款，须自行遵守。
+
+更完整的说明见仓库根目录 [README.md](../README.md) 中「后端与引擎归属」。
 
 ## 已确认的关键决策
 
