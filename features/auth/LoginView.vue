@@ -109,7 +109,10 @@
         </div>
 
         <div class="form-bottom">
-          <p class="legal">登录即表示您同意平台服务条款与隐私政策。</p>
+          <p class="legal">
+            登录即表示您同意平台服务条款与隐私政策。
+            <a href="https://www.vnpy.com" target="_blank" rel="noopener noreferrer" class="login-link">基于 vn.py</a>
+          </p>
         </div>
       </div>
     </section>

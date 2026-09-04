@@ -1,4 +1,4 @@
-"""Headless vnpy MainEngine — no Qt UI imports (docs/01, docs/06 B2)."""
+"""Headless vnpy MainEngine — no Qt UI imports (docs/01, docs/06 B2). Powered by vn.py MainEngine."""
 
 from __future__ import annotations
 

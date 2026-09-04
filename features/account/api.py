@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
-from core.db import Account, User, account_to_dict, get_session
+from core.db import Account, User, account_channel_dict, account_to_dict, get_session
 from core.deps import current_user, visible_gateways
 from core.runtime import runtime
 from core.serialize import account_payload
@@ -35,9 +35,13 @@ def list_gateways(user: User = Depends(current_user)) -> list[dict]:
             stmt = stmt.where(Account.user_id == user.id)
         rows = []
         for acc in db.scalars(stmt):
-            item = account_to_dict(acc)
-            item["conn_status"] = runtime.gw.status.get(acc.gateway_name, "DISCONNECTED")
-            rows.append(item)
+            rows.append(
+                account_channel_dict(
+                    acc,
+                    conn_status=runtime.gw.status.get(acc.gateway_name, "DISCONNECTED"),
+                    front_info=runtime.gw.front_info.get(acc.gateway_name),
+                )
+            )
         return rows
     finally:
         db.close()
@@ -55,8 +59,8 @@ def connect_gateway(account_id: int, user: User = Depends(current_user)) -> dict
             runtime.gw.register(account_to_dict(fresh, include_secrets=True))
         finally:
             db.close()
-    runtime.gw.connect(gateway_name)
-    return {"ok": True, "gateway_name": gateway_name, "status": "CONNECTING"}
+    meta = runtime.gw.connect(gateway_name)
+    return {"ok": True, "gateway_name": gateway_name, "status": "CONNECTING", **meta}
 
 
 @router.post("/api/gateways/{account_id}/disconnect")

@@ -33,6 +33,17 @@ SIMNOW_CONNECT_DEFAULTS: dict[str, str] = {
 
 CONNECT_FILENAME = "connect_ctp.json"
 SECRET_FIELDS = ("用户名", "密码")
+MANUAL_FRONT_KEY = "手动指定前置"
+CTP_SETTING_KEYS = (
+    "用户名",
+    "密码",
+    "经纪商代码",
+    "交易服务器",
+    "行情服务器",
+    "产品名称",
+    "授权编码",
+    "产品信息",
+)
 PUBLIC_CONNECT_KEYS = (
     "用户名",
     "经纪商代码",
@@ -86,13 +97,33 @@ def public_connect_settings(setting: dict[str, Any] | None) -> dict[str, str]:
     return out
 
 
+def _truthy_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on", "是"}
+
+
 def auto_front_enabled(setting: dict[str, Any] | None) -> bool:
+    """Auto-switch fronts unless the user checked 手动指定前置 / auto_front=false."""
     if not setting:
         return True
-    value = setting.get("auto_front", True)
+    if _truthy_flag(setting.get(MANUAL_FRONT_KEY)):
+        return False
+    if "auto_front" not in setting:
+        return True
+    value = setting.get("auto_front")
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def ctp_connect_payload(setting: dict[str, Any] | None) -> dict[str, Any]:
+    """Pass only CtpGateway keys — drop 柜台环境 / auto_front / 手动指定前置."""
+    if not setting:
+        return {}
+    return {key: setting[key] for key in CTP_SETTING_KEYS if key in setting}
 
 
 def _shanghai_now(now: datetime | None = None) -> datetime:

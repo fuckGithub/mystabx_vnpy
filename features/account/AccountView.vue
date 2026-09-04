@@ -40,6 +40,12 @@
       <el-table :data="trade.gateways" height="560">
         <el-table-column prop="gateway_name" label="网关" />
         <el-table-column prop="account_name" label="名称" />
+        <el-table-column label="环境" width="100">
+          <template #default="{ row }">{{ row.front_label || "—" }}</template>
+        </el-table-column>
+        <el-table-column label="交易前置" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">{{ row["交易服务器"] || "—" }}</template>
+        </el-table-column>
         <el-table-column label="状态">
           <template #default="{ row }"><StatusTag :text="String(row.conn_status || 'DISCONNECTED')" /></template>
         </el-table-column>

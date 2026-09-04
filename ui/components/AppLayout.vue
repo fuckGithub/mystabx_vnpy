@@ -66,6 +66,17 @@
         </div>
       </el-main>
     </el-container>
+
+    <el-footer class="layout-footer" height="28px">
+      <span>© {{ year }} Stabx</span>
+      <span class="layout-footer-divider" aria-hidden="true"></span>
+      <a
+        class="layout-footer-link"
+        href="https://www.vnpy.com"
+        target="_blank"
+        rel="noopener noreferrer"
+      >基于 vn.py</a>
+    </el-footer>
   </el-container>
 </template>
 
@@ -81,6 +92,7 @@ import logoSrc from "@/assets/brand/logo-light.png";
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const year = new Date().getFullYear();
 const trade = useTradeStore();
 const market = useMarketStore();
 

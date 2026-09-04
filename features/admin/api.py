@@ -7,15 +7,24 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from core.crypto import decrypt, encrypt
-from core.db import Account, User, account_to_dict, get_session, hash_password, user_to_dict
+from core.db import (
+    Account,
+    User,
+    account_channel_dict,
+    account_to_dict,
+    get_session,
+    hash_password,
+    user_to_dict,
+)
 from core.deps import require_admin
 from core.runtime import runtime
 from mystabx.config.simnow import (
+    AUTO_FRONT_WINDOWS,
     SIMNOW_24H,
     SIMNOW_CONNECT_DEFAULTS,
     SIMNOW_SESSION,
     merge_connect_settings,
-    public_connect_settings,
+    simnow_fronts_for_now,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -29,6 +38,7 @@ class UserCreate(BaseModel):
 
 
 class AccountCreate(BaseModel):
+    id: int | None = None
     user_id: int
     account_name: str | None = None
     gateway_type: str = "CTP"
@@ -43,16 +53,44 @@ def _safe_decrypt(ciphertext: str) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def _account_admin_row(account: Account) -> dict:
-    row = account_to_dict(account)
-    stored = _safe_decrypt(account.connect_settings)
-    row["connect"] = public_connect_settings(merge_connect_settings(stored))
-    row["conn_status"] = runtime.gw.status.get(account.gateway_name, "DISCONNECTED")
-    return row
+def _channel_row(account: Account) -> dict:
+    return account_channel_dict(
+        account,
+        conn_status=runtime.gw.status.get(account.gateway_name, "DISCONNECTED"),
+        front_info=runtime.gw.front_info.get(account.gateway_name),
+    )
+
+
+def _find_existing(db, user_id: int, account_name: str, investor_id: str) -> Account | None:
+    rows = list(db.scalars(select(Account).where(Account.user_id == user_id)))
+    if account_name:
+        for acc in rows:
+            if (acc.account_name or "").strip() == account_name:
+                return acc
+    if investor_id:
+        for acc in rows:
+            stored = _safe_decrypt(acc.connect_settings)
+            if str(stored.get("用户名") or "").strip() == investor_id:
+                return acc
+    return None
+
+
+def _merge_update(stored: dict, incoming: dict) -> dict:
+    combined = dict(stored)
+    for key, value in incoming.items():
+        if value is None:
+            continue
+        if key == "密码" and value == "":
+            continue
+        combined[key] = value
+    if not combined.get("密码") and stored.get("密码"):
+        combined["密码"] = stored["密码"]
+    return merge_connect_settings(combined)
 
 
 @router.get("/connect-defaults")
 def connect_defaults(_: User = Depends(require_admin)) -> dict:
+    auto = simnow_fronts_for_now()
     return {
         "defaults": dict(SIMNOW_CONNECT_DEFAULTS),
         "environments": {
@@ -63,6 +101,7 @@ def connect_defaults(_: User = Depends(require_admin)) -> dict:
             "柜台环境": "实盘",
             "note": "本机仅打包实盘 CTP API，SimNow 走生产前置。",
         },
+        "auto": {**auto, "windows": AUTO_FRONT_WINDOWS},
     }
 
 
@@ -100,24 +139,44 @@ def create_user(body: UserCreate, _: User = Depends(require_admin)) -> dict:
 def list_accounts(_: User = Depends(require_admin)) -> list[dict]:
     db = get_session()
     try:
-        return [_account_admin_row(a) for a in db.scalars(select(Account))]
+        return [_channel_row(a) for a in db.scalars(select(Account))]
     finally:
         db.close()
 
 
 @router.post("/accounts")
-def create_account(body: AccountCreate, _: User = Depends(require_admin)) -> dict:
+def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dict:
     db = get_session()
     try:
         owner = db.get(User, body.user_id)
         if owner is None:
             raise HTTPException(status_code=404, detail="user not found")
+        account_name = (body.account_name or "").strip() or "SimNow"
+        investor_id = str(body.connect_settings.get("用户名") or "").strip()
+        existing = None
+        if body.id:
+            existing = db.get(Account, body.id)
+            if existing is None:
+                raise HTTPException(status_code=404, detail="account not found")
+        else:
+            existing = _find_existing(db, body.user_id, account_name, investor_id)
+        if existing:
+            stored = _safe_decrypt(existing.connect_settings)
+            setting = _merge_update(stored, body.connect_settings)
+            existing.account_name = account_name
+            existing.gateway_type = body.gateway_type or existing.gateway_type
+            existing.connect_settings = encrypt(setting)
+            db.commit()
+            db.refresh(existing)
+            runtime.gw.register(account_to_dict(existing, include_secrets=True))
+            return _channel_row(existing)
+
         setting = merge_connect_settings(body.connect_settings)
         acc = Account(
             user_id=body.user_id,
             gateway_name="pending",
             gateway_type=body.gateway_type,
-            account_name=body.account_name,
+            account_name=account_name,
             connect_settings=encrypt(setting),
             status=1,
         )
@@ -127,6 +186,22 @@ def create_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
         db.commit()
         db.refresh(acc)
         runtime.gw.register(account_to_dict(acc, include_secrets=True))
-        return _account_admin_row(acc)
+        return _channel_row(acc)
+    finally:
+        db.close()
+
+
+@router.delete("/accounts/{account_id}")
+def delete_account(account_id: int, _: User = Depends(require_admin)) -> dict:
+    db = get_session()
+    try:
+        acc = db.get(Account, account_id)
+        if acc is None:
+            raise HTTPException(status_code=404, detail="account not found")
+        name = acc.gateway_name
+        db.delete(acc)
+        db.commit()
+        runtime.gw.remove(name)
+        return {"ok": True, "id": account_id, "gateway_name": name}
     finally:
         db.close()

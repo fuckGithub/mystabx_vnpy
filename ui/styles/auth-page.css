@@ -254,6 +254,15 @@
 	background: rgba(255, 255, 255, 0.28);
 }
 
+.brand-footer-link {
+	color: inherit;
+	text-decoration: none;
+}
+
+.brand-footer-link:hover {
+	color: rgba(255, 255, 255, 0.72);
+}
+
 .divider {
 	opacity: 0.4;
 }

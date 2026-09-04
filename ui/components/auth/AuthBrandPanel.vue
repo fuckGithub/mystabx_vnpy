@@ -33,6 +33,13 @@
         <span>© {{ year }} Stabx</span>
         <span class="brand-footer-divider" aria-hidden="true"></span>
         <span>行情 · 交易 · 风控</span>
+        <span class="brand-footer-divider" aria-hidden="true"></span>
+        <a
+          class="brand-footer-link"
+          href="https://www.vnpy.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >基于 vn.py</a>
       </footer>
     </div>
 

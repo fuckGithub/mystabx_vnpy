@@ -450,3 +450,34 @@
   background: color-mix(in srgb, var(--el-color-primary) 10%, transparent) !important;
   color: var(--el-color-primary) !important;
 }
+
+.layout-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-shrink: 0;
+  height: 28px !important;
+  padding: 0 16px !important;
+  border-top: 1px solid var(--next-border-color-light, #e2e8f0);
+  background: var(--next-bg-color, #fff);
+  font-size: 11px;
+  line-height: 1;
+  color: #94a3b8;
+}
+
+.layout-footer-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 10px;
+  background: #cbd5e1;
+}
+
+.layout-footer-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.layout-footer-link:hover {
+  color: var(--el-color-primary, #1677ff);
+}

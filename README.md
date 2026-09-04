@@ -2,7 +2,9 @@
 
 浏览器里用的期货交易台：Vue 网页 + FastAPI（REST / WebSocket）+ 进程内 vnpy `MainEngine`。产品入口是 Web，不是桌面 Qt / `main.py`。
 
-规划文档见 [docs/README.md](docs/README.md)。
+> 状态：**P0 骨架已落地**（FastAPI headless + Vue 交易台）。产品入口是 **Web**：`./start.sh`。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
+
+规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/06](docs/06-实施路线图.md)）。
 
 ## 后端与引擎归属
 
@@ -10,9 +12,18 @@
 
 具体来说：`MainEngine`、事件引擎（`EventEngine`）、OMS（`OmsEngine`），以及委托、持仓、资金、Tick 等对象，均来自 [vnpy](https://github.com/vnpy/vnpy)；CTP 柜台网关 `CtpGateway` 来自 [vnpy_ctp](https://github.com/vnpy/vnpy_ctp)。本仓库是围绕 vnpy 的 **Web UI + FastAPI 托管层**（浏览器界面、REST / WebSocket、多用户与通道配置），**不重新实现**交易所撮合或柜台通信协议。
 
-**许可（事实说明，不构成法律意见）**：vn.py 与 vnpy_ctp 均为 MIT 许可（Copyright (c) 2015-present, Xiaoyou Chen）。使用或分发时须保留其版权与许可声明。本项目不主张对 vnpy 或其组件的所有权。本仓库根目录目前没有独立 LICENSE 文件；本包装层的许可需另行声明，且不覆盖、不替代 vnpy / vnpy_ctp 的许可。
+**许可（事实说明，不构成法律意见）**：vn.py 与 vnpy_ctp 均为 MIT 许可（Copyright (c) 2015-present, Xiaoyou Chen）。使用或分发时须保留其版权与许可声明。本项目不主张对 vnpy 或其组件的所有权。完整原文见根目录 [NOTICE](NOTICE)、[THIRD_PARTY.md](THIRD_PARTY.md) 以及 [licenses/vnpy-LICENSE](licenses/vnpy-LICENSE)、[licenses/vnpy_ctp-LICENSE](licenses/vnpy_ctp-LICENSE)。本仓库未对本包装层另行声明许可证；包装层许可不覆盖、不替代 vnpy / vnpy_ctp 的许可。
 
 **柜台与接口**：CTP API 由上海期货信息技术有限公司（上期技术）提供，与 vnpy 项目相互独立。SimNow / CTP 账号凭证以及交易所、期货公司接口各有其使用条款，须自行遵守。
+
+## 项目定位
+
+将 vnpy（VeighNa）从 PySide6 桌面终端改造成 **B/S 架构的团队交易终端**：
+
+- Python 进程内跑 vnpy 的 `MainEngine` / `EventEngine`（无界面，headless）
+- 通过 **REST + WebSocket** 暴露能力
+- 前端用 **Vue 3** 做完整交易台
+- 支持**多用户**、**每用户独立账户**、**用户级隔离 + 管理员**
 
 ## 项目功能
 
@@ -26,9 +37,41 @@
 | **资金持仓** | `/account/gateways`、`/account/funds`、`/account/positions`、`/account/trades` | 连接/断开网关；资金、持仓、成交 |
 | **系统管理** | `/admin/users`、`/admin/accounts` | 管理员：用户管理、通道配置（SimNow / CTP） |
 
-技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn；配置与账号在 SQLite（密钥 Fernet 加密）。ClickHouse 表结构在 `ch_schema.sql`，P0 实时链路不依赖 ClickHouse 进程。K 线、策略/回测、Docker 尚未作为产品入口。
+技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn；配置与账号在 SQLite（密钥 Fernet 加密）。ClickHouse 表结构在 `ch_schema.sql`，P0 实时链路不依赖 ClickHouse 进程。P1 尚未作为产品入口：K 线、ClickHouse 行情入库、风控、策略/回测、Docker（见 [docs/06-实施路线图.md](docs/06-实施路线图.md)）。
 
 不要对 vnpy 引擎使用 `uvicorn --workers`（`MainEngine` 必须在同一进程内）。
+
+## 已确认的关键决策
+
+| 决策项 | 结论 |
+|---|---|
+| 下单能力 | 完整 Web 交易台（浏览器下单/撤单） |
+| 用户规模 | 局域网 / 小团队多用户 |
+| 前端技术栈 | Vue 3 + Vite + TypeScript + Element Plus + ECharts |
+| 后端技术栈 | FastAPI + Uvicorn，headless 启动 vnpy |
+| 数据存储 | ClickHouse（时序/事件）+ SQLite（业务/配置）三层混合 |
+| 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
+| 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
+| 目录组织 | 功能域优先：`features/ + core/ + ui/`（不按 backend/frontend 分层） |
+| 运行入口 | `./start.sh`（单进程托管 API + 构建后的 SPA）；不要用 `main.py` 当产品 |
+
+## 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| [01-架构与功能规划](docs/01-架构与功能规划.md) | 总体架构、技术栈、功能模块 |
+| [02-数据存储方案](docs/02-数据存储方案.md) | 三层存储、ClickHouse/SQLite 表结构、加密 |
+| [03-账户隔离与权限](docs/03-账户隔离与权限.md) | 多 gateway、用户级隔离、管理员、后端伪代码 |
+| [04-WebSocket消息协议](docs/04-WebSocket消息协议.md) | 消息 envelope 与字段级 payload |
+| [05-前端方案与目录结构](docs/05-前端方案与目录结构.md) | 轻量化前端、功能域目录、依赖清单 |
+| [06-实施路线图](docs/06-实施路线图.md) | P0 / P1 可执行开发任务清单 |
+
+## 与桌面端的关系
+
+- **产品（Web）**：`core/` + `features/` + `ui/`，`./start.sh` 一键起 FastAPI + Vue
+- **遗留（桌面）**：根目录 `main.py` + `mystabx/`，官方 MainWindow。保留但不作为入口，不要按这个跑产品
+
+未完成（见 [06-实施路线图](docs/06-实施路线图.md) P1）：K 线、ClickHouse 行情入库、风控、策略/回测、Docker。
 
 ## 搭建步骤
 
@@ -164,4 +207,29 @@ cp .env.example .env
 | `STABX_ADMIN_PASSWORD` | `admin123` | 首次引导管理员密码（立刻改掉） |
 | `STABX_JWT_SECRET` | 自动生成 | JWT 密钥；缺省写入 `.vntrader/web_keys.json` |
 
-桌面 `main.py` 仅作遗留代码，不是产品入口。
+**产品（Web）**：`core/` + `features/` + `ui/`，`./start.sh` 一键起 FastAPI + Vue。**遗留（桌面）**：根目录 `main.py` + `mystabx/`（官方 MainWindow），保留但不作为入口。
+
+## 关键决策
+
+| 决策项 | 结论 |
+|---|---|
+| 下单能力 | 完整 Web 交易台（浏览器下单/撤单） |
+| 用户规模 | 局域网 / 小团队多用户 |
+| 前端技术栈 | Vue 3 + Vite + TypeScript + Element Plus + ECharts |
+| 后端技术栈 | FastAPI + Uvicorn，进程内 headless 启动 **vnpy**（非自研引擎） |
+| 数据存储 | ClickHouse（时序/事件）+ SQLite（业务/配置）三层混合 |
+| 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
+| 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
+| 目录组织 | 功能域优先：`features/` + `core/` + `ui/` |
+| 运行入口 | `./start.sh`（单进程托管 API + 构建后的 SPA）；不要用 `main.py` 当产品 |
+
+## 设计文档
+
+| 文档 | 内容 |
+|---|---|
+| [01-架构与功能规划](docs/01-架构与功能规划.md) | 总体架构、技术栈、功能模块 |
+| [02-数据存储方案](docs/02-数据存储方案.md) | 三层存储、ClickHouse/SQLite 表结构、加密 |
+| [03-账户隔离与权限](docs/03-账户隔离与权限.md) | 多 gateway、用户级隔离、管理员 |
+| [04-WebSocket消息协议](docs/04-WebSocket消息协议.md) | 消息 envelope 与字段级 payload |
+| [05-前端方案与目录结构](docs/05-前端方案与目录结构.md) | 轻量化前端、功能域目录、依赖清单 |
+| [06-实施路线图](docs/06-实施路线图.md) | P0 / P1 可执行开发任务清单 |

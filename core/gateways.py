@@ -8,7 +8,7 @@ from vnpy.trader.engine import MainEngine
 from vnpy_ctp import CtpGateway
 
 from core.crypto import decrypt
-from mystabx.config.simnow import merge_connect_settings
+from mystabx.config.simnow import apply_simnow_auto_fronts, ctp_connect_payload, merge_connect_settings
 
 
 class AccountGatewayManager:
@@ -16,6 +16,7 @@ class AccountGatewayManager:
         self.me = main_engine
         self.index: dict[str, dict[str, Any]] = {}
         self.status: dict[str, str] = {}
+        self.front_info: dict[str, dict[str, Any]] = {}
 
     def load_all(self, rows: list[dict[str, Any]]) -> None:
         for acc in rows:
@@ -29,11 +30,14 @@ class AccountGatewayManager:
         self.index[name] = acc
         self.status.setdefault(name, "DISCONNECTED")
 
-    def connect(self, gateway_name: str) -> None:
+    def connect(self, gateway_name: str) -> dict[str, Any]:
         acc = self.index[gateway_name]
         setting = merge_connect_settings(decrypt(acc["connect_settings"]))
+        setting, meta = apply_simnow_auto_fronts(setting)
+        self.front_info[gateway_name] = meta
         self.status[gateway_name] = "CONNECTING"
-        self.me.connect(setting, gateway_name)
+        self.me.connect(ctp_connect_payload(setting), gateway_name)
+        return meta
 
     def disconnect(self, gateway_name: str) -> None:
         gateway = self.me.get_gateway(gateway_name)
@@ -45,6 +49,7 @@ class AccountGatewayManager:
         self.disconnect(gateway_name)
         self.index.pop(gateway_name, None)
         self.status.pop(gateway_name, None)
+        self.front_info.pop(gateway_name, None)
 
     def gateway_for_user(self, user_id: int) -> list[str]:
         return [gw for gw, acc in self.index.items() if acc["user_id"] == user_id]

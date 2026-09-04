@@ -117,19 +117,41 @@ function gatewayTone(gw: Record<string, unknown>) {
   return String(gw.conn_status) === "CONNECTED" ? "ok" : "muted";
 }
 
-const envOptions = computed(() =>
-  trade.gateways.map((gw) => {
+function preferGateway(current: Record<string, unknown> | undefined, next: Record<string, unknown>) {
+  if (!current) return next;
+  const curOk = String(current.conn_status) === "CONNECTED";
+  const nextOk = String(next.conn_status) === "CONNECTED";
+  if (nextOk && !curOk) return next;
+  if (nextOk === curOk && Number(next.id || 0) < Number(current.id || 0)) return next;
+  return current;
+}
+
+function gatewayDedupeKey(gw: Record<string, unknown>) {
+  const connect = (gw.connect || {}) as Record<string, unknown>;
+  const investor = String(connect["用户名"] || "").trim();
+  if (investor) return `uid:${investor}`;
+  const name = String(gw.account_name || "").trim() || String(gw.gateway_name || "");
+  return `user:${gw.user_id ?? ""}:${name}`;
+}
+
+const envOptions = computed(() => {
+  const unique = new Map<string, Record<string, unknown>>();
+  for (const gw of trade.gateways) {
+    unique.set(gatewayDedupeKey(gw), preferGateway(unique.get(gatewayDedupeKey(gw)), gw));
+  }
+  return [...unique.values()].map((gw) => {
     const key = String(gw.gateway_name || "");
     const short = String(gw.account_name || gw.gateway_name || "CTP");
+    const env = String(gw.front_label || "");
     return {
       key,
       short,
-      label: key || short,
+      label: env ? `${key} · ${env}` : key || short,
       kind: gatewayKind(gw),
       tone: gatewayTone(gw),
     };
-  }),
-);
+  });
+});
 
 const envOptionGroups = computed(() =>
   [
@@ -184,9 +206,12 @@ const metrics = computed(() => {
 });
 
 watch(
-  () => trade.gateways,
+  envOptions,
   (list) => {
-    if (!selectedGw.value && list[0]) selectedGw.value = String(list[0].gateway_name);
+    if (!list.length) return;
+    if (!selectedGw.value || !list.some((item) => item.key === selectedGw.value)) {
+      selectedGw.value = list[0].key;
+    }
   },
   { immediate: true },
 );
