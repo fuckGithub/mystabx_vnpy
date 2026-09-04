@@ -22,6 +22,7 @@ var/
 wheels/
 share/python-wheels/
 *.egg-info/
+*.egg-info
 .installed.cfg
 *.egg
 MANIFEST
@@ -128,6 +129,9 @@ atlassian-ide-plugin.xml
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
+
+# 本地编译的 CTP 源码（运行时也可能依赖其中的 framework）
+.deps/
 
 # vnpy 运行时数据
 .vntrader/

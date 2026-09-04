@@ -1,5 +1,21 @@
 [project]
-name = "mystabx-vnpy"
+name = "mystabx_vnpy"
 version = "0.1.0"
-requires-python = ">=3.9"
-dependencies = []
+description = "Mac personal trader UI on vnpy, SimNow first"
+requires-python = ">=3.10"
+dependencies = [
+    "vnpy>=4.0.0",
+    "pyside6>=6.8.2.1",
+    "qdarkstyle>=3.2.3",
+    "vnpy_ctastrategy",
+    "vnpy_ctabacktester",
+    "vnpy_datamanager",
+    "vnpy_chartwizard",
+    "vnpy-spreadtrading",
+    "vnpy_sqlite",
+]
+
+[tool.uv]
+# Mac: compile vnpy_ctp 6.7.7.2 from .deps (CTP has no 6.7.11 Mac API).
+#   uv pip install .deps/vnpy_ctp
+# Do not use pip install -e for vnpy_ctp.
