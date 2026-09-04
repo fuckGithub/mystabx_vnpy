@@ -6,11 +6,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from core.crypto import encrypt
+from core.crypto import decrypt, encrypt
 from core.db import Account, User, account_to_dict, get_session, hash_password, user_to_dict
 from core.deps import require_admin
 from core.runtime import runtime
-from mystabx.config.simnow import SIMNOW_CONNECT_DEFAULTS
+from mystabx.config.simnow import (
+    SIMNOW_24H,
+    SIMNOW_CONNECT_DEFAULTS,
+    SIMNOW_SESSION,
+    merge_connect_settings,
+    public_connect_settings,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -27,6 +33,37 @@ class AccountCreate(BaseModel):
     account_name: str | None = None
     gateway_type: str = "CTP"
     connect_settings: dict = Field(default_factory=dict)
+
+
+def _safe_decrypt(ciphertext: str) -> dict:
+    try:
+        raw = decrypt(ciphertext)
+    except Exception:
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _account_admin_row(account: Account) -> dict:
+    row = account_to_dict(account)
+    stored = _safe_decrypt(account.connect_settings)
+    row["connect"] = public_connect_settings(merge_connect_settings(stored))
+    row["conn_status"] = runtime.gw.status.get(account.gateway_name, "DISCONNECTED")
+    return row
+
+
+@router.get("/connect-defaults")
+def connect_defaults(_: User = Depends(require_admin)) -> dict:
+    return {
+        "defaults": dict(SIMNOW_CONNECT_DEFAULTS),
+        "environments": {
+            "session": {"label": "交易时段", **SIMNOW_SESSION},
+            "24h": {"label": "7×24", **SIMNOW_24H},
+        },
+        "interface": {
+            "柜台环境": "实盘",
+            "note": "本机仅打包实盘 CTP API，SimNow 走生产前置。",
+        },
+    }
 
 
 @router.get("/users")
@@ -63,10 +100,7 @@ def create_user(body: UserCreate, _: User = Depends(require_admin)) -> dict:
 def list_accounts(_: User = Depends(require_admin)) -> list[dict]:
     db = get_session()
     try:
-        rows = [account_to_dict(a) for a in db.scalars(select(Account))]
-        for row in rows:
-            row["conn_status"] = runtime.gw.status.get(row["gateway_name"], "DISCONNECTED")
-        return rows
+        return [_account_admin_row(a) for a in db.scalars(select(Account))]
     finally:
         db.close()
 
@@ -78,8 +112,7 @@ def create_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
         owner = db.get(User, body.user_id)
         if owner is None:
             raise HTTPException(status_code=404, detail="user not found")
-        setting = dict(SIMNOW_CONNECT_DEFAULTS)
-        setting.update(body.connect_settings)
+        setting = merge_connect_settings(body.connect_settings)
         acc = Account(
             user_id=body.user_id,
             gateway_name="pending",
@@ -94,6 +127,6 @@ def create_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
         db.commit()
         db.refresh(acc)
         runtime.gw.register(account_to_dict(acc, include_secrets=True))
-        return account_to_dict(acc)
+        return _account_admin_row(acc)
     finally:
         db.close()

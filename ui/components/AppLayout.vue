@@ -7,7 +7,6 @@
         </div>
         <el-menu
           class="layout-nav-menu-horizontal"
-          :key="activeTopPath"
           :default-active="activeTopPath"
           router
           mode="horizontal"
@@ -48,7 +47,7 @@
       <el-aside v-if="showSidebar" class="layout-aside" width="208px">
         <el-menu
           class="layout-aside-menu"
-          :key="activeSidebarPath"
+          :key="currentModule || 'none'"
           :default-active="activeSidebarPath"
           router
         >

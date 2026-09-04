@@ -65,6 +65,27 @@
   color: var(--next-text-color);
 }
 
+.page-form-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--next-text-color-secondary, #909399);
+}
+
+.page-form-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--next-text-color-secondary, #909399);
+}
+
+.page-form-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--next-text-color-secondary, #909399);
+}
+
 .page-grid {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr);

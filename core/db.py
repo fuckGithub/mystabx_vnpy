@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import ForeignKey, Integer, String, create_engine, select
+from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session as SASession, mapped_column, sessionmaker
 
@@ -36,6 +36,7 @@ class User(Base):
 
 class Account(Base):
     __tablename__ = "accounts"
+    __table_args__ = (UniqueConstraint("user_id", "account_name", name="uq_accounts_user_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
@@ -113,7 +114,29 @@ def init_db() -> None:
         conn.exec_driver_sql("PRAGMA journal_mode=WAL")
     SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
     Base.metadata.create_all(_engine)
+    _ensure_account_name_unique()
     _bootstrap_admin()
+
+
+def _ensure_account_name_unique() -> None:
+    """Add (user_id, account_name) unique index when the table has no leftover dupes."""
+    if _engine is None:
+        return
+    with _engine.begin() as conn:
+        dupes = conn.exec_driver_sql(
+            """
+            SELECT 1 FROM accounts
+            GROUP BY user_id, COALESCE(account_name, '')
+            HAVING COUNT(*) > 1
+            LIMIT 1
+            """
+        ).fetchone()
+        if dupes:
+            return
+        conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_user_name "
+            "ON accounts (user_id, account_name)"
+        )
 
 
 def get_session() -> SASession:
@@ -181,4 +204,44 @@ def account_to_dict(account: Account, *, include_secrets: bool = False) -> dict[
     }
     if include_secrets:
         data["connect_settings"] = account.connect_settings
+    return data
+
+
+def account_channel_dict(
+    account: Account,
+    *,
+    conn_status: str = "DISCONNECTED",
+    front_info: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Public channel row: never includes 密码."""
+    from core.crypto import decrypt
+    from mystabx.config.simnow import (
+        apply_simnow_auto_fronts,
+        auto_front_enabled,
+        merge_connect_settings,
+        public_connect_settings,
+    )
+
+    data = account_to_dict(account)
+    try:
+        stored = decrypt(account.connect_settings)
+    except Exception:
+        stored = {}
+    if not isinstance(stored, dict):
+        stored = {}
+    merged = merge_connect_settings(stored)
+    data["connect"] = public_connect_settings(merged)
+    data["auto_front"] = auto_front_enabled(merged)
+    data["conn_status"] = conn_status
+    if front_info:
+        data["front_env"] = front_info.get("front_env")
+        data["front_label"] = front_info.get("front_label")
+        data["交易服务器"] = front_info.get("交易服务器")
+        data["行情服务器"] = front_info.get("行情服务器")
+    else:
+        _resolved, meta = apply_simnow_auto_fronts(merged)
+        data["front_env"] = meta["front_env"]
+        data["front_label"] = meta["front_label"]
+        data["交易服务器"] = meta.get("交易服务器")
+        data["行情服务器"] = meta.get("行情服务器")
     return data

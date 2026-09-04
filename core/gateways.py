@@ -8,7 +8,7 @@ from vnpy.trader.engine import MainEngine
 from vnpy_ctp import CtpGateway
 
 from core.crypto import decrypt
-from mystabx.config.simnow import SIMNOW_CONNECT_DEFAULTS
+from mystabx.config.simnow import merge_connect_settings
 
 
 class AccountGatewayManager:
@@ -31,8 +31,7 @@ class AccountGatewayManager:
 
     def connect(self, gateway_name: str) -> None:
         acc = self.index[gateway_name]
-        setting = dict(SIMNOW_CONNECT_DEFAULTS)
-        setting.update(decrypt(acc["connect_settings"]))
+        setting = merge_connect_settings(decrypt(acc["connect_settings"]))
         self.status[gateway_name] = "CONNECTING"
         self.me.connect(setting, gateway_name)
 
