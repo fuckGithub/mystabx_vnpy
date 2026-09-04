@@ -1,0 +1,78 @@
+/* Element Plus overrides from cumustabilis-portal src/theme/element.scss */
+
+.el-button:not(.el-button--text):not(.is-text):not(.is-link) {
+  transition: all var(--transition-base) var(--transition-function);
+  border-radius: var(--border-radius-md);
+}
+
+.el-button:not(.el-button--text):not(.is-text):not(.is-link):hover:not(.is-disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.el-button--primary:not(.is-plain) {
+  box-shadow: 0 2px 4px rgba(64, 158, 255, 0.2);
+}
+
+.el-button--primary:not(.is-plain):hover:not(.is-disabled) {
+  box-shadow: 0 4px 8px rgba(64, 158, 255, 0.3);
+}
+
+.el-button.is-link,
+.el-button.is-text,
+.el-button--text {
+  box-shadow: none;
+  transform: none;
+}
+
+.el-input {
+  --el-input-border-radius: var(--border-radius-md);
+}
+
+.el-input__wrapper {
+  transition: all var(--transition-base) var(--transition-function);
+  border-radius: var(--border-radius-md);
+}
+
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px rgba(64, 158, 255, 0.1);
+}
+
+.el-select .el-select__wrapper {
+  border-radius: var(--border-radius-md);
+}
+
+.el-table {
+  --el-table-border-color: var(--next-border-color-light, #e2e8f0);
+  --el-table-header-bg-color: #fafafa;
+  --el-table-header-text-color: var(--next-text-color);
+  --el-table-row-hover-bg-color: #f8fafc;
+  color: var(--next-text-color);
+}
+
+.el-table th.el-table__cell {
+  background-color: var(--el-table-header-bg-color, #fafafa) !important;
+  font-weight: 600;
+  color: var(--el-table-header-text-color, var(--next-text-color));
+}
+
+.el-table .el-button.is-text,
+.el-table .el-button.is-link,
+.el-table .el-button--text {
+  padding: 5px 10px;
+  height: auto;
+  border-radius: var(--border-radius-sm);
+}
+
+.el-form-item:last-of-type {
+  margin-bottom: 0 !important;
+}
+
+.el-form--inline .el-form-item {
+  margin-right: 8px;
+  margin-bottom: 0;
+}
+
+.el-empty__description {
+  color: var(--next-text-color-secondary);
+}

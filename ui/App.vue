@@ -1,15 +1,9 @@
 <template>
-  <router-view />
+  <el-config-provider :locale="zhCn">
+    <router-view />
+  </el-config-provider>
 </template>
 
-<style>
-html,
-body,
-#app {
-  margin: 0;
-  height: 100%;
-  font-family: "PingFang SC", "Helvetica Neue", sans-serif;
-  background: #0f1419;
-  color: #e8edf2;
-}
-</style>
+<script setup lang="ts">
+import zhCn from "element-plus/es/locale/lang/zh-cn";
+</script>

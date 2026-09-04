@@ -1,0 +1,106 @@
+/* Theme tokens adapted from cumustabilis-portal src/theme/app.scss */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  outline: none !important;
+}
+
+:root {
+  --layout-page-gap: 12px;
+  --layout-topbar-height: 50px;
+
+  --transition-fast: 150ms;
+  --transition-base: 200ms;
+  --transition-slow: 300ms;
+  --transition-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --next-color-white: #ffffff;
+  --next-color-black: #000000;
+  --next-text-color: #1e293b;
+  --next-text-color-regular: #64748b;
+  --next-text-color-secondary: #94a3b8;
+  --next-text-color-placeholder: #cbd5e1;
+
+  --next-bg-main-color: #f8fafc;
+  --admin-bg-page: var(--next-bg-main-color);
+  --next-bg-color: #ffffff;
+  --next-bg-color-page: #f1f5f9;
+  --next-bg-color-overlay: rgba(0, 0, 0, 0.5);
+
+  --next-border-color: #e2e8f0;
+  --next-border-color-light: #e2e8f0;
+  --next-border-color-lighter: #f1f5f9;
+  --next-border-color-extra-light: #f8fafc;
+
+  --border-radius-sm: 4px;
+  --border-radius-md: 6px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  --border-radius-full: 9999px;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+
+  --next-color-primary-lighter: #ecf5ff;
+  --next-color-primary-light: #a0cfff;
+  --next-color-success-lighter: #f0f9ff;
+  --next-color-warning-lighter: #fef5e7;
+  --next-color-danger-lighter: #fef0f0;
+  --next-color-menu-hover: #f8fafc;
+  --next-color-user-hover: rgba(255, 255, 255, 0.12);
+  --next-color-hover-bg: rgba(0, 0, 0, 0.02);
+
+  --next-bg-topBar: #2e5cf6;
+  --next-bg-topBarColor: #ffffff;
+  --next-bg-menuBar: #ffffff;
+  --next-bg-menuBarColor: #475569;
+  --next-bg-menuBarActiveColor: #eff6ff;
+
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #69b1ff;
+  --el-color-primary-light-5: #91caff;
+  --el-color-primary-light-7: #bae0ff;
+  --el-color-primary-light-8: #d6eaff;
+  --el-color-primary-light-9: #e6f4ff;
+  --el-color-primary-dark-2: #0958d9;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  background-color: var(--next-bg-main-color);
+  font-size: 14px;
+  overflow: hidden;
+  position: relative;
+  color: var(--next-text-color);
+}
+
+.h100 {
+  height: 100%;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-auto {
+  flex: 1;
+  overflow: hidden;
+}
+
+.w-full {
+  width: 100%;
+}

@@ -65,6 +65,80 @@ EOF
   esac
 done
 
+# 仅处理 STABX_PORT 上的 LISTEN 占用，释放后才能绑定。不碰其它端口。
+_listen_pids_on_port() {
+  local port="$1"
+  if ! command -v lsof >/dev/null 2>&1; then
+    return 0
+  fi
+  lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | awk 'NF && !seen[$1]++' || true
+}
+
+_pid_command() {
+  local pid="$1"
+  ps -p "${pid}" -o args= 2>/dev/null || ps -p "${pid}" -o command= 2>/dev/null || echo "(unknown)"
+}
+
+_skip_own_pid() {
+  local pid="$1"
+  [[ "${pid}" == "1" || "${pid}" == "$$" || "${pid}" == "${PPID}" ]]
+}
+
+free_stabx_listen_port() {
+  local port="$1"
+  local pid cmd leftover retries
+
+  if ! command -v lsof >/dev/null 2>&1; then
+    echo "未找到 lsof，跳过端口 ${port} 占用检查" >&2
+    return 0
+  fi
+
+  leftover="$(_listen_pids_on_port "${port}")"
+  if [[ -z "${leftover}" ]]; then
+    return 0
+  fi
+
+  while read -r pid; do
+    [[ -z "${pid}" ]] && continue
+    if _skip_own_pid "${pid}"; then
+      continue
+    fi
+    cmd="$(_pid_command "${pid}")"
+    echo "端口 ${port} 已被占用：PID ${pid}  ${cmd}"
+    if echo "${cmd}" | grep -Eqi 'uvicorn|python[[:space:]].*core\.main:app|[[:space:]]start\.sh([[:space:]]|$)'; then
+      echo "正在停止本项目先前的服务进程 ${pid} ..."
+    else
+      echo "占用者不是 uvicorn/python，但仍将释放 STABX_PORT=${port} 上的监听进程 ${pid}"
+    fi
+    kill "${pid}" 2>/dev/null || true
+  done <<< "${leftover}"
+
+  retries=20
+  while [[ "${retries}" -gt 0 ]]; do
+    leftover="$(_listen_pids_on_port "${port}")"
+    if [[ -z "${leftover}" ]]; then
+      echo "端口 ${port} 已释放，继续启动"
+      return 0
+    fi
+    if [[ "${retries}" -le 10 ]]; then
+      while read -r pid; do
+        [[ -z "${pid}" ]] && continue
+        if _skip_own_pid "${pid}"; then
+          continue
+        fi
+        echo "进程 ${pid} 仍占用端口 ${port}，发送 SIGKILL"
+        kill -9 "${pid}" 2>/dev/null || true
+      done <<< "${leftover}"
+    fi
+    sleep 0.25
+    retries=$((retries - 1))
+  done
+
+  echo "端口 ${port} 仍被占用，无法启动：" >&2
+  lsof -nP -iTCP:"${port}" -sTCP:LISTEN >&2 || true
+  exit 1
+}
+
 ensure_node_modules() {
   if [[ ! -d "${ROOT}/node_modules" ]]; then
     echo "未找到 node_modules，正在 npm install ..."
@@ -90,6 +164,7 @@ if [[ "${MODE}" == "dev" ]]; then
     fi
   }
   trap cleanup EXIT INT TERM
+  free_stabx_listen_port "${PORT}"
   "${PY}" -m uvicorn core.main:app --reload --host "${HOST}" --port "${PORT}" &
   UVICORN_PID=$!
   npm run dev &
@@ -123,4 +198,5 @@ fi
 
 echo "生产模式：单进程托管 API + SPA  →  http://${HOST}:${PORT}"
 echo "提示：不要使用 uvicorn --workers，vnpy MainEngine 必须单进程。"
+free_stabx_listen_port "${PORT}"
 exec "${PY}" -m uvicorn core.main:app --host "${HOST}" --port "${PORT}"

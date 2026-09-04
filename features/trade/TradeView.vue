@@ -1,11 +1,11 @@
 <template>
-  <el-row :gutter="16">
-    <el-col :span="8">
-      <h3>下单</h3>
+  <div class="page-shell page-grid">
+    <div class="page-panel">
+      <h3 class="page-section-title">下单</h3>
       <OrderTicket :gateways="trade.gateways" />
-    </el-col>
-    <el-col :span="16">
-      <h3>活动委托</h3>
+    </div>
+    <div class="page-panel">
+      <h3 class="page-section-title">活动委托</h3>
       <el-table :data="trade.orders" height="420">
         <el-table-column prop="symbol" label="合约" width="100" />
         <el-table-column prop="direction" label="方向" width="80" />
@@ -16,14 +16,14 @@
         <el-table-column label="状态" width="120">
           <template #default="{ row }"><StatusTag :text="String(row.status || '')" /></template>
         </el-table-column>
-        <el-table-column label="操作" width="80">
+        <el-table-column label="操作" width="90" class-name="table-action-col">
           <template #default="{ row }">
             <el-button text type="danger" @click="cancel(row)">撤单</el-button>
           </template>
         </el-table-column>
       </el-table>
-    </el-col>
-  </el-row>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -43,7 +43,3 @@ async function cancel(row: Record<string, unknown>) {
   ElMessage.success("撤单已发送");
 }
 </script>
-
-<style scoped>
-h3 { margin: 0 0 12px; font-size: 14px; color: #c9d4de; }
-</style>

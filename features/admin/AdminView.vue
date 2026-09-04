@@ -1,27 +1,31 @@
 <template>
-  <el-row :gutter="16">
-    <el-col :span="10">
-      <h3>新建用户</h3>
+  <div class="page-shell page-grid">
+    <div class="page-panel">
+      <h3 class="page-section-title">新建用户</h3>
       <el-form label-width="80px">
         <el-form-item label="用户名"><el-input v-model="userForm.username" /></el-form-item>
-        <el-form-item label="密码"><el-input v-model="userForm.password" type="password" /></el-form-item>
+        <el-form-item label="密码"><el-input v-model="userForm.password" type="password" show-password /></el-form-item>
         <el-form-item label="管理员"><el-switch v-model="userForm.is_admin" /></el-form-item>
-        <el-button type="primary" @click="createUser">创建</el-button>
+        <el-form-item>
+          <el-button type="primary" @click="createUser">创建</el-button>
+        </el-form-item>
       </el-form>
       <el-table :data="users" style="margin-top: 16px">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="username" label="用户" />
         <el-table-column prop="is_admin" label="管理员" />
       </el-table>
-    </el-col>
-    <el-col :span="14">
-      <h3>分配 CTP 账户</h3>
+    </div>
+    <div class="page-panel">
+      <h3 class="page-section-title">分配 CTP 账户</h3>
       <el-form label-width="90px">
         <el-form-item label="用户 ID"><el-input-number v-model="accForm.user_id" :min="1" /></el-form-item>
         <el-form-item label="账户名"><el-input v-model="accForm.account_name" /></el-form-item>
         <el-form-item label="资金账号"><el-input v-model="accForm.userid" /></el-form-item>
-        <el-form-item label="密码"><el-input v-model="accForm.password" type="password" /></el-form-item>
-        <el-button type="primary" @click="createAccount">保存并加密</el-button>
+        <el-form-item label="密码"><el-input v-model="accForm.password" type="password" show-password /></el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="createAccount">保存并加密</el-button>
+        </el-form-item>
       </el-form>
       <el-table :data="accounts" style="margin-top: 16px">
         <el-table-column prop="gateway_name" label="网关" />
@@ -29,8 +33,8 @@
         <el-table-column prop="account_name" label="名称" />
         <el-table-column prop="conn_status" label="状态" />
       </el-table>
-    </el-col>
-  </el-row>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -70,7 +74,3 @@ async function createAccount() {
 
 onMounted(reload);
 </script>
-
-<style scoped>
-h3 { margin: 0 0 12px; font-size: 14px; color: #c9d4de; }
-</style>

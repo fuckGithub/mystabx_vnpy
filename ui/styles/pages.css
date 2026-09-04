@@ -1,0 +1,48 @@
+/* Inner pages: portal layout-padding-view list pattern */
+
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  gap: 0;
+}
+
+.page-query {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.page-section {
+  margin-top: 18px;
+}
+
+.page-section:first-child {
+  margin-top: 0;
+}
+
+.page-section-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--next-text-color);
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.page-panel {
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .page-grid {
+    grid-template-columns: 1fr;
+  }
+}
