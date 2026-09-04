@@ -1,6 +1,7 @@
 from mystabx.config.simnow import (
     AUTO_FRONT_WINDOWS,
     SIMNOW_24H,
+    SIMNOW_ACCOUNT_NAME,
     SIMNOW_CONNECT_DEFAULTS,
     SIMNOW_SESSION,
     apply_simnow_auto_fronts,
@@ -11,6 +12,7 @@ from mystabx.config.simnow import (
 
 __all__ = [
     "AUTO_FRONT_WINDOWS",
+    "SIMNOW_ACCOUNT_NAME",
     "SIMNOW_CONNECT_DEFAULTS",
     "SIMNOW_SESSION",
     "SIMNOW_24H",

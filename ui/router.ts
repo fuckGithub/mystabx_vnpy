@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "./stores";
 import LoginView from "../features/auth/LoginView.vue";
+import DisclaimerView from "../features/auth/DisclaimerView.vue";
 import WorkbenchView from "../features/workbench/index.vue";
 import MarketView from "../features/market/MarketView.vue";
 import TradeView from "../features/trade/TradeView.vue";
@@ -11,7 +12,8 @@ import AppLayout from "./components/AppLayout.vue";
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/login", component: LoginView },
+    { path: "/login", name: "login", component: LoginView },
+    { path: "/disclaimer", name: "disclaimer", component: DisclaimerView, meta: { public: true } },
     {
       path: "/",
       component: AppLayout,
@@ -36,7 +38,7 @@ router.beforeEach(async (to) => {
   if (!auth.ready) {
     await auth.hydrate();
   }
-  if (to.path !== "/login" && !auth.isLogin) {
+  if (!to.meta.public && to.path !== "/login" && !auth.isLogin) {
     return "/login";
   }
   if (to.path === "/login" && auth.isLogin) {

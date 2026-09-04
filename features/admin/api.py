@@ -18,9 +18,11 @@ from core.db import (
 )
 from core.deps import require_admin
 from core.runtime import runtime
+from core.config import settings
 from mystabx.config.simnow import (
     AUTO_FRONT_WINDOWS,
     SIMNOW_24H,
+    SIMNOW_ACCOUNT_NAME,
     SIMNOW_CONNECT_DEFAULTS,
     SIMNOW_SESSION,
     merge_connect_settings,
@@ -91,8 +93,14 @@ def _merge_update(stored: dict, incoming: dict) -> dict:
 @router.get("/connect-defaults")
 def connect_defaults(_: User = Depends(require_admin)) -> dict:
     auto = simnow_fronts_for_now()
+    defaults = dict(SIMNOW_CONNECT_DEFAULTS)
+    defaults["账户名"] = SIMNOW_ACCOUNT_NAME
+    if settings.simnow_user:
+        defaults["用户名"] = settings.simnow_user
+    if settings.simnow_password:
+        defaults["密码"] = settings.simnow_password
     return {
-        "defaults": dict(SIMNOW_CONNECT_DEFAULTS),
+        "defaults": defaults,
         "environments": {
             "session": {"label": "交易时段", **SIMNOW_SESSION},
             "24h": {"label": "7×24", **SIMNOW_24H},
@@ -187,6 +195,22 @@ def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
         db.refresh(acc)
         runtime.gw.register(account_to_dict(acc, include_secrets=True))
         return _channel_row(acc)
+    finally:
+        db.close()
+
+
+@router.post("/accounts/{account_id}/test-connect")
+def test_account_connect(account_id: int, _: User = Depends(require_admin)) -> dict:
+    db = get_session()
+    try:
+        acc = db.get(Account, account_id)
+        if acc is None:
+            raise HTTPException(status_code=404, detail="account not found")
+        runtime.gw.register(account_to_dict(acc, include_secrets=True))
+        try:
+            return runtime.gw.test_connect(acc.gateway_name)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="gateway not registered") from None
     finally:
         db.close()
 

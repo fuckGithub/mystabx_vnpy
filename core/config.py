@@ -12,6 +12,33 @@ from mystabx.paths import PROJECT_ROOT, TRADER_FOLDER
 KEYS_FILE = TRADER_FOLDER / "web_keys.json"
 
 
+def _load_dotenv() -> None:
+    """Load repo-root .env without overriding already-exported vars."""
+    path = PROJECT_ROOT / ".env"
+    if not path.is_file():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
+
+
 def _load_or_create_keys() -> dict[str, str]:
     TRADER_FOLDER.mkdir(parents=True, exist_ok=True)
     if KEYS_FILE.exists():
@@ -50,6 +77,8 @@ class Settings:
         self.fernet_key = os.environ.get("STABX_FERNET_KEY", keys["fernet_key"])
         self.admin_username = os.environ.get("STABX_ADMIN_USERNAME", "admin")
         self.admin_password = os.environ.get("STABX_ADMIN_PASSWORD", "admin123")
+        self.simnow_user = os.environ.get("STABX_SIMNOW_USER", "").strip()
+        self.simnow_password = os.environ.get("STABX_SIMNOW_PASSWORD", "").strip()
         self.clickhouse_url = os.environ.get("STABX_CLICKHOUSE_URL", "http://127.0.0.1:8123")
         self.host = os.environ.get("STABX_HOST", "0.0.0.0")
         self.port = int(os.environ.get("STABX_PORT", "8000"))

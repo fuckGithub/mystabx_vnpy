@@ -49,10 +49,11 @@
         <el-table-column label="状态">
           <template #default="{ row }"><StatusTag :text="String(row.conn_status || 'DISCONNECTED')" /></template>
         </el-table-column>
-        <el-table-column label="操作" width="200" class-name="table-action-col">
+        <el-table-column label="操作" width="280" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
               <el-button size="small" type="primary" @click="connect(row)">连接</el-button>
+              <el-button size="small" :loading="testingId === row.id" @click="testConnect(row)">测试联通</el-button>
               <el-button size="small" @click="disconnect(row)">断开</el-button>
             </span>
           </template>
@@ -63,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { http } from "@/api";
@@ -73,11 +74,27 @@ import StatusTag from "@/components/StatusTag.vue";
 const route = useRoute();
 const trade = useTradeStore();
 const section = computed(() => String(route.params.section || "gateways"));
+const testingId = ref<number | null>(null);
 
 async function connect(row: Record<string, unknown>) {
   await http.post(`/api/gateways/${row.id}/connect`);
   ElMessage.success(`正在连接 ${row.gateway_name}`);
   await trade.refresh();
+}
+
+async function testConnect(row: Record<string, unknown>) {
+  const id = Number(row.id);
+  testingId.value = id;
+  try {
+    const { data } = await http.post(`/api/gateways/${id}/test-connect`);
+    ElMessage[data.ok ? "success" : data.reachable ? "warning" : "error"](data.summary || "联通测试完成");
+    await trade.refresh();
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "联通测试失败");
+  } finally {
+    testingId.value = null;
+  }
 }
 
 async function disconnect(row: Record<string, unknown>) {

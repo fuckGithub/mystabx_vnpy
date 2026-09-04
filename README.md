@@ -4,7 +4,7 @@
 
 > 状态：**P0 骨架已落地**（FastAPI headless + Vue 交易台）。产品入口是 **Web**：`./start.sh`。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
-规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/06](docs/06-实施路线图.md)）。
+规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/07](docs/07-用户服务协议与免责声明.md)）。
 
 ## 后端与引擎归属
 
@@ -15,6 +15,15 @@
 **许可（事实说明，不构成法律意见）**：vn.py 与 vnpy_ctp 均为 MIT 许可（Copyright (c) 2015-present, Xiaoyou Chen）。使用或分发时须保留其版权与许可声明。本项目不主张对 vnpy 或其组件的所有权。完整原文见根目录 [NOTICE](NOTICE)、[THIRD_PARTY.md](THIRD_PARTY.md) 以及 [licenses/vnpy-LICENSE](licenses/vnpy-LICENSE)、[licenses/vnpy_ctp-LICENSE](licenses/vnpy_ctp-LICENSE)。本仓库未对本包装层另行声明许可证；包装层许可不覆盖、不替代 vnpy / vnpy_ctp 的许可。
 
 **柜台与接口**：CTP API 由上海期货信息技术有限公司（上期技术）提供，与 vnpy 项目相互独立。SimNow / CTP 账号凭证以及交易所、期货公司接口各有其使用条款，须自行遵守。
+
+## 免责声明
+
+本文为事实说明，**不构成法律意见**，亦不构成对 vn.py 官方或上期技术的背书。完整文本见 [docs/07-用户服务协议与免责声明.md](docs/07-用户服务协议与免责声明.md)；登录页可点击「免责声明」进入公开路由 `/disclaimer`（无需登录）。
+
+- 本项目基于 vn.py / vnpy_ctp，是 Web UI + FastAPI 托管层，**不构成**对 vn.py 官方或其作者、上期技术及其 CTP 接口的背书或官方支持。版权与 MIT 许可原文见 [NOTICE](NOTICE)、[licenses/](licenses/)。
+- 期货 / SimNow 交易有风险，可能导致本金损失。本软件**不提供投资建议**、不荐品种、不承诺收益；盈亏由使用者自行承担。
+- 开源按「现状（AS IS）」提供。作者不对盈亏、服务中断、指令延迟、数据错误或丢失负责，不保证持续可用。
+- CTP、SimNow、期货公司与交易所各有条款与规则，使用者须自行遵守。
 
 ## 项目定位
 
@@ -65,6 +74,7 @@
 | [04-WebSocket消息协议](docs/04-WebSocket消息协议.md) | 消息 envelope 与字段级 payload |
 | [05-前端方案与目录结构](docs/05-前端方案与目录结构.md) | 轻量化前端、功能域目录、依赖清单 |
 | [06-实施路线图](docs/06-实施路线图.md) | P0 / P1 可执行开发任务清单 |
+| [07-用户服务协议与免责声明](docs/07-用户服务协议与免责声明.md) | 免责声明全文（与 `/disclaimer` 一致） |
 
 ## 与桌面端的关系
 
@@ -172,7 +182,7 @@ cp .env.example .env
 
 3. **通道配置（SimNow 或实盘 CTP）**  
    **系统管理 → 通道配置 → 新增**，把通道分配给某个用户。表单字段包括资金账号、密码、经纪商代码、产品名称、授权编码。密码保存后加密；更新时留空表示不改密码。  
-   **不要把真实密码或资金账号写进 README、`.env` 或 git。**  
+   **不要把真实密码或资金账号写进 README、源码或 git。** 本机预填可写在已忽略的 `.env`（`STABX_SIMNOW_USER` / `STABX_SIMNOW_PASSWORD`）。
    SimNow 常见默认（与后台预填一致，公开前置）：经纪商 `9999`，产品名称 `simnow_client_test`，授权编码 `0000000000000000`，柜台环境 **实盘**。  
    实盘 CTP：填期货公司给的经纪商、前置、AppID / 授权编码；柜台环境同样是实盘 API。
 
@@ -205,6 +215,8 @@ cp .env.example .env
 | `STABX_PORT` | `8000` | 监听端口 |
 | `STABX_ADMIN_USERNAME` | `admin` | 首次引导管理员名 |
 | `STABX_ADMIN_PASSWORD` | `admin123` | 首次引导管理员密码（立刻改掉） |
+| `STABX_SIMNOW_USER` | （空） | 本机新建通道预填资金账号，只写 `.env` |
+| `STABX_SIMNOW_PASSWORD` | （空） | 本机新建通道预填密码，只写 `.env`，勿提交 |
 | `STABX_JWT_SECRET` | 自动生成 | JWT 密钥；缺省写入 `.vntrader/web_keys.json` |
 
 **产品（Web）**：`core/` + `features/` + `ui/`，`./start.sh` 一键起 FastAPI + Vue。**遗留（桌面）**：根目录 `main.py` + `mystabx/`（官方 MainWindow），保留但不作为入口。
@@ -233,3 +245,4 @@ cp .env.example .env
 | [04-WebSocket消息协议](docs/04-WebSocket消息协议.md) | 消息 envelope 与字段级 payload |
 | [05-前端方案与目录结构](docs/05-前端方案与目录结构.md) | 轻量化前端、功能域目录、依赖清单 |
 | [06-实施路线图](docs/06-实施路线图.md) | P0 / P1 可执行开发任务清单 |
+| [07-用户服务协议与免责声明](docs/07-用户服务协议与免责声明.md) | 免责声明全文（与 `/disclaimer` 一致） |

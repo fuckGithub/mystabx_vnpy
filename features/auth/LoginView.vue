@@ -86,6 +86,11 @@
                 </el-button>
               </el-form-item>
             </el-form>
+
+            <p class="disclaimer-entry">
+              <RouterLink :to="{ name: 'disclaimer' }" class="disclaimer-entry-link">免责声明</RouterLink>
+              <span class="disclaimer-entry-hint">交易有风险，软件不提供投资建议</span>
+            </p>
           </div>
         </div>
 
@@ -110,8 +115,9 @@
 
         <div class="form-bottom">
           <p class="legal">
-            登录即表示您同意平台服务条款与隐私政策。
-            <a href="https://www.vnpy.com" target="_blank" rel="noopener noreferrer" class="login-link">基于 vn.py</a>
+            登录即表示您已阅读并了解
+            <RouterLink :to="{ name: 'disclaimer' }" class="login-link">免责声明</RouterLink>。
+            本项目基于 vn.py，不构成投资建议。
           </p>
         </div>
       </div>

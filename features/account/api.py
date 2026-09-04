@@ -63,6 +63,24 @@ def connect_gateway(account_id: int, user: User = Depends(current_user)) -> dict
     return {"ok": True, "gateway_name": gateway_name, "status": "CONNECTING", **meta}
 
 
+@router.post("/api/gateways/{account_id}/test-connect")
+def test_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
+    row_id, gateway_name = _owned_account(user, account_id)
+    if gateway_name not in runtime.gw.index:
+        db = get_session()
+        try:
+            fresh = db.get(Account, row_id)
+            if fresh is None:
+                raise HTTPException(status_code=404, detail="account not found")
+            runtime.gw.register(account_to_dict(fresh, include_secrets=True))
+        finally:
+            db.close()
+    try:
+        return runtime.gw.test_connect(gateway_name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="gateway not registered") from None
+
+
 @router.post("/api/gateways/{account_id}/disconnect")
 def disconnect_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
     _row_id, gateway_name = _owned_account(user, account_id)

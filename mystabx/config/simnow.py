@@ -22,6 +22,8 @@ SIMNOW_24H = {
 # Keys match CtpGateway.default_setting (Chinese field names) plus 柜台环境.
 # This Mac vnpy_ctp build only ships the production API; SimNow uses that front.
 # connect() reads: 用户名/密码/经纪商代码/交易服务器/行情服务器/产品名称/授权编码.
+# Never put InvestorID or password here — those come from STABX_SIMNOW_* env.
+SIMNOW_ACCOUNT_NAME = "SimNow"
 SIMNOW_CONNECT_DEFAULTS: dict[str, str] = {
     "经纪商代码": "9999",
     "交易服务器": SIMNOW_SESSION["td"],
@@ -183,6 +185,38 @@ def _host_port(value: Any) -> tuple[str, str]:
         return text, ""
     host, port = text.rsplit(":", 1)
     return host.strip(), port.strip()
+
+
+def probe_tcp_front(address: str, timeout: float = 3.0) -> dict[str, Any]:
+    """TCP reachability of a CTP front `host:port`. Does not log in."""
+    import socket
+    import time
+
+    host, port = _host_port(address)
+    display = normalize_front(address) or str(address or "").strip()
+    if not host or not port:
+        return {"ok": False, "address": display, "error": "地址格式无效，需 host:port"}
+    try:
+        port_n = int(port)
+    except ValueError:
+        return {"ok": False, "address": display, "error": "端口无效"}
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    started = time.perf_counter()
+    try:
+        sock.connect((host, port_n))
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return {"ok": True, "address": f"{host}:{port_n}", "latency_ms": latency_ms}
+    except OSError as exc:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return {
+            "ok": False,
+            "address": f"{host}:{port_n}",
+            "latency_ms": latency_ms,
+            "error": str(exc) or "连接失败",
+        }
+    finally:
+        sock.close()
 
 
 def is_known_simnow_front(value: Any, *, role: str | None = None) -> bool:

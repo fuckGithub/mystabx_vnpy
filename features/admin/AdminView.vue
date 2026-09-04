@@ -56,10 +56,11 @@
             <StatusTag :text="String(row.conn_status || 'DISCONNECTED')" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140" class-name="table-action-col">
+        <el-table-column label="操作" width="200" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
               <el-button size="small" text @click="openEditAccount(row)">编辑</el-button>
+              <el-button size="small" text :loading="testingId === row.id" @click="testAccount(row.id)">测试</el-button>
               <el-button size="small" type="danger" text @click="removeAccount(row)">删除</el-button>
             </span>
           </template>
@@ -135,29 +136,29 @@
             </div>
           </el-form-item>
 
-          <div class="page-front-bar">
-            <div class="page-front-bar__title">
-              <span>前置</span>
-              <el-tag size="small" effect="plain" :type="accForm.manualFront ? 'warning' : 'info'">
-                {{ accForm.manualFront ? "手动指定" : `自动 · ${autoHint.label || "—"}` }}
-              </el-tag>
-              <el-tooltip placement="top" :show-after="200">
-                <template #content>
-                  <div class="page-dialog-tip">
-                    <p>
-                      当前按上海时间自动使用 <strong>{{ autoHint.label || "—" }}</strong>
-                      （{{ autoHint.交易服务器 }} / {{ autoHint.行情服务器 }}）。
-                    </p>
-                    <p>{{ autoHint.windows }}</p>
-                    <p>交易时段与 7×24 只换前置，不会新建通道。</p>
-                  </div>
-                </template>
-                <el-icon class="page-label-tip"><QuestionFilled /></el-icon>
-              </el-tooltip>
+          <div class="page-front-block">
+            <div class="page-front-bar">
+              <div class="page-front-bar__title">
+                <span>前置</span>
+                <el-tag size="small" effect="plain" :type="accForm.manualFront ? 'warning' : 'info'">
+                  {{ accForm.manualFront ? "手动指定" : `自动 · ${autoHint.label || "—"}` }}
+                </el-tag>
+              </div>
+              <div class="page-front-bar__switch">
+                <el-switch v-model="accForm.manualFront" :active-value="false" :inactive-value="true" />
+                <span>自动切换前置</span>
+              </div>
             </div>
-            <div class="page-front-bar__switch">
-              <el-switch v-model="accForm.manualFront" :active-value="false" :inactive-value="true" />
-              <span>自动切换前置</span>
+            <div v-if="!accForm.manualFront" class="page-front-hint">
+              <p>
+                当前按上海时间自动使用 <strong>{{ autoHint.label || "—" }}</strong>
+                （{{ autoHint.交易服务器 }} / {{ autoHint.行情服务器 }}）。
+              </p>
+              <p>{{ autoHint.windows }}</p>
+              <p>交易时段与 7×24 只换前置，不会新建通道。新账号连 7×24 可能要过若干个交易日才可用。</p>
+            </div>
+            <div v-else class="page-front-hint page-front-hint--manual">
+              已关闭自动切换。下方地址将固定使用，不再按交易时段 / 7×24 更换。
             </div>
           </div>
           <template v-if="accForm.manualFront">
@@ -168,11 +169,30 @@
               <el-input v-model="accForm.行情服务器" />
             </el-form-item>
           </template>
+          <el-alert
+            v-if="testResult"
+            class="page-connect-result"
+            :type="testResult.ok ? 'success' : testResult.reachable ? 'warning' : 'error'"
+            :title="testResult.summary"
+            :closable="false"
+            show-icon
+          >
+            <p>交易前置：{{ formatProbe(testResult.trade) }}</p>
+            <p>行情前置：{{ formatProbe(testResult.market) }}</p>
+            <p v-if="testResult.login?.message">{{ testResult.login.message }}</p>
+          </el-alert>
         </el-form>
         <template #footer>
           <div class="page-dialog-footer">
             <el-button @click="accVisible = false">取消</el-button>
-            <el-button type="primary" :loading="accSaving" @click="saveAccount">保存并加密</el-button>
+            <el-button
+              :disabled="!accForm.id"
+              :loading="accTesting"
+              @click="testAccount(accForm.id)"
+            >
+              测试联通
+            </el-button>
+            <el-button type="primary" :loading="accSaving" :disabled="accTesting" @click="saveAccount">保存并加密</el-button>
           </div>
         </template>
       </el-dialog>
@@ -267,6 +287,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, QuestionFilled, Refresh, Search } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import StatusTag from "@/components/StatusTag.vue";
+import { useAuthStore } from "@/stores";
 
 interface AdminUser {
   id: number;
@@ -287,6 +308,22 @@ interface AdminAccount {
   connect?: Record<string, string>;
 }
 
+interface FrontProbe {
+  ok?: boolean;
+  address?: string;
+  latency_ms?: number;
+  error?: string;
+}
+
+interface ConnectTestResult {
+  ok: boolean;
+  reachable?: boolean;
+  summary: string;
+  trade?: FrontProbe;
+  market?: FrontProbe;
+  login?: { message?: string; ok?: boolean; attempted?: boolean };
+}
+
 const FALLBACK_AUTO = {
   交易服务器: "182.254.243.31:30001",
   行情服务器: "182.254.243.31:30011",
@@ -295,7 +332,18 @@ const FALLBACK_AUTO = {
   windows: "交易时段 08:45–15:30（周一至周五）与夜盘 20:45–02:35；其余时间走 7×24。",
 };
 
+const FALLBACK_DEFAULTS = {
+  account_name: "SimNow",
+  用户名: "",
+  密码: "",
+  经纪商代码: "9999",
+  产品名称: "simnow_client_test",
+  授权编码: "0000000000000000",
+  柜台环境: "实盘",
+};
+
 const route = useRoute();
+const auth = useAuthStore();
 const section = computed(() => String(route.params.section || "users"));
 const users = ref<AdminUser[]>([]);
 const accounts = ref<AdminAccount[]>([]);
@@ -314,18 +362,22 @@ const accPage = ref(1);
 const accPageSize = ref(10);
 const accVisible = ref(false);
 const accSaving = ref(false);
+const accTesting = ref(false);
+const testingId = ref<number | null>(null);
+const testResult = ref<ConnectTestResult | null>(null);
 const autoHint = reactive({ ...FALLBACK_AUTO });
 const interfaceNote = ref("本机仅打包实盘 CTP API，SimNow 走生产前置。");
+const formDefaults = reactive({ ...FALLBACK_DEFAULTS });
 const accForm = reactive({
   id: null as number | null,
   user_id: 1,
-  account_name: "SimNow",
+  account_name: FALLBACK_DEFAULTS.account_name,
   用户名: "",
   密码: "",
-  经纪商代码: "9999",
-  产品名称: "simnow_client_test",
-  授权编码: "0000000000000000",
-  柜台环境: "实盘",
+  经纪商代码: FALLBACK_DEFAULTS.经纪商代码,
+  产品名称: FALLBACK_DEFAULTS.产品名称,
+  授权编码: FALLBACK_DEFAULTS.授权编码,
+  柜台环境: FALLBACK_DEFAULTS.柜台环境,
   交易服务器: FALLBACK_AUTO.交易服务器,
   行情服务器: FALLBACK_AUTO.行情服务器,
   manualFront: false,
@@ -415,19 +467,31 @@ function resetUserForm() {
   userForm.is_admin = false;
 }
 
-function resetAccForm() {
+function currentAdminUserId() {
+  const me = Number(auth.user?.id);
+  if (me && users.value.some((item) => item.id === me)) return me;
+  const admin = users.value.find((item) => item.is_admin);
+  return admin?.id || users.value[0]?.id || 1;
+}
+
+function applyCreateDefaults() {
   accForm.id = null;
-  accForm.user_id = users.value[0]?.id || 1;
-  accForm.account_name = "SimNow";
-  accForm.用户名 = "";
-  accForm.密码 = "";
-  accForm.经纪商代码 = "9999";
-  accForm.产品名称 = "simnow_client_test";
-  accForm.授权编码 = "0000000000000000";
-  accForm.柜台环境 = "实盘";
+  accForm.user_id = currentAdminUserId();
+  accForm.account_name = formDefaults.account_name || FALLBACK_DEFAULTS.account_name;
+  accForm.用户名 = formDefaults.用户名 || "";
+  accForm.密码 = formDefaults.密码 || "";
+  accForm.经纪商代码 = formDefaults.经纪商代码 || FALLBACK_DEFAULTS.经纪商代码;
+  accForm.产品名称 = formDefaults.产品名称 || FALLBACK_DEFAULTS.产品名称;
+  accForm.授权编码 = formDefaults.授权编码 || FALLBACK_DEFAULTS.授权编码;
+  accForm.柜台环境 = formDefaults.柜台环境 || FALLBACK_DEFAULTS.柜台环境;
   accForm.交易服务器 = autoHint.交易服务器;
   accForm.行情服务器 = autoHint.行情服务器;
   accForm.manualFront = false;
+  testResult.value = null;
+}
+
+function resetAccForm() {
+  applyCreateDefaults();
 }
 
 function openCreate() {
@@ -440,28 +504,28 @@ async function loadConnectDefaults() {
     const { data } = await http.get("/api/admin/connect-defaults");
     const defaults = data?.defaults || {};
     const auto = data?.auto || {};
-    if (defaults.经纪商代码) accForm.经纪商代码 = defaults.经纪商代码;
-    if (defaults.产品名称) accForm.产品名称 = defaults.产品名称;
-    if (defaults.授权编码) accForm.授权编码 = defaults.授权编码;
-    if (defaults.柜台环境) accForm.柜台环境 = defaults.柜台环境;
+    formDefaults.account_name = defaults.账户名 || FALLBACK_DEFAULTS.account_name;
+    formDefaults.用户名 = defaults.用户名 || "";
+    formDefaults.密码 = defaults.密码 || "";
+    formDefaults.经纪商代码 = defaults.经纪商代码 || FALLBACK_DEFAULTS.经纪商代码;
+    formDefaults.产品名称 = defaults.产品名称 || FALLBACK_DEFAULTS.产品名称;
+    formDefaults.授权编码 = defaults.授权编码 || FALLBACK_DEFAULTS.授权编码;
+    formDefaults.柜台环境 = defaults.柜台环境 || FALLBACK_DEFAULTS.柜台环境;
     autoHint.交易服务器 = auto.交易服务器 || FALLBACK_AUTO.交易服务器;
     autoHint.行情服务器 = auto.行情服务器 || FALLBACK_AUTO.行情服务器;
     autoHint.env = auto.env || FALLBACK_AUTO.env;
     autoHint.label = auto.label || FALLBACK_AUTO.label;
     autoHint.windows = auto.windows || FALLBACK_AUTO.windows;
     if (data?.interface?.note) interfaceNote.value = data.interface.note;
-    if (!accForm.manualFront) {
-      accForm.交易服务器 = autoHint.交易服务器;
-      accForm.行情服务器 = autoHint.行情服务器;
-    }
   } catch {
     Object.assign(autoHint, FALLBACK_AUTO);
+    Object.assign(formDefaults, FALLBACK_DEFAULTS);
   }
 }
 
 async function openCreateAccount() {
-  resetAccForm();
   await loadConnectDefaults();
+  applyCreateDefaults();
   accVisible.value = true;
 }
 
@@ -469,16 +533,17 @@ async function openEditAccount(row: AdminAccount) {
   await loadConnectDefaults();
   accForm.id = row.id;
   accForm.user_id = row.user_id;
-  accForm.account_name = row.account_name || "SimNow";
+  accForm.account_name = row.account_name || formDefaults.account_name;
   accForm.用户名 = connectField(row, "用户名");
   accForm.密码 = "";
-  accForm.经纪商代码 = connectField(row, "经纪商代码") || "9999";
-  accForm.产品名称 = connectField(row, "产品名称") || "simnow_client_test";
-  accForm.授权编码 = connectField(row, "授权编码") || "0000000000000000";
-  accForm.柜台环境 = connectField(row, "柜台环境") || "实盘";
+  accForm.经纪商代码 = connectField(row, "经纪商代码") || formDefaults.经纪商代码;
+  accForm.产品名称 = connectField(row, "产品名称") || formDefaults.产品名称;
+  accForm.授权编码 = connectField(row, "授权编码") || formDefaults.授权编码;
+  accForm.柜台环境 = connectField(row, "柜台环境") || formDefaults.柜台环境;
   accForm.交易服务器 = row["交易服务器"] || connectField(row, "交易服务器") || autoHint.交易服务器;
   accForm.行情服务器 = connectField(row, "行情服务器") || autoHint.行情服务器;
   accForm.manualFront = row.auto_front === false;
+  testResult.value = null;
   accVisible.value = true;
 }
 
@@ -516,6 +581,41 @@ async function createUser() {
   }
 }
 
+function apiError(error: unknown, fallback: string) {
+  const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+  return detail || fallback;
+}
+
+function formatProbe(probe?: FrontProbe) {
+  if (!probe) return "—";
+  const address = probe.address || "—";
+  if (probe.ok) return `${address} 通${probe.latency_ms != null ? `（${probe.latency_ms}ms）` : ""}`;
+  return `${address} 不通${probe.error ? ` · ${probe.error}` : ""}`;
+}
+
+async function testAccount(accountId: number | null, { notify = true } = {}) {
+  if (!accountId) {
+    ElMessage.warning("请先保存通道");
+    return null;
+  }
+  accTesting.value = true;
+  testingId.value = accountId;
+  try {
+    const { data } = await http.post<ConnectTestResult>(`/api/admin/accounts/${accountId}/test-connect`);
+    testResult.value = data;
+    if (notify) {
+      ElMessage[data.ok ? "success" : data.reachable ? "warning" : "error"](data.summary);
+    }
+    return data;
+  } catch (error: unknown) {
+    ElMessage.error(apiError(error, "联通测试失败"));
+    return null;
+  } finally {
+    accTesting.value = false;
+    testingId.value = null;
+  }
+}
+
 async function saveAccount() {
   if (!accForm.user_id || !accForm.用户名.trim()) {
     ElMessage.warning("请填写用户和资金账号");
@@ -547,19 +647,24 @@ async function saveAccount() {
       connect_settings.交易服务器 = accForm.交易服务器.trim();
       connect_settings.行情服务器 = accForm.行情服务器.trim();
     }
-    await http.post("/api/admin/accounts", {
+    const { data } = await http.post("/api/admin/accounts", {
       id: accForm.id || undefined,
       user_id: accForm.user_id,
       account_name: accForm.account_name.trim() || "SimNow",
       connect_settings,
     });
-    ElMessage.success(existed ? "通道已更新" : "账户已加密保存");
+    accForm.id = data.id;
     accForm.密码 = "";
-    accVisible.value = false;
+    ElMessage.success(existed ? "通道已更新，正在测试联通…" : "账户已加密保存，正在测试联通…");
     await reload();
+    await testAccount(data.id, { notify: false });
+    if (testResult.value?.ok) {
+      ElMessage.success(testResult.value.summary);
+    } else if (testResult.value) {
+      ElMessage.warning(testResult.value.summary);
+    }
   } catch (error: unknown) {
-    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-    ElMessage.error(detail || "保存失败");
+    ElMessage.error(apiError(error, "保存失败"));
   } finally {
     accSaving.value = false;
   }
@@ -591,5 +696,8 @@ watch(section, () => {
   void reload();
 });
 
-onMounted(reload);
+onMounted(() => {
+  void reload();
+  void loadConnectDefaults();
+});
 </script>

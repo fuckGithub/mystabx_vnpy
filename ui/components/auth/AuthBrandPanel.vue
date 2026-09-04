@@ -34,6 +34,8 @@
         <span class="brand-footer-divider" aria-hidden="true"></span>
         <span>行情 · 交易 · 风控</span>
         <span class="brand-footer-divider" aria-hidden="true"></span>
+        <RouterLink :to="{ name: 'disclaimer' }" class="brand-footer-link">免责声明</RouterLink>
+        <span class="brand-footer-divider" aria-hidden="true"></span>
         <a
           class="brand-footer-link"
           href="https://www.vnpy.com"
