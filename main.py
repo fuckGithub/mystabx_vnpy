@@ -1,4 +1,4 @@
-"""Stabx Trader entry. Start this yourself in PyCharm; the agent will not launch it."""
+"""Legacy Qt desktop (not the product). Use ./start.sh for the Vue web trader."""
 
 from __future__ import annotations
 
@@ -18,6 +18,10 @@ ensure_project_trader_dir()
 
 
 def main() -> None:
+    print(
+        "桌面 Qt 不是产品入口。请用 ./start.sh 启动 Web 交易台。",
+        file=sys.stderr,
+    )
     from vnpy.trader.ui import create_qapp
 
     from mystabx.trader import build_engines

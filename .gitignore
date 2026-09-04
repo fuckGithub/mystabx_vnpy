@@ -130,6 +130,13 @@ atlassian-ide-plugin.xml
 !.cursor/rules/
 !.cursor/rules/**
 
+# 前端构建（含 ui/node_modules 符号链接，供 IDE 在 Vite root 下解析依赖）
+node_modules/
+ui/node_modules
+dist/
+ui/auto-imports.d.ts
+ui/components.d.ts
+
 # 本地编译的 CTP 源码（运行时也可能依赖其中的 framework）
 .deps/
 

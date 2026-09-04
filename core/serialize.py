@@ -1,0 +1,150 @@
+"""vnpy objects → JSON envelope payloads (docs/04)."""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any
+
+SHANGHAI = timezone(timedelta(hours=8))
+
+_STATUS_OUT = {
+    "NOTTRADED": "NOT_TRADED",
+    "PARTTRADED": "PART_TRADED",
+    "ALLTRADED": "ALL_TRADED",
+}
+
+
+def dt_iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=SHANGHAI)
+    return value.isoformat(timespec="milliseconds")
+
+
+def enum_out(value: Any) -> str | None:
+    if value is None:
+        return None
+    name = value.name if isinstance(value, Enum) else str(value)
+    return _STATUS_OUT.get(name, name)
+
+
+def envelope(msg_type: str, data: dict) -> dict:
+    return {
+        "type": msg_type,
+        "ts": int(datetime.now(tz=SHANGHAI).timestamp() * 1000),
+        "data": data,
+    }
+
+
+def tick_payload(tick) -> dict:
+    return {
+        "symbol": tick.symbol,
+        "exchange": enum_out(tick.exchange),
+        "datetime": dt_iso(tick.datetime),
+        "name": tick.name,
+        "last_price": tick.last_price,
+        "last_volume": tick.last_volume,
+        "volume": tick.volume,
+        "turnover": tick.turnover,
+        "open_interest": tick.open_interest,
+        "open_price": tick.open_price,
+        "high_price": tick.high_price,
+        "low_price": tick.low_price,
+        "pre_close": tick.pre_close,
+        "limit_up": tick.limit_up,
+        "limit_down": tick.limit_down,
+        "bid_price_1": tick.bid_price_1,
+        "bid_volume_1": tick.bid_volume_1,
+        "ask_price_1": tick.ask_price_1,
+        "ask_volume_1": tick.ask_volume_1,
+        "bid_price_2": tick.bid_price_2,
+        "bid_volume_2": tick.bid_volume_2,
+        "ask_price_2": tick.ask_price_2,
+        "ask_volume_2": tick.ask_volume_2,
+        "gateway_name": tick.gateway_name,
+    }
+
+
+def order_payload(order) -> dict:
+    return {
+        "symbol": order.symbol,
+        "exchange": enum_out(order.exchange),
+        "orderid": order.orderid,
+        "vt_orderid": getattr(order, "vt_orderid", ""),
+        "type": enum_out(order.type),
+        "direction": enum_out(order.direction),
+        "offset": enum_out(order.offset),
+        "price": order.price,
+        "volume": order.volume,
+        "traded": order.traded,
+        "status": enum_out(order.status),
+        "datetime": dt_iso(order.datetime),
+        "reference": order.reference,
+        "gateway_name": order.gateway_name,
+    }
+
+
+def trade_payload(trade) -> dict:
+    return {
+        "symbol": trade.symbol,
+        "exchange": enum_out(trade.exchange),
+        "orderid": trade.orderid,
+        "tradeid": trade.tradeid,
+        "direction": enum_out(trade.direction),
+        "offset": enum_out(trade.offset),
+        "price": trade.price,
+        "volume": trade.volume,
+        "datetime": dt_iso(trade.datetime),
+        "gateway_name": trade.gateway_name,
+    }
+
+
+def position_payload(pos) -> dict:
+    return {
+        "symbol": pos.symbol,
+        "exchange": enum_out(pos.exchange),
+        "direction": enum_out(pos.direction),
+        "volume": pos.volume,
+        "frozen": pos.frozen,
+        "price": pos.price,
+        "pnl": pos.pnl,
+        "yd_volume": pos.yd_volume,
+        "gateway_name": pos.gateway_name,
+    }
+
+
+def account_payload(account) -> dict:
+    return {
+        "accountid": account.accountid,
+        "balance": account.balance,
+        "frozen": account.frozen,
+        "available": getattr(account, "available", account.balance - account.frozen),
+        "gateway_name": account.gateway_name,
+    }
+
+
+def contract_payload(contract) -> dict:
+    return {
+        "symbol": contract.symbol,
+        "exchange": enum_out(contract.exchange),
+        "name": contract.name,
+        "product": enum_out(getattr(contract, "product", None)),
+        "size": contract.size,
+        "pricetick": contract.pricetick,
+        "min_volume": contract.min_volume,
+        "gateway_name": contract.gateway_name,
+        "vt_symbol": getattr(contract, "vt_symbol", f"{contract.symbol}.{enum_out(contract.exchange)}"),
+    }
+
+
+def log_payload(log) -> dict:
+    level = getattr(log, "level", 20)
+    names = {10: "debug", 20: "info", 30: "warning", 40: "error", 50: "critical"}
+    return {
+        "level": names.get(int(level), str(level)),
+        "msg": log.msg,
+        "time": dt_iso(getattr(log, "time", None)),
+        "gateway_name": getattr(log, "gateway_name", "") or None,
+    }

@@ -25,3 +25,5 @@ if [[ ! -d "${DEPS}/vnpy_ctp/.git" ]]; then
 fi
 
 uv pip install "${DEPS}/vnpy_ctp"
+
+echo "依赖已就绪。产品入口是 Web：在仓库根目录执行 ./start.sh（不要用 main.py / Qt）。"

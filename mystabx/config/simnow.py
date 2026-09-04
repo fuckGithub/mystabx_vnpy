@@ -24,5 +24,4 @@ SIMNOW_CONNECT_DEFAULTS: dict[str, str] = {
 }
 
 CONNECT_FILENAME = "connect_ctp.json"
-PASSWORD_FIELDS = ("密码",)
 SECRET_FIELDS = ("用户名", "密码")
