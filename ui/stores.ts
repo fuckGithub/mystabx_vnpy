@@ -53,7 +53,13 @@ export const useMarketStore = defineStore("market", () => {
     return data;
   }
 
-  return { ticks, contracts, upsertTick, loadContracts };
+  async function loadTicks() {
+    const { data } = await http.get("/api/ticks");
+    for (const tick of data) upsertTick(tick);
+    return data;
+  }
+
+  return { ticks, contracts, upsertTick, loadContracts, loadTicks };
 });
 
 export const useTradeStore = defineStore("trade", () => {

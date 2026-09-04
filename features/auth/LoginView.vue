@@ -156,7 +156,7 @@ async function onSubmit() {
   try {
     await auth.login(form.username, form.password);
     ElMessage.success("欢迎回来！");
-    await router.push("/market");
+    await router.push("/workbench");
   } catch (error: unknown) {
     const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
     ElMessage.error(detail || "登录失败");

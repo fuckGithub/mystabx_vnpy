@@ -1,0 +1,104 @@
+<template>
+  <div class="env-wave" :class="[`env-wave--${tone}`, `env-wave--${size}`, { 'env-wave--live': ripple }]">
+    <template v-if="ripple">
+      <span class="env-wave__ripple" aria-hidden="true" />
+      <span class="env-wave__ripple env-wave__ripple--delay" aria-hidden="true" />
+    </template>
+    <span class="env-wave__dot" aria-hidden="true" />
+  </div>
+</template>
+
+<script setup lang="ts">
+withDefaults(
+  defineProps<{
+    tone?: string;
+    ripple?: boolean;
+    size?: "sm" | "md";
+  }>(),
+  { tone: "muted", ripple: false, size: "md" },
+);
+</script>
+
+<style scoped lang="scss">
+.env-wave {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  --env-wave-ripple-scale: 2.6;
+
+  &--sm {
+    width: 10px;
+    height: 10px;
+    --env-wave-ripple-scale: 1.65;
+  }
+
+  &__ripple {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    opacity: 0;
+    animation: env-wave-ripple 2.4s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+    pointer-events: none;
+
+    &--delay {
+      animation-delay: 1.2s;
+    }
+  }
+
+  &__dot {
+    position: relative;
+    z-index: 1;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &--sm &__dot {
+    width: 5px;
+    height: 5px;
+  }
+
+  &--ok {
+    color: var(--el-color-success);
+  }
+
+  &--bad {
+    color: var(--el-color-danger);
+  }
+
+  &--warn {
+    color: var(--el-color-warning);
+  }
+
+  &--muted {
+    color: var(--el-text-color-placeholder);
+  }
+
+  &--live .env-wave__dot {
+    box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent);
+  }
+
+  &--sm.env-wave--live .env-wave__dot {
+    box-shadow: 0 0 4px color-mix(in srgb, currentColor 45%, transparent);
+  }
+}
+
+@keyframes env-wave-ripple {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  70% {
+    opacity: 0.12;
+  }
+  100% {
+    transform: scale(var(--env-wave-ripple-scale, 2.6));
+    opacity: 0;
+  }
+}
+</style>

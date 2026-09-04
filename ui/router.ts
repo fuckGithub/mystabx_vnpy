@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "./stores";
 import LoginView from "../features/auth/LoginView.vue";
+import WorkbenchView from "../features/workbench/index.vue";
 import MarketView from "../features/market/MarketView.vue";
 import TradeView from "../features/trade/TradeView.vue";
 import AccountView from "../features/account/AccountView.vue";
@@ -15,7 +16,8 @@ const router = createRouter({
       path: "/",
       component: AppLayout,
       children: [
-        { path: "", redirect: "/market" },
+        { path: "", redirect: "/workbench" },
+        { path: "workbench", component: WorkbenchView },
         { path: "market", component: MarketView },
         { path: "trade", component: TradeView },
         { path: "account", component: AccountView },
@@ -34,10 +36,10 @@ router.beforeEach(async (to) => {
     return "/login";
   }
   if (to.path === "/login" && auth.isLogin) {
-    return "/market";
+    return "/workbench";
   }
   if (to.path === "/admin" && !auth.isAdmin) {
-    return "/market";
+    return "/workbench";
   }
   return true;
 });
