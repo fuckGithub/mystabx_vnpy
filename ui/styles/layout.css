@@ -1,4 +1,4 @@
-/* Layout shell: full-width top bar, no sidebar */
+/* Layout shell: full-width top bar; module pages keep a left function menu */
 
 .layout-container {
   width: 100%;
@@ -63,6 +63,7 @@
   border-bottom: none !important;
   background: transparent !important;
   align-items: center;
+  overflow: visible;
 }
 
 .layout-nav-menu-horizontal.el-menu--horizontal {
@@ -70,83 +71,149 @@
   align-items: center;
 }
 
+/* Tokens from portal src/theme/element.scss — 顶栏 50px / 胶囊 36px */
 .layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center;
   flex-shrink: 0;
   align-self: center;
   height: 36px !important;
   line-height: 36px !important;
   margin: 0 4px;
   padding: 0 14px !important;
-  border-radius: var(--border-radius-md);
+  border-radius: var(--border-radius-md, 6px);
   border-bottom: none !important;
   font-size: 14px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.88) !important;
   background: transparent !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
   box-sizing: border-box;
   overflow: visible;
-  transition: background-color 0.18s ease, color 0.18s ease;
+  transition: background-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
 }
 
 .layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item .el-icon,
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item .svg-icon,
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item i {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 20px !important;
+  height: 20px !important;
+  margin-right: 10px;
+  flex-shrink: 0;
+  font-size: 16px !important;
+  line-height: 1;
+  color: inherit !important;
+  opacity: 1;
+}
+
 .layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item svg {
   color: inherit !important;
-  margin-right: 6px;
-  font-size: 16px;
 }
 
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item:hover:not(.is-active) {
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item .nav-item-title {
+  position: relative;
+  display: inline-block;
+  font-weight: inherit;
+}
+
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item:hover:not(.is-active):not(.is-workbench-nav) {
   background: rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: none !important;
 }
 
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-active {
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-active:not(.is-workbench-nav) {
   background: rgba(255, 255, 255, 0.16) !important;
   color: #fff !important;
   font-weight: 600;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-active:hover {
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-active:not(.is-workbench-nav):hover {
   background: rgba(255, 255, 255, 0.2) !important;
-}
-
-/* 工作台：贴 logo 的主入口芯片，与其余四字菜单明显区分 */
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav {
-  position: relative;
-  height: 38px !important;
-  line-height: 38px !important;
-  margin: 0 22px 0 4px !important;
-  padding: 0 16px !important;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
   color: #fff !important;
-  background: rgba(255, 255, 255, 0.18) !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav::after {
+/*
+ * 工作台芯片 — portal horizontal.vue &.is-topbar-light-fg
+ * 宝蓝顶栏 + 白字：半透明白玻璃芯片 + 右侧竖分隔线 + hover/active 底边线
+ */
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav {
+  margin-right: 24px !important;
+  padding: 0 12px !important;
+  overflow: visible !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.95) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(3px) !important;
+  -webkit-backdrop-filter: blur(3px) !important;
+}
+
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav::before {
   content: "";
   position: absolute;
   right: -12px;
   top: 50%;
   transform: translateY(-50%);
   width: 1px;
-  height: 16px;
+  height: 14px;
   border-radius: 1px;
   background: rgba(255, 255, 255, 0.28);
   pointer-events: none;
+  z-index: 2;
 }
 
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav:hover,
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav.is-active,
-.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav.is-active:hover {
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav::after {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 5px;
+  height: 1px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, background-color 0.18s ease, left 0.18s ease, right 0.18s ease;
+}
+
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav:hover {
   color: #fff !important;
-  background: rgba(255, 255, 255, 0.24) !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+}
+
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav:hover::after {
+  opacity: 0.65;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav.is-active {
+  color: #fff !important;
+  font-weight: 600 !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+}
+
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav.is-active::after {
+  left: 12px;
+  right: 12px;
+  height: 1.5px;
+  opacity: 0.85;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.layout-nav-menu-horizontal.el-menu--horizontal > .el-menu-item.is-workbench-nav.is-active:hover {
+  background: rgba(255, 255, 255, 0.17) !important;
 }
 
 .layout-navbars-breadcrumb-actions {
@@ -156,6 +223,45 @@
   flex-shrink: 0;
   gap: 8px;
   color: var(--next-bg-topBarColor);
+}
+
+.layout-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.layout-aside {
+  background: var(--next-bg-menuBar, #ffffff);
+  border-right: 1px solid var(--next-border-color-light, #e2e8f0);
+  overflow: auto;
+}
+
+.layout-aside-menu {
+  border-right: none !important;
+  padding: 8px 8px 16px;
+}
+
+.layout-aside-menu .el-menu-item {
+  height: 40px;
+  line-height: 40px;
+  margin: 2px 0;
+  border-radius: var(--border-radius-md, 6px);
+  color: var(--next-bg-menuBarColor, #475569);
+}
+
+.layout-aside-menu .el-menu-item .el-icon {
+  color: inherit;
+}
+
+.layout-aside-menu .el-menu-item:hover {
+  background: var(--next-color-menu-hover, #f8fafc);
+}
+
+.layout-aside-menu .el-menu-item.is-active {
+  background: var(--next-bg-menuBarActiveColor, #eff6ff);
+  color: var(--el-color-primary, #1677ff);
+  font-weight: 600;
 }
 
 .layout-main {

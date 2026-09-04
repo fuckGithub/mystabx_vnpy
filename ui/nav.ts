@@ -1,0 +1,68 @@
+import type { Component } from "vue";
+import {
+  Box,
+  Connection,
+  DataLine,
+  Document,
+  EditPen,
+  HomeFilled,
+  List,
+  Notebook,
+  SetUp,
+  Setting,
+  Tickets,
+  TrendCharts,
+  User,
+  Wallet,
+} from "@element-plus/icons-vue";
+
+export type NavItem = {
+  path: string;
+  title: string;
+  icon: Component;
+  home?: boolean;
+  admin?: boolean;
+};
+
+export const topMenus: NavItem[] = [
+  { path: "/workbench", title: "工作台", icon: HomeFilled, home: true },
+  { path: "/market/quotes", title: "市场行情", icon: DataLine },
+  { path: "/trade/order", title: "交易下单", icon: Tickets },
+  { path: "/account/gateways", title: "资金持仓", icon: Wallet },
+  { path: "/admin/users", title: "系统管理", icon: Setting, admin: true },
+];
+
+export const sidebars: Record<string, NavItem[]> = {
+  market: [
+    { path: "/market/quotes", title: "行情列表", icon: List },
+    { path: "/market/ticks", title: "实时行情", icon: TrendCharts },
+  ],
+  trade: [
+    { path: "/trade/order", title: "下单面板", icon: EditPen },
+    { path: "/trade/orders", title: "委托列表", icon: Document },
+  ],
+  account: [
+    { path: "/account/gateways", title: "账户连接", icon: Connection },
+    { path: "/account/funds", title: "资金账户", icon: Wallet },
+    { path: "/account/positions", title: "持仓明细", icon: Box },
+    { path: "/account/trades", title: "成交记录", icon: Notebook },
+  ],
+  admin: [
+    { path: "/admin/users", title: "用户管理", icon: User },
+    { path: "/admin/accounts", title: "通道配置", icon: SetUp },
+  ],
+};
+
+export function moduleKeyFromPath(path: string): string {
+  if (path.startsWith("/market")) return "market";
+  if (path.startsWith("/trade")) return "trade";
+  if (path.startsWith("/account")) return "account";
+  if (path.startsWith("/admin")) return "admin";
+  return "";
+}
+
+export function topActivePath(path: string): string {
+  if (path === "/workbench" || path.startsWith("/workbench/")) return "/workbench";
+  const first = sidebars[moduleKeyFromPath(path)]?.[0];
+  return first?.path ?? path;
+}

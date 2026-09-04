@@ -18,10 +18,14 @@ const router = createRouter({
       children: [
         { path: "", redirect: "/workbench" },
         { path: "workbench", component: WorkbenchView },
-        { path: "market", component: MarketView },
-        { path: "trade", component: TradeView },
-        { path: "account", component: AccountView },
-        { path: "admin", component: AdminView },
+        { path: "market", redirect: "/market/quotes" },
+        { path: "market/:section", component: MarketView },
+        { path: "trade", redirect: "/trade/order" },
+        { path: "trade/:section", component: TradeView },
+        { path: "account", redirect: "/account/gateways" },
+        { path: "account/:section", component: AccountView },
+        { path: "admin", redirect: "/admin/users" },
+        { path: "admin/:section", component: AdminView },
       ],
     },
   ],
@@ -38,7 +42,7 @@ router.beforeEach(async (to) => {
   if (to.path === "/login" && auth.isLogin) {
     return "/workbench";
   }
-  if (to.path === "/admin" && !auth.isAdmin) {
+  if (to.path.startsWith("/admin") && !auth.isAdmin) {
     return "/workbench";
   }
   return true;

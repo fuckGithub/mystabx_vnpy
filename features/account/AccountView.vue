@@ -1,8 +1,43 @@
 <template>
   <div class="page-shell">
-    <div class="page-section">
+    <div v-if="section === 'funds'" class="page-section">
+      <h3 class="page-section-title">资金</h3>
+      <el-table :data="trade.funds" height="560">
+        <el-table-column prop="accountid" label="账号" />
+        <el-table-column prop="balance" label="权益" />
+        <el-table-column prop="frozen" label="冻结" />
+        <el-table-column prop="available" label="可用" />
+        <el-table-column prop="gateway_name" label="网关" />
+      </el-table>
+    </div>
+
+    <div v-else-if="section === 'positions'" class="page-section">
+      <h3 class="page-section-title">持仓</h3>
+      <el-table :data="trade.positions" height="560">
+        <el-table-column prop="symbol" label="合约" />
+        <el-table-column prop="direction" label="方向" />
+        <el-table-column prop="volume" label="数量" />
+        <el-table-column prop="price" label="均价" />
+        <el-table-column prop="pnl" label="浮盈" />
+        <el-table-column prop="gateway_name" label="网关" />
+      </el-table>
+    </div>
+
+    <div v-else-if="section === 'trades'" class="page-section">
+      <h3 class="page-section-title">成交</h3>
+      <el-table :data="trade.trades" height="560">
+        <el-table-column prop="symbol" label="合约" />
+        <el-table-column prop="direction" label="方向" />
+        <el-table-column prop="offset" label="开平" />
+        <el-table-column prop="price" label="价格" />
+        <el-table-column prop="volume" label="数量" />
+        <el-table-column prop="gateway_name" label="网关" />
+      </el-table>
+    </div>
+
+    <div v-else class="page-section">
       <h3 class="page-section-title">账户连接</h3>
-      <el-table :data="trade.gateways">
+      <el-table :data="trade.gateways" height="560">
         <el-table-column prop="gateway_name" label="网关" />
         <el-table-column prop="account_name" label="名称" />
         <el-table-column label="状态">
@@ -18,51 +53,20 @@
         </el-table-column>
       </el-table>
     </div>
-
-    <div class="page-section">
-      <h3 class="page-section-title">资金</h3>
-      <el-table :data="trade.funds">
-        <el-table-column prop="accountid" label="账号" />
-        <el-table-column prop="balance" label="权益" />
-        <el-table-column prop="frozen" label="冻结" />
-        <el-table-column prop="available" label="可用" />
-        <el-table-column prop="gateway_name" label="网关" />
-      </el-table>
-    </div>
-
-    <div class="page-section">
-      <h3 class="page-section-title">持仓</h3>
-      <el-table :data="trade.positions">
-        <el-table-column prop="symbol" label="合约" />
-        <el-table-column prop="direction" label="方向" />
-        <el-table-column prop="volume" label="数量" />
-        <el-table-column prop="price" label="均价" />
-        <el-table-column prop="pnl" label="浮盈" />
-        <el-table-column prop="gateway_name" label="网关" />
-      </el-table>
-    </div>
-
-    <div class="page-section">
-      <h3 class="page-section-title">成交</h3>
-      <el-table :data="trade.trades">
-        <el-table-column prop="symbol" label="合约" />
-        <el-table-column prop="direction" label="方向" />
-        <el-table-column prop="offset" label="开平" />
-        <el-table-column prop="price" label="价格" />
-        <el-table-column prop="volume" label="数量" />
-        <el-table-column prop="gateway_name" label="网关" />
-      </el-table>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
+import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { http } from "@/api";
 import { useTradeStore } from "@/stores";
 import StatusTag from "@/components/StatusTag.vue";
 
+const route = useRoute();
 const trade = useTradeStore();
+const section = computed(() => String(route.params.section || "gateways"));
 
 async function connect(row: Record<string, unknown>) {
   await http.post(`/api/gateways/${row.id}/connect`);

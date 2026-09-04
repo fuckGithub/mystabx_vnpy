@@ -64,6 +64,24 @@
   border-radius: var(--border-radius-sm);
 }
 
+.el-table th.table-action-col,
+.el-table td.table-action-col {
+  text-align: center;
+}
+
+.el-table .table-action-col .cell {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.table-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .el-form-item:last-of-type {
   margin-bottom: 0 !important;
 }
