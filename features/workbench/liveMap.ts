@@ -117,11 +117,13 @@ export function pickFunds(
   const exact = funds.filter((row) => String(row.gateway_name || "") === gatewayName);
   if (exact.length) return exact;
   const connect = (gatewayRow?.connect || {}) as Record<string, unknown>;
-  const investor = String(connect["用户名"] || "").trim();
+  const investor = String(connect["用户名"] || gatewayRow?.accountid || "").trim();
   if (investor) {
     const byInvestor = funds.filter((row) => String(row.accountid || "") === investor);
     if (byInvestor.length) return byInvestor;
   }
+  const byAccountId = funds.filter((row) => String(row.accountid || "") === gatewayName);
+  if (byAccountId.length) return byAccountId;
   return funds.length === 1 ? [...funds] : [];
 }
 

@@ -34,6 +34,8 @@ exclude = ["ui*", "vendor*", "licenses*", "node_modules*", "docs*", "scripts*"]
 [tool.uv]
 # Mac: compile vnpy_ctp 6.7.7.2 against SimNow official CTP v6.7.13
 #   ./scripts/install_macos.sh
+# Linux: compile vnpy_ctp 6.7.7.2 against Linux CTP .so (not Mac .framework)
+#   ./scripts/install_linux.sh
 # Do not use pip install -e for vnpy_ctp.
 
 [tool.pyright]

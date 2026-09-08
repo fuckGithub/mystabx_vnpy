@@ -13,7 +13,7 @@ function wsUrl(): string {
   return `${proto}://${location.host}/ws`;
 }
 
-function dispatch(msg: { type: string; data: Record<string, unknown> }) {
+export function dispatch(msg: { type: string; data: Record<string, unknown> }) {
   const market = useMarketStore();
   const trade = useTradeStore();
   if (msg.type === "tick") market.upsertTick(msg.data);
@@ -24,6 +24,16 @@ function dispatch(msg: { type: string; data: Record<string, unknown> }) {
   if (msg.type === "gateway") {
     const found = trade.upsertGateway(msg.data);
     if (!found) void trade.refresh();
+  }
+  if (msg.type === "snapshot") {
+    const gateways = Array.isArray(msg.data.gateways) ? msg.data.gateways : [];
+    const accounts = Array.isArray(msg.data.accounts) ? msg.data.accounts : [];
+    let missing = false;
+    for (const row of gateways) {
+      if (!trade.upsertGateway(row as Record<string, unknown>)) missing = true;
+    }
+    for (const row of accounts) trade.upsertFund(row as Record<string, unknown>);
+    if (missing) void trade.refresh();
   }
   listeners.forEach((fn) => fn(msg));
 }

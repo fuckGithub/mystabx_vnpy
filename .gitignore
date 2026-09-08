@@ -142,6 +142,7 @@ ui/components.d.ts
 
 # 上期技术 CTP 二进制（SimNow 官网下载，勿提交）
 vendor/simnow-ctp/macos/
+vendor/simnow-ctp/linux/
 vendor/simnow-ctp/**/*.zip
 
 # vnpy 运行时数据

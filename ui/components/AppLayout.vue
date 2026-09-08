@@ -81,11 +81,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ArrowDown, SwitchButton } from "@element-plus/icons-vue";
 import { useAuthStore, useMarketStore, useTradeStore } from "../stores";
 import { moduleKeyFromPath, sidebars, topActivePath, topMenus } from "../nav";
+import { connectSse, disconnectSse } from "../sse";
 import { connectWs, disconnectWs } from "../ws";
 import logoSrc from "@/assets/brand/logo-light.png";
 
@@ -112,11 +113,18 @@ const activeSidebarPath = computed(() => {
 onMounted(async () => {
   await Promise.all([trade.refresh(), market.loadTicks()]);
   connectWs();
+  connectSse();
+});
+
+onUnmounted(() => {
+  disconnectWs();
+  disconnectSse();
 });
 
 function onUserCommand(command: string) {
   if (command !== "logout") return;
   disconnectWs();
+  disconnectSse();
   auth.logout();
   router.push("/login");
 }

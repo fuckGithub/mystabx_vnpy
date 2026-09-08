@@ -14,7 +14,7 @@ from vnpy.trader.event import (
     EVENT_TRADE,
 )
 
-from core.gateways import AccountGatewayManager
+from core.gateways import EVENT_ENSURE_ACCOUNT, AccountGatewayManager
 from core.serialize import (
     account_payload,
     contract_payload,
@@ -62,6 +62,18 @@ def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> No
 
     def on_log(event: Event) -> None:
         publish_threadsafe(envelope("log", log_payload(event.data)))
+        msg = str(getattr(event.data, "msg", "") or "")
+        gw = _gateway_name(event.data)
+        if gw and "合约信息查询成功" in msg:
+            manager.start_account_sync(str(gw))
+            manager.request_account_query(str(gw))
+
+    def on_ensure_account(event: Event) -> None:
+        name = event.data
+        if isinstance(name, dict):
+            name = name.get("gateway_name")
+        if name:
+            manager.query_snapshot(str(name))
 
     def on_quote(event: Event) -> None:
         data = event.data
@@ -84,3 +96,4 @@ def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> No
     event_engine.register(EVENT_CONTRACT, on_contract)
     event_engine.register(EVENT_LOG, on_log)
     event_engine.register(EVENT_QUOTE, on_quote)
+    event_engine.register(EVENT_ENSURE_ACCOUNT, on_ensure_account)

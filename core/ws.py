@@ -96,10 +96,17 @@ def set_loop(loop: asyncio.AbstractEventLoop | None) -> None:
     _loop = loop
 
 
+async def _fanout(msg: dict) -> None:
+    from core.sse import sse_hub
+
+    await hub.route(msg)
+    sse_hub.push(msg)
+
+
 def publish_threadsafe(msg: dict) -> None:
     if _loop is None or not _loop.is_running():
         return
-    asyncio.run_coroutine_threadsafe(hub.route(msg), _loop)
+    asyncio.run_coroutine_threadsafe(_fanout(msg), _loop)
 
 
 def pong() -> dict:

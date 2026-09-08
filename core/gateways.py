@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import sys
+import threading
 import time
 from typing import Any
 
+from vnpy.event import Event
 from vnpy.trader.engine import MainEngine
 from vnpy_ctp import CtpGateway
 
@@ -19,6 +21,9 @@ from mystabx.config.simnow import (
     probe_tcp_front,
 )
 
+# Run CTP qry on EventEngine thread — TdApi is not safe from FastAPI workers.
+EVENT_ENSURE_ACCOUNT = "eEnsureAccount"
+
 
 class AccountGatewayManager:
     def __init__(self, main_engine: MainEngine) -> None:
@@ -28,6 +33,8 @@ class AccountGatewayManager:
         self.front_info: dict[str, dict[str, Any]] = {}
         self.account_cache: dict[str, dict[str, Any]] = {}
         self._last_query: dict[str, float] = {}
+        self._account_sync: set[str] = set()
+        self._sync_lock = threading.Lock()
 
     def load_all(self, rows: list[dict[str, Any]]) -> None:
         for acc in rows:
@@ -49,6 +56,7 @@ class AccountGatewayManager:
         self.status[gateway_name] = "CONNECTING"
         self._publish_status(gateway_name, "CONNECTING")
         self.me.connect(ctp_connect_payload(setting), gateway_name)
+        self.start_account_sync(gateway_name)
         return meta
 
     def disconnect(self, gateway_name: str) -> None:
@@ -61,6 +69,8 @@ class AccountGatewayManager:
         # macOS + SimNow CTP 6.7.13: TdApi/MdApi.exit() segfaults the process.
         self.status[gateway_name] = "DISCONNECTED"
         self.account_cache.pop(gateway_name, None)
+        with self._sync_lock:
+            self._account_sync.discard(gateway_name)
         self._publish_status(gateway_name, "DISCONNECTED")
 
     def test_connect(self, gateway_name: str, *, login_wait: float = 10.0) -> dict[str, Any]:
@@ -90,7 +100,9 @@ class AccountGatewayManager:
         elif prev == "CONNECTED":
             login.update(attempted=True, ok=True, status="CONNECTED", message="通道已处于已连接，未重复登录")
             self._publish_status(gateway_name, "CONNECTED")
-            self.refresh_account(gateway_name)
+            self.start_account_sync(gateway_name)
+            self.publish_funds(gateway_name)
+            self.refresh_account(gateway_name, wait=2.0)
         elif not str(setting.get("密码") or "").strip():
             login["message"] = "前置可连，但未保存密码，无法登录柜台"
         else:
@@ -114,7 +126,8 @@ class AccountGatewayManager:
                 login["message"] += " 通道保持连接，可直接使用。"
                 self.mark_connected(gateway_name)
                 self._publish_status(gateway_name, "CONNECTED")
-                self.refresh_account(gateway_name, wait=4.0)
+                self.start_account_sync(gateway_name)
+                self.refresh_account(gateway_name, wait=8.0)
         ok = reachable and login["ok"]
         if ok:
             summary = f"联通正常 · {meta.get('front_label') or '前置'} 登录已确认"
@@ -164,6 +177,14 @@ class AccountGatewayManager:
         if name:
             self.account_cache[name] = payload
 
+    def has_account(self, gateway_name: str) -> bool:
+        if gateway_name in self.account_cache:
+            return True
+        try:
+            return any(getattr(acc, "gateway_name", "") == gateway_name for acc in self.me.get_all_accounts())
+        except Exception:
+            return False
+
     def funds_for(self, gateway_names: set[str] | None = None) -> list[dict[str, Any]]:
         merged: dict[tuple[str, str], dict[str, Any]] = {}
         names = gateway_names
@@ -184,7 +205,28 @@ class AccountGatewayManager:
             merged[(gw, str(payload.get("accountid") or ""))] = payload
         return list(merged.values())
 
+    def publish_funds(self, gateway_name: str) -> None:
+        for payload in self.funds_for({gateway_name}):
+            publish_threadsafe(envelope("account", payload))
+
+    def _td_api(self, gateway_name: str) -> Any:
+        gateway = self.me.get_gateway(gateway_name)
+        return None if gateway is None else getattr(gateway, "td_api", None)
+
+    def can_query_account(self, gateway_name: str) -> bool:
+        """CTP rejects qryTradingAccount while reqQryInstrument is in flight."""
+        td = self._td_api(gateway_name)
+        if td is None:
+            return False
+        if not getattr(td, "login_status", False):
+            return False
+        if hasattr(td, "contract_inited"):
+            return bool(td.contract_inited)
+        return True
+
     def query_snapshot(self, gateway_name: str) -> None:
+        if not self.can_query_account(gateway_name):
+            return
         gateway = self.me.get_gateway(gateway_name)
         if gateway is None:
             return
@@ -196,36 +238,93 @@ class AccountGatewayManager:
                 except Exception:
                     pass
 
-    def refresh_account(self, gateway_name: str, *, wait: float = 0.0, min_interval: float = 2.0) -> None:
+    def request_account_query(self, gateway_name: str) -> None:
+        if not gateway_name or not self.can_query_account(gateway_name):
+            return
         now = time.time()
-        if now - self._last_query.get(gateway_name, 0) < min_interval and wait <= 0:
+        if now - self._last_query.get(gateway_name, 0) < 1.5:
             return
         self._last_query[gateway_name] = now
-        self.query_snapshot(gateway_name)
+        try:
+            self.me.event_engine.put(Event(EVENT_ENSURE_ACCOUNT, gateway_name))
+        except Exception:
+            self.query_snapshot(gateway_name)
+
+    def start_account_sync(self, gateway_name: str) -> None:
+        if not gateway_name or self.status.get(gateway_name) == "DISCONNECTED":
+            return
+        if self.has_account(gateway_name):
+            return
+        with self._sync_lock:
+            if gateway_name in self._account_sync:
+                return
+            self._account_sync.add(gateway_name)
+        thread = threading.Thread(
+            target=self._sync_account_loop,
+            args=(gateway_name,),
+            daemon=True,
+            name=f"account-sync-{gateway_name}",
+        )
+        thread.start()
+
+    def _sync_account_loop(self, gateway_name: str) -> None:
+        try:
+            deadline = time.time() + 120.0
+            while time.time() < deadline:
+                if self.status.get(gateway_name) == "DISCONNECTED":
+                    return
+                if self.has_account(gateway_name):
+                    self.publish_funds(gateway_name)
+                    return
+                if self.can_query_account(gateway_name):
+                    self.request_account_query(gateway_name)
+                time.sleep(2.0)
+            if self.has_account(gateway_name):
+                self.publish_funds(gateway_name)
+        finally:
+            with self._sync_lock:
+                self._account_sync.discard(gateway_name)
+
+    def refresh_account(self, gateway_name: str, *, wait: float = 0.0, min_interval: float = 2.0) -> None:
+        self.start_account_sync(gateway_name)
+        now = time.time()
+        if self.can_query_account(gateway_name) and (
+            wait > 0 or now - self._last_query.get(gateway_name, 0) >= min_interval
+        ):
+            self.request_account_query(gateway_name)
         deadline = time.time() + max(0.0, wait)
         while time.time() < deadline:
-            if gateway_name in self.account_cache:
+            if self.has_account(gateway_name):
+                self.publish_funds(gateway_name)
                 return
-            try:
-                if any(getattr(acc, "gateway_name", "") == gateway_name for acc in self.me.get_all_accounts()):
-                    return
-            except Exception:
-                pass
             time.sleep(0.3)
-            if time.time() + 1.2 >= deadline:
-                self.query_snapshot(gateway_name)
+            if self.can_query_account(gateway_name) and time.time() + 1.2 >= deadline:
+                self.request_account_query(gateway_name)
 
-    def _publish_status(self, gateway_name: str, status: str | None = None) -> None:
+    def status_payload(self, gateway_name: str, status: str | None = None) -> dict[str, Any]:
         current = status or self.status.get(gateway_name, "DISCONNECTED")
         acc = self.index.get(gateway_name) or {}
-        publish_threadsafe(
-            envelope(
-                "gateway",
-                {
-                    "gateway_name": gateway_name,
-                    "status": current,
-                    "account_name": acc.get("account_name") or "",
-                    "id": acc.get("id"),
-                },
-            )
-        )
+        return {
+            "gateway_name": gateway_name,
+            "status": current,
+            "conn_status": current,
+            "account_name": acc.get("account_name") or "",
+            "id": acc.get("id"),
+        }
+
+    def statuses_for(self, gateway_names: set[str] | None = None) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for name in self.index:
+            if gateway_names is not None and name not in gateway_names:
+                continue
+            rows.append(self.status_payload(name))
+        return rows
+
+    def workbench_snapshot(self, gateway_names: set[str] | None = None) -> dict[str, Any]:
+        return {
+            "gateways": self.statuses_for(gateway_names),
+            "accounts": self.funds_for(gateway_names),
+        }
+
+    def _publish_status(self, gateway_name: str, status: str | None = None) -> None:
+        publish_threadsafe(envelope("gateway", self.status_payload(gateway_name, status)))

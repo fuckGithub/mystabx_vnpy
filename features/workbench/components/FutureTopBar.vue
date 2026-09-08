@@ -92,6 +92,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { ArrowDown } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { http } from "@/api";
+import { isSseOpen } from "@/sse";
 import { useTradeStore } from "@/stores";
 import { pnlClass, pickFunds, accountMetrics } from "../liveMap";
 import EnvWaveIndicator from "./EnvWaveIndicator.vue";
@@ -233,17 +234,15 @@ let fundPoll: ReturnType<typeof setTimeout> | null = null;
 let fundTries = 0;
 
 async function syncChannelFunds() {
-  if (!selectedGw.value) return;
-  await trade.refresh();
-  if (fund.value.equity != null || !connected.value) return;
+  if (!selectedGw.value || !connected.value) return;
+  if (fund.value.equity != null) return;
   const row = selectedGwRow.value;
-  if (row?.id) {
-    try {
-      await http.post(`/api/gateways/${row.id}/query`);
-      await trade.refresh();
-    } catch {
-      /* 查询失败时仍用轮询兜底 */
-    }
+  if (!row?.id) return;
+  try {
+    const { data } = await http.post(`/api/gateways/${row.id}/query`);
+    for (const acc of data?.accounts || []) trade.upsertFund(acc);
+  } catch {
+    /* SSE 会在账户回报到达后补齐 */
   }
 }
 
@@ -255,21 +254,18 @@ watch(
       fundPoll = null;
     }
     fundTries = 0;
-    void (async () => {
-      await syncChannelFunds();
-      const tick = () => {
-        if (!connected.value || fund.value.equity != null || fundTries >= 8) return;
-        fundTries += 1;
-        void syncChannelFunds().then(() => {
-          if (connected.value && fund.value.equity == null && fundTries < 8) {
-            fundPoll = setTimeout(tick, 2000);
-          }
-        });
-      };
-      if (connected.value && fund.value.equity == null) {
-        fundPoll = setTimeout(tick, 2000);
-      }
-    })();
+    if (!connected.value || fund.value.equity != null) return;
+    const tick = () => {
+      if (!connected.value || fund.value.equity != null || fundTries >= 8) return;
+      if (isSseOpen() && fundTries >= 2) return;
+      fundTries += 1;
+      void syncChannelFunds().then(() => {
+        if (connected.value && fund.value.equity == null && fundTries < 8) {
+          fundPoll = setTimeout(tick, 3000);
+        }
+      });
+    };
+    fundPoll = setTimeout(tick, isSseOpen() ? 2500 : 800);
   },
   { immediate: true },
 );

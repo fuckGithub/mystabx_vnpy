@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Install vnpy extras and compile vnpy_ctp from source (not editable).
+# Install vnpy extras and compile vnpy_ctp from source on macOS (not editable).
 set -euo pipefail
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "scripts/install_macos.sh 仅用于 macOS。Linux 请运行 ./scripts/install_linux.sh" >&2
+  exit 1
+fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${ROOT}/.venv/bin/python"

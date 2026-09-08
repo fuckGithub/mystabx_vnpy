@@ -121,7 +121,9 @@ export const useTradeStore = defineStore("trade", () => {
     orders.value = o.data;
     trades.value = t.data;
     positions.value = p.data;
-    funds.value = f.data;
+    const nextFunds = Array.isArray(f.data) ? f.data : [];
+    // Empty GET must not wipe a later WS/query snapshot (connect race).
+    funds.value = nextFunds.length ? nextFunds : funds.value;
     gateways.value = g.data;
   }
 

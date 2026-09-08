@@ -121,12 +121,13 @@ mystabx_vnpy/
 │   ├── config/                  #   SimNow 前置常量、自动切前置、桌面 App 列表
 │   └── ui/                      #   连接对话框、主题、MainWindow
 ├── docs/                          # 设计文档 01–07（架构、存储、权限、WS、前端、路线图、免责）
-├── scripts/                       # 安装与冒烟：install_macos.sh、load_simnow_ctp.sh、smoke_*.py
+├── scripts/                       # 安装与冒烟：install_macos.sh、install_linux.sh、load_simnow_ctp.sh、smoke_*.py
 ├── vendor/                        # 第三方非 pip 组件（本仓库只提交说明和公开 ini）
-│   └── simnow-ctp/              #   SimNow 官方 Mac CTP v6.7.13 对接说明
+│   └── simnow-ctp/              #   SimNow 官方 CTP 对接说明（Mac framework / Linux .so）
 │       ├── config/              #     交易时段 / 7×24 公开前置（无账号密码）
 │       ├── docs/                #     官方 Mac API 说明摘录
-│       └── macos/               #     本机 *.framework（gitignore，从官网或 simnow-ctp 复制）
+│       ├── macos/               #     本机 *.framework（gitignore，从官网或 simnow-ctp 复制）
+│       └── linux/               #     本机 Linux *.so（gitignore，从官网复制）
 ├── licenses/                      # vn.py / vnpy_ctp 的 MIT 许可原文
 ├── .cursor/                       # Cursor 规则（可提交）
 │   └── rules/                   #   提交信息、每 3 任务提交一次
@@ -159,8 +160,9 @@ mystabx_vnpy/
 | `mystabx/config/` | `simnow.py` 前置与自动切换（Web 与桌面共用）；`apps.py` 桌面 CTA 等。 |
 | `mystabx/ui/` | 桌面连接框、Mac 主题、官方 MainWindow 子类。 |
 | `docs/` | `01` 架构 … `07` 免责声明全文。 |
-| `scripts/` | `install_macos.sh` 装依赖并编译 CTP；`load_simnow_ctp.sh` 覆盖 6.7.13；`smoke_web.py` / `smoke_imports.py` / `smoke_qt.py`。 |
-| `vendor/simnow-ctp/macos/` | 上期技术 CTP 二进制。Apple framework 内部还有 `Headers/`、`Resources/`、`Versions/A/`，属官方 SDK 布局，不要手改。 |
+| `scripts/` | `install_macos.sh` / `install_linux.sh` 装依赖并编译 CTP；`load_simnow_ctp.sh` 按平台覆盖 CTP；`smoke_web.py` / `smoke_imports.py` / `smoke_qt.py`。 |
+| `vendor/simnow-ctp/macos/` | 上期技术 Mac CTP 二进制。Apple framework 内部还有 `Headers/`、`Resources/`、`Versions/A/`，属官方 SDK 布局，不要手改。 |
+| `vendor/simnow-ctp/linux/` | 上期技术 Linux CTP `libthost*.so`（gitignore）。不要把 Mac `.framework` 拷到这里。 |
 | `.deps/vnpy_ctp/vnpy_ctp/api/vnctp/` | `vnctpmd` / `vnctptd` C++ 绑定源码。 |
 | `.deps/vnpy_ctp/vnpy_ctp/gateway/` | `CtpGateway` Python 封装。 |
 | `.cursor/rules/` | Agent 提交规范。 |
@@ -170,7 +172,7 @@ mystabx_vnpy/
 ## 搭建步骤
 
 
-仓库根目录操作。`./start.sh` 要求已有 **`.venv/bin/python`**、**Node.js**、**npm**。
+仓库根目录操作。`./start.sh` 要求已有 **`.venv`**、**Node.js**、**npm**。Linux 服务器缺依赖时脚本会给出 `apt-get` 提示；不要假设 Homebrew。
 
 ### 1. Python 虚拟环境
 
@@ -201,7 +203,20 @@ python3 -m venv .venv
 
 通道里「柜台环境」固定为「实盘」；SimNow 走生产前置。
 
-**Linux**：需要对应平台的 `vnpy_ctp`（Linux `.so`）。不要把 Mac 编译产物拷到服务器。
+**Linux**（Ubuntu/Debian 等 x86_64 服务器）：Python 封装同样用 `vnpy_ctp` 6.7.7.2 源码编译；**柜台动态库用 Linux `.so`**（vnpy_ctp 自带，或覆盖 `vendor/simnow-ctp/linux/`）。不要把 Mac `.framework` 或本机 Mac 编译产物拷到服务器，也不要跑 `install_macos.sh`。
+
+系统依赖示例（缺了脚本会报错并提示）：
+
+```bash
+sudo apt-get install -y python3 python3-venv python3-dev build-essential git nodejs npm
+```
+
+```bash
+python3 -m venv .venv
+./scripts/install_linux.sh
+```
+
+该脚本会创建/使用 `.venv`，`pip`/`uv pip install -e .`，clone `vnpy_ctp`，用 `scripts/load_simnow_ctp.sh` 覆盖 Linux `.so`（若有），再安装 `vnpy_ctp`。**不会**打 Darwin 补丁。可选：从 [SimNow API 下载](https://www.simnow.com.cn/static/apiDownload.action) 解压 Linux 包到 `vendor/simnow-ctp/linux/`（或设 `STABX_SIMNOW_CTP`）。官方 CTP Linux 库仅支持 **x86_64**。
 
 ### 3. 前端依赖
 
@@ -223,7 +238,7 @@ cp .env.example .env
 
 ### 5. 启动
 
-部署默认（构建 Vue，**一个 uvicorn 进程**同时提供 API 和 `dist/` SPA）：
+部署默认（构建 Vue，**一个 uvicorn 进程**同时提供 API 和 `dist/` SPA）。Linux 服务器用这条；Mac 本机开发可用 `--dev`：
 
 ```bash
 ./start.sh
@@ -254,11 +269,11 @@ cp .env.example .env
 | 场景 | CPU / 内存 / 磁盘 | 系统 | 说明 |
 |---|---|---|---|
 | Mac 本机开发 / 个人 SimNow | 4 核、8 GB 起（16 GB 更稳）、约 20 GB 空闲 | macOS | `.venv`、`node_modules`、编译 `vnpy_ctp` 都占盘；走 `scripts/install_macos.sh` |
-| 个人或 1～2 人 VPS（SimNow 或少量实盘通道） | **2 vCPU / 4 GB / 40 GB SSD** | Linux x86_64，如 Ubuntu 22.04+ | 够跑 Web + 一两个 CTP 连接；出网能访问柜台前置 |
+| 个人或 1～2 人 VPS（SimNow 或少量实盘通道） | **2 vCPU / 4 GB / 40 GB SSD** | Linux x86_64，如 Ubuntu 22.04+ | 够跑 Web + 一两个 CTP 连接；出网能访问柜台前置；走 `scripts/install_linux.sh` 再 `./start.sh` |
 | 小团队同时看盘、下单 | **4 vCPU / 8 GB / 80 GB SSD** | 同上 | 仍是单进程，加用户不会水平扩 uvicorn worker |
 
 - **本机 Mac**：适合开发与个人模拟；生产 API 限制见上一节。
-- **Linux 服务器**：适合 7×24 挂着给浏览器用。必须安装 Linux 版 `vnpy_ctp`。不要用 `uvicorn --workers`。
+- **Linux 服务器**：适合 7×24 挂着给浏览器用。先 `./scripts/install_linux.sh`，再 `./start.sh`（默认生产：构建 + 单进程 uvicorn）。必须用 Linux 版 `vnpy_ctp`。不要用 `uvicorn --workers`。
 - 磁盘主要给系统、`.venv`、`node_modules`、`dist/`、`.vntrader`（SQLite / 密钥）。P0 不强制 ClickHouse；若以后开时序库再单独加内存和盘。
 - 安全：监听 `0.0.0.0` 时用防火墙或反向代理限制来源；改默认管理员密码；`.env` 不要提交。
 

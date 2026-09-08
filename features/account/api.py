@@ -92,7 +92,7 @@ def disconnect_gateway(account_id: int, user: User = Depends(current_user)) -> d
 @router.post("/api/gateways/{account_id}/query")
 def query_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
     _row_id, gateway_name = _owned_account(user, account_id)
-    runtime.gw.refresh_account(gateway_name, wait=1.5)
+    runtime.gw.refresh_account(gateway_name, wait=3.0)
     funds = runtime.gw.funds_for({gateway_name})
     return {"ok": True, "gateway_name": gateway_name, "accounts": funds}
 
@@ -101,6 +101,6 @@ def query_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
 def list_funds(user: User = Depends(current_user)) -> list[dict]:
     gws = set(visible_gateways(user))
     for name in gws:
-        if runtime.gw.status.get(name) == "CONNECTED" and name not in runtime.gw.account_cache:
-            runtime.gw.refresh_account(name)
+        if runtime.gw.status.get(name) == "CONNECTED" and not runtime.gw.has_account(name):
+            runtime.gw.refresh_account(name, wait=0.8)
     return runtime.gw.funds_for(gws)

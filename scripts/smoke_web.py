@@ -41,6 +41,11 @@ def main() -> int:
             resp = client.get(path, headers=headers)
             resp.raise_for_status()
 
+        denied = client.get("/api/sse")
+        if denied.status_code != 401:
+            print("sse missing auth should be 401", denied.status_code, file=sys.stderr)
+            return 1
+
         print(f"health={body}")
         print(f"login_user={login.json()['user']['username']}")
         print("ok")

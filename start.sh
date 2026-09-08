@@ -2,10 +2,21 @@
 # Stabx Web 交易台一键启动（Linux / macOS 部署用）。
 # 默认生产模式：npm run build 后由单个 uvicorn 托管 REST/WS + Vue dist，无需两个终端。
 # 桌面 Qt / main.py 不是产品入口，本脚本不会启动 GUI。
+# Linux：不假设 Homebrew / Xcode / Mac CTP .framework；不要对 vnpy 使用 --workers。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "${ROOT}"
+
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+case "${OS}" in
+  Linux|Darwin) ;;
+  *)
+    echo "不支持的系统：${OS}（仅 Linux / macOS）" >&2
+    exit 1
+    ;;
+esac
 
 if [[ -f "${ROOT}/.env" ]]; then
   set -a
@@ -14,21 +25,77 @@ if [[ -f "${ROOT}/.env" ]]; then
   set +a
 fi
 
-PY="${ROOT}/.venv/bin/python"
-if [[ ! -x "${PY}" ]]; then
-  echo "缺少 Python 虚拟环境：${PY}" >&2
-  echo "请先创建并安装依赖，例如：python3 -m venv .venv && .venv/bin/pip install -e ." >&2
+# Linux：系统/nvm 路径。不要把 Homebrew 加进 Linux PATH。
+if [[ "${OS}" == "Linux" ]]; then
+  export PATH="/usr/local/bin:/usr/bin:${PATH}"
+  if [[ -z "${NVM_DIR:-}" && -d "${HOME}/.nvm" ]]; then
+    NVM_DIR="${HOME}/.nvm"
+  fi
+  if [[ -n "${NVM_DIR:-}" && -s "${NVM_DIR}/nvm.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${NVM_DIR}/nvm.sh"
+  fi
+fi
+
+_die() {
+  echo "$1" >&2
+  exit 1
+}
+
+_linux_dep_hint() {
+  echo "Ubuntu/Debian 示例：sudo apt-get install -y python3 python3-venv python3-dev build-essential nodejs npm git"
+}
+
+resolve_python() {
+  local cand
+  for cand in "${ROOT}/.venv/bin/python" "${ROOT}/.venv/bin/python3"; do
+    if [[ -x "${cand}" ]]; then
+      echo "${cand}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+PY=""
+if ! PY="$(resolve_python)"; then
+  echo "缺少 Python 虚拟环境：${ROOT}/.venv/bin/python" >&2
+  if [[ "${OS}" == "Linux" ]]; then
+    echo "请先：python3 -m venv .venv && ./scripts/install_linux.sh" >&2
+    _linux_dep_hint >&2
+  else
+    echo "请先：python3 -m venv .venv && ./scripts/install_macos.sh" >&2
+  fi
   exit 1
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "缺少 Node.js（未找到 node）。请先安装 Node.js 后再运行 ./start.sh" >&2
-  exit 1
+  if [[ "${OS}" == "Linux" ]]; then
+    _die "缺少 Node.js（未找到 node）。$(_linux_dep_hint)"
+  fi
+  _die "缺少 Node.js（未找到 node）。请先安装 Node.js 后再运行 ./start.sh"
 fi
 
 if ! command -v npm >/dev/null 2>&1; then
-  echo "缺少 npm（未找到 npm）。请先安装 Node.js/npm 后再运行 ./start.sh" >&2
-  exit 1
+  if [[ "${OS}" == "Linux" ]]; then
+    _die "缺少 npm（未找到 npm）。$(_linux_dep_hint)"
+  fi
+  _die "缺少 npm（未找到 npm）。请先安装 Node.js/npm 后再运行 ./start.sh"
+fi
+
+if [[ "${OS}" == "Linux" && "${ARCH}" != "x86_64" && "${ARCH}" != "amd64" ]]; then
+  echo "警告：官方 CTP Linux 动态库仅支持 x86_64，当前是 ${ARCH}。Web 可启动，但 CTP 网关可能无法加载。" >&2
+fi
+
+# Linux 运行时让 vnpy_ctp 能找到同目录 .so（meson 已设 $ORIGIN，这里再兜一层）。
+if [[ "${OS}" == "Linux" ]]; then
+  CTP_API_DIR="$("${PY}" -c 'import vnpy_ctp, pathlib; print(pathlib.Path(vnpy_ctp.__file__).resolve().parent / "api")' 2>/dev/null || true)"
+  if [[ -n "${CTP_API_DIR}" && -d "${CTP_API_DIR}" ]]; then
+    if [[ -d "${CTP_API_DIR}/thostmduserapi_se.framework" && ! -f "${CTP_API_DIR}/libthostmduserapi_se.so" ]]; then
+      _die "当前 vnpy_ctp 只有 Mac .framework，没有 Linux .so。请在本机运行 ./scripts/install_linux.sh，不要拷贝 Mac 编译产物。"
+    fi
+    export LD_LIBRARY_PATH="${CTP_API_DIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  fi
 fi
 
 HOST="${STABX_HOST:-0.0.0.0}"
@@ -52,6 +119,11 @@ for arg in "$@"; do
   --dev         本机热更新：同一脚本内启动 uvicorn --reload 与 Vite
   --skip-build  生产模式跳过构建（要求 dist/index.html 已存在）
 
+平台：
+  macOS   本机开发可用 --dev；CTP 用 ./scripts/install_macos.sh
+  Linux   服务器默认走生产模式（build + uvicorn）；CTP 用 ./scripts/install_linux.sh
+          不要使用 Mac .framework / Homebrew / Xcode 路径
+
 环境变量见仓库根目录 .env.example。
 不要把真实 SimNow 密码写入仓库。
 不要对 vnpy 引擎使用 uvicorn --workers（MainEngine 在进程内）。
@@ -68,10 +140,20 @@ done
 # 仅处理 STABX_PORT 上的 LISTEN 占用，释放后才能绑定。不碰其它端口。
 _listen_pids_on_port() {
   local port="$1"
-  if ! command -v lsof >/dev/null 2>&1; then
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | awk 'NF && !seen[$1]++' || true
     return 0
   fi
-  lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | awk 'NF && !seen[$1]++' || true
+  if command -v ss >/dev/null 2>&1; then
+    ss -H -lptn "sport = :${port}" 2>/dev/null \
+      | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' \
+      | awk 'NF && !seen[$1]++' || true
+    return 0
+  fi
+  if command -v fuser >/dev/null 2>&1; then
+    fuser "${port}/tcp" 2>/dev/null | tr -s '[:space:]' '\n' | awk '/^[0-9]+$/ && !seen[$1]++' || true
+    return 0
+  fi
 }
 
 _pid_command() {
@@ -84,12 +166,23 @@ _skip_own_pid() {
   [[ "${pid}" == "1" || "${pid}" == "$$" || "${pid}" == "${PPID}" ]]
 }
 
+_dump_listen_port() {
+  local port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN >&2 || true
+  elif command -v ss >/dev/null 2>&1; then
+    ss -lptn "sport = :${port}" >&2 || true
+  else
+    echo "（未安装 lsof/ss，无法列出占用进程）" >&2
+  fi
+}
+
 free_stabx_listen_port() {
   local port="$1"
   local pid cmd leftover retries
 
-  if ! command -v lsof >/dev/null 2>&1; then
-    echo "未找到 lsof，跳过端口 ${port} 占用检查" >&2
+  if ! command -v lsof >/dev/null 2>&1 && ! command -v ss >/dev/null 2>&1 && ! command -v fuser >/dev/null 2>&1; then
+    echo "未找到 lsof/ss/fuser，跳过端口 ${port} 占用检查" >&2
     return 0
   fi
 
@@ -135,7 +228,7 @@ free_stabx_listen_port() {
   done
 
   echo "端口 ${port} 仍被占用，无法启动：" >&2
-  lsof -nP -iTCP:"${port}" -sTCP:LISTEN >&2 || true
+  _dump_listen_port "${port}"
   exit 1
 }
 
@@ -152,7 +245,7 @@ ensure_node_modules() {
 
 if [[ "${MODE}" == "dev" ]]; then
   ensure_node_modules
-  echo "开发模式：API http://${HOST}:${PORT} ；前端 Vite 默认 http://127.0.0.1:5173"
+  echo "开发模式（${OS}）：API http://${HOST}:${PORT} ；前端 Vite 默认 http://127.0.0.1:5173"
   UVICORN_PID=""
   VITE_PID=""
   cleanup() {
@@ -196,7 +289,7 @@ if [[ ! -f "${ROOT}/dist/index.html" ]]; then
   exit 1
 fi
 
-echo "生产模式：单进程托管 API + SPA  →  http://${HOST}:${PORT}"
+echo "生产模式（${OS}）：单进程托管 API + SPA  →  http://${HOST}:${PORT}"
 echo "提示：不要使用 uvicorn --workers，vnpy MainEngine 必须单进程。"
 free_stabx_listen_port "${PORT}"
 exec "${PY}" -m uvicorn core.main:app --host "${HOST}" --port "${PORT}"

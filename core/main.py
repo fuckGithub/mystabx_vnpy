@@ -1,13 +1,14 @@
-"""FastAPI app: assemble routers, headless engine, WebSocket (docs/05, docs/06)."""
+"""FastAPI app: assemble routers, headless engine, WebSocket / SSE (docs/05, docs/06)."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
@@ -23,6 +24,7 @@ from core.events import bind_events  # noqa: E402
 from core.gateways import AccountGatewayManager  # noqa: E402
 from core.runtime import runtime  # noqa: E402
 from core.serialize import envelope  # noqa: E402
+from core.sse import SseClient, format_sse, sse_hub  # noqa: E402
 from core.ws import Connection, hub, pong, set_loop  # noqa: E402
 from features.account.api import router as account_router  # noqa: E402
 from features.admin.api import router as admin_router  # noqa: E402
@@ -88,7 +90,79 @@ def health() -> dict:
         "engine": engine_ok,
         "gateways": list(runtime.gw.index) if runtime.gateways else [],
         "ws": hub.snapshot_counts(),
+        "sse": sse_hub.snapshot_counts(),
     }
+
+
+def _token_from_request(request: Request) -> str | None:
+    token = request.query_params.get("token")
+    if token:
+        return token
+    auth = request.headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    return None
+
+
+def _authenticate_sse(request: Request) -> tuple[User | None, list[str] | None]:
+    token = _token_from_request(request)
+    if not token:
+        return None, None
+    try:
+        payload = decode_token(token, expected="access")
+        user = get_user_by_id(int(payload["sub"]))
+    except Exception:
+        return None, None
+    return user, visible_gateways(user)
+
+
+def _kick_account_sync(names: set[str] | None) -> None:
+    if not runtime.gateways:
+        return
+    targets = runtime.gw.index.keys() if names is None else names
+    for name in targets:
+        if runtime.gw.status.get(name) == "CONNECTED" and not runtime.gw.has_account(name):
+            runtime.gw.start_account_sync(name)
+
+
+@app.get("/api/sse")
+async def sse_endpoint(request: Request):
+    user, gateways = _authenticate_sse(request)
+    if user is None:
+        return JSONResponse({"detail": "token 无效"}, status_code=401)
+    visible = set(gateways or [])
+    names = None if user.is_admin else visible
+    client = SseClient(user_id=user.id, is_admin=bool(user.is_admin), gateways=visible)
+    sse_hub.register(client)
+    _kick_account_sync(names)
+
+    async def stream():
+        try:
+            snap = runtime.gw.workbench_snapshot(names) if runtime.gateways else {"gateways": [], "accounts": []}
+            yield format_sse("snapshot", envelope("snapshot", snap))
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    msg = await asyncio.wait_for(client.queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                if msg is None:
+                    break
+                yield format_sse(str(msg.get("type") or "message"), msg)
+        finally:
+            sse_hub.remove(client)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 async def _authenticate_ws(ws: WebSocket) -> tuple[User | None, list[str] | None]:
@@ -134,6 +208,13 @@ async def ws_endpoint(ws: WebSocket) -> None:
             elif msg_type == "subscribe":
                 topics = {str(t) for t in data.get("topics") or []}
                 conn.topics.update(topics)
+                if runtime.gateways and ("account" in conn.topics or not conn.topics):
+                    names = None if conn.is_admin else conn.gateways
+                    for payload in runtime.gw.funds_for(names):
+                        await ws.send_json(envelope("account", payload))
+                    for name in conn.gateways:
+                        if runtime.gw.status.get(name) == "CONNECTED" and not runtime.gw.has_account(name):
+                            runtime.gw.start_account_sync(name)
             elif msg_type == "unsubscribe":
                 topics = {str(t) for t in data.get("topics") or []}
                 conn.topics.difference_update(topics)

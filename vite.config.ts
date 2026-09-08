@@ -31,7 +31,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": apiOrigin,
+      "/api": { target: apiOrigin, timeout: 0 },
       "/health": apiOrigin,
       "/ws": { target: apiOrigin.replace("http", "ws"), ws: true },
     },
