@@ -116,11 +116,25 @@ def position_payload(pos) -> dict:
 
 
 def account_payload(account) -> dict:
+    balance = float(getattr(account, "balance", 0) or 0)
+    frozen = float(getattr(account, "frozen", 0) or 0)
+    available = float(getattr(account, "available", balance - frozen))
+    extra = getattr(account, "extra", None) or {}
+    margin = extra.get("margin")
+    if margin is None:
+        margin = max(0.0, balance - available)
+    close_profit = extra.get("close_profit")
+    position_profit = extra.get("position_profit")
+    pre_balance = extra.get("pre_balance")
     return {
         "accountid": account.accountid,
-        "balance": account.balance,
-        "frozen": account.frozen,
-        "available": getattr(account, "available", account.balance - account.frozen),
+        "balance": balance,
+        "frozen": frozen,
+        "available": available,
+        "margin": margin,
+        "close_profit": close_profit,
+        "position_profit": position_profit,
+        "pre_balance": pre_balance,
         "gateway_name": account.gateway_name,
     }
 

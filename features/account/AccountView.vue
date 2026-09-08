@@ -79,6 +79,7 @@ const testingId = ref<number | null>(null);
 async function connect(row: Record<string, unknown>) {
   await http.post(`/api/gateways/${row.id}/connect`);
   ElMessage.success(`正在连接 ${row.gateway_name}`);
+  trade.setActiveGateway(String(row.gateway_name || ""));
   await trade.refresh();
 }
 
@@ -88,6 +89,7 @@ async function testConnect(row: Record<string, unknown>) {
   try {
     const { data } = await http.post(`/api/gateways/${id}/test-connect`);
     ElMessage[data.ok ? "success" : data.reachable ? "warning" : "error"](data.summary || "联通测试完成");
+    if (data.ok) trade.setActiveGateway(String(data.gateway_name || row.gateway_name || ""));
     await trade.refresh();
   } catch (error: unknown) {
     const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;

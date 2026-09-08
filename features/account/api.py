@@ -8,7 +8,6 @@ from sqlalchemy import select
 from core.db import Account, User, account_channel_dict, account_to_dict, get_session
 from core.deps import current_user, visible_gateways
 from core.runtime import runtime
-from core.serialize import account_payload
 
 router = APIRouter(tags=["account"])
 
@@ -90,7 +89,18 @@ def disconnect_gateway(account_id: int, user: User = Depends(current_user)) -> d
     return {"ok": True, "gateway_name": gateway_name, "status": "DISCONNECTED"}
 
 
+@router.post("/api/gateways/{account_id}/query")
+def query_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
+    _row_id, gateway_name = _owned_account(user, account_id)
+    runtime.gw.refresh_account(gateway_name, wait=1.5)
+    funds = runtime.gw.funds_for({gateway_name})
+    return {"ok": True, "gateway_name": gateway_name, "accounts": funds}
+
+
 @router.get("/api/accounts")
 def list_funds(user: User = Depends(current_user)) -> list[dict]:
     gws = set(visible_gateways(user))
-    return [account_payload(a) for a in runtime.oms.get_all_accounts() if a.gateway_name in gws]
+    for name in gws:
+        if runtime.gw.status.get(name) == "CONNECTED" and name not in runtime.gw.account_cache:
+            runtime.gw.refresh_account(name)
+    return runtime.gw.funds_for(gws)

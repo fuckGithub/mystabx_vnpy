@@ -53,8 +53,10 @@ import { finiteNumber, finitePrice, fmtPriceOrDash, fmtSigned, pnlClass, positio
 const trade = useTradeStore();
 const market = useMarketStore();
 
-const rows = computed(() =>
-  trade.positions
+const rows = computed(() => {
+  const selected = String(trade.activeGatewayName || "");
+  return trade.positions
+    .filter((p) => !selected || p.gateway_name === selected)
     .map((p) => {
       const code = String(p.symbol || "");
       const qty = finiteNumber(p.volume);
@@ -71,8 +73,8 @@ const rows = computed(() =>
         gateway: String(p.gateway_name || ""),
       };
     })
-    .filter((row): row is NonNullable<typeof row> => !!row),
-);
+    .filter((row): row is NonNullable<typeof row> => !!row);
+});
 
 const summary = computed(() => {
   let longPnl: number | null = null;

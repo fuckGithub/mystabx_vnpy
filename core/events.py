@@ -46,11 +46,13 @@ def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> No
         publish_threadsafe(envelope("position", position_payload(event.data)))
 
     def on_account(event: Event) -> None:
-        gw = _gateway_name(event.data)
+        payload = account_payload(event.data)
+        gw = payload.get("gateway_name") or _gateway_name(event.data)
         if gw:
-            manager.mark_connected(gw)
-            publish_threadsafe(envelope("gateway", {"gateway_name": gw, "status": manager.status.get(gw, "CONNECTED")}))
-        publish_threadsafe(envelope("account", account_payload(event.data)))
+            manager.mark_connected(str(gw))
+            manager.cache_account(payload)
+            manager._publish_status(str(gw), "CONNECTED")
+        publish_threadsafe(envelope("account", payload))
 
     def on_contract(event: Event) -> None:
         gw = _gateway_name(event.data)

@@ -83,7 +83,92 @@
 
 未完成（见 [06-实施路线图](docs/06-实施路线图.md) P1）：K 线、ClickHouse 行情入库、风控、策略/回测、Docker。
 
+## 目录说明
+
+产品代码在 `core/`、`features/`、`ui/`；`mystabx/` 是遗留桌面端。下列为**本仓库实际目录**（含子目录用途）。带「本机生成、不进 git」的目录会出现在你本机资源管理器里，但不会提交。
+
+```text
+mystabx_vnpy/
+├── core/                          # Web 后端内核：FastAPI 入口、vnpy 引擎、网关、库表、鉴权、WS
+│   ├── main.py                    #   uvicorn 应用：挂路由、静态 dist、lifespan
+│   ├── engine.py                #   无界面创建 MainEngine / EventEngine
+│   ├── runtime.py               #   进程内单例：引擎、OMS、网关管理器
+│   ├── gateways.py              #   多账户 CtpGateway 注册 / 连接 / 测试联通
+│   ├── events.py                #   vnpy 事件转到 WebSocket
+│   ├── ws.py                    #   WebSocket 连接池、鉴权、主题过滤
+│   ├── db.py                    #   SQLite 用户/通道表、加密字段
+│   ├── config.py                #   读 .env 与本机密钥
+│   ├── deps.py                  #   登录用户 / 管理员依赖
+│   ├── crypto.py                #   Fernet 加解密通道配置
+│   └── serialize.py             #   REST/WS 载荷序列化
+├── features/                      # 按业务域划分的 API + Vue 页面（前后端同目录）
+│   ├── auth/                    #   登录、免责声明页
+│   ├── workbench/               #   工作台首页
+│   │   └── components/           #     顶栏、持仓/行情/风控卡片、成交日志、日历
+│   ├── market/                 #   行情列表、实时 Tick、订阅
+│   ├── trade/                   #   下单、委托列表
+│   ├── account/                 #   账户连接、资金、持仓、成交
+│   └── admin/                   #   用户管理、通道配置（仅管理员）
+├── ui/                            # Vue 壳：入口、路由、布局、全局样式（Vite root）
+│   ├── main.ts / App.vue / router.ts / stores.ts / api.ts / ws.ts / nav.ts
+│   ├── components/             #   布局 AppLayout、状态标签
+│   │   └── auth/                 #     登录页左侧品牌栏
+│   ├── styles/                  #   顶栏/侧栏、内页表格、登录、工作台 CSS
+│   └── assets/brand/            #   登录与壳层用的品牌图
+├── mystabx/                       # 遗留 Qt 桌面（不要当产品入口）
+│   ├── trader.py                #   桌面 MainEngine 组装
+│   ├── paths.py                 #   项目目录、.vntrader 路径
+│   ├── config/                  #   SimNow 前置常量、自动切前置、桌面 App 列表
+│   └── ui/                      #   连接对话框、主题、MainWindow
+├── docs/                          # 设计文档 01–07（架构、存储、权限、WS、前端、路线图、免责）
+├── scripts/                       # 安装与冒烟：install_macos.sh、load_simnow_ctp.sh、smoke_*.py
+├── vendor/                        # 第三方非 pip 组件（本仓库只提交说明和公开 ini）
+│   └── simnow-ctp/              #   SimNow 官方 Mac CTP v6.7.13 对接说明
+│       ├── config/              #     交易时段 / 7×24 公开前置（无账号密码）
+│       ├── docs/                #     官方 Mac API 说明摘录
+│       └── macos/               #     本机 *.framework（gitignore，从官网或 simnow-ctp 复制）
+├── licenses/                      # vn.py / vnpy_ctp 的 MIT 许可原文
+├── .cursor/                       # Cursor 规则（可提交）
+│   └── rules/                   #   提交信息、每 3 任务提交一次
+├── .deps/                         # 本机：clone 的 vnpy_ctp 源码 + 覆盖后的 6.7.13 framework（gitignore）
+│   └── vnpy_ctp/                #   编译用源码树
+│       └── vnpy_ctp/api/        #     头文件、pybind 封装 vnctpmd/vnctptd、Mac framework
+├── .venv/                         # 本机 Python 虚拟环境（gitignore）
+├── node_modules/                  # 本机 npm 依赖（gitignore）
+├── dist/                          # 本机 Vite 构建产物，由 start.sh 静态托管（gitignore）
+├── .vntrader/                     # vnpy 运行时数据、SQLite、connect 模板（gitignore）
+└── mystabx_vnpy.egg-info/         # pip install -e 生成的包元数据（gitignore）
+```
+
+子目录再展开一层：
+
+| 路径 | 用途 |
+|---|---|
+| `core/` | Web 后端唯一运行时。`main.py` 提供 FastAPI；`engine.py` 拉起 vnpy；`gateways.py` 管 CTP 通道。 |
+| `features/auth/` | `LoginView.vue`、`DisclaimerView.vue`、登录 API。 |
+| `features/workbench/` | `index.vue` 工作台；`liveMap.ts` 把 Pinia 数据映到卡片；`mockData.ts` 日历等占位。 |
+| `features/workbench/components/` | `FutureTopBar`（环境/通道）、持仓/行情/风控卡、成交日志、日历、`EnvWaveIndicator`。 |
+| `features/market/` | 合约搜索订阅、Tick 页与 `/api/market`。 |
+| `features/trade/` | `OrderTicket` 下单、`TradeView` 委托、`/api/trade`。 |
+| `features/account/` | 网关连接/断开、资金持仓成交列表。 |
+| `features/admin/` | 用户 CRUD、通道保存加密、测试联通。 |
+| `ui/components/` | `AppLayout.vue` 全宽顶栏 + 模块侧栏；`StatusTag.vue`。 |
+| `ui/components/auth/` | 登录左侧品牌与 vn.py 页脚署名。 |
+| `ui/styles/` | `layout.css` 顶栏侧栏；`pages.css` 列表/弹窗；`equilibrix-dashboard.css` 工作台；`auth-page.css` 登录。 |
+| `ui/assets/brand/` | 品牌资源。 |
+| `mystabx/config/` | `simnow.py` 前置与自动切换（Web 与桌面共用）；`apps.py` 桌面 CTA 等。 |
+| `mystabx/ui/` | 桌面连接框、Mac 主题、官方 MainWindow 子类。 |
+| `docs/` | `01` 架构 … `07` 免责声明全文。 |
+| `scripts/` | `install_macos.sh` 装依赖并编译 CTP；`load_simnow_ctp.sh` 覆盖 6.7.13；`smoke_web.py` / `smoke_imports.py` / `smoke_qt.py`。 |
+| `vendor/simnow-ctp/macos/` | 上期技术 CTP 二进制。Apple framework 内部还有 `Headers/`、`Resources/`、`Versions/A/`，属官方 SDK 布局，不要手改。 |
+| `.deps/vnpy_ctp/vnpy_ctp/api/vnctp/` | `vnctpmd` / `vnctptd` C++ 绑定源码。 |
+| `.deps/vnpy_ctp/vnpy_ctp/gateway/` | `CtpGateway` Python 封装。 |
+| `.cursor/rules/` | Agent 提交规范。 |
+
+根目录常见文件（不是目录，便于对照资源管理器）：`start.sh` 产品启动；`pyproject.toml` / `package.json` / `vite.config.ts` 构建；`.env` / `.env.example` 本机配置（`.env` 勿提交）；`NOTICE` / `THIRD_PARTY.md` 第三方版权；`ch_schema.sql` ClickHouse 表。
+
 ## 搭建步骤
+
 
 仓库根目录操作。`./start.sh` 要求已有 **`.venv/bin/python`**、**Node.js**、**npm**。
 

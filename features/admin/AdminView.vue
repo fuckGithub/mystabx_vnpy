@@ -301,7 +301,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, QuestionFilled, Refresh, Search } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import StatusTag from "@/components/StatusTag.vue";
-import { useAuthStore } from "@/stores";
+import { useAuthStore, useTradeStore } from "@/stores";
 
 interface AdminUser {
   id: number;
@@ -333,6 +333,7 @@ interface ConnectTestResult {
   ok: boolean;
   reachable?: boolean;
   summary: string;
+  gateway_name?: string;
   conn_status?: string;
   trade?: FrontProbe;
   market?: FrontProbe;
@@ -359,6 +360,7 @@ const FALLBACK_DEFAULTS = {
 
 const route = useRoute();
 const auth = useAuthStore();
+const trade = useTradeStore();
 const section = computed(() => String(route.params.section || "users"));
 const users = ref<AdminUser[]>([]);
 const accounts = ref<AdminAccount[]>([]);
@@ -623,11 +625,13 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
     if (data.ok) {
       const row = accounts.value.find((item) => item.id === accountId);
       if (row) row.conn_status = data.conn_status || "CONNECTED";
+      trade.setActiveGateway(String(data.gateway_name || row?.gateway_name || ""));
     }
     if (notify) {
       ElMessage[data.ok ? "success" : data.reachable ? "warning" : "error"](data.summary || "联通测试完成");
     }
     await reload();
+    await trade.refresh();
     return data;
   } catch (error: unknown) {
     const payload = (error as { response?: { data?: ConnectTestResult } })?.response?.data;
@@ -636,6 +640,7 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
       if (payload.ok) {
         const row = accounts.value.find((item) => item.id === accountId);
         if (row) row.conn_status = payload.conn_status || "CONNECTED";
+        trade.setActiveGateway(String(payload.gateway_name || row?.gateway_name || ""));
       }
       if (notify) {
         ElMessage[payload.ok ? "success" : payload.reachable ? "warning" : "error"](
@@ -643,6 +648,7 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
         );
       }
       await reload();
+      await trade.refresh();
       return payload;
     }
     ElMessage.error(apiError(error, "联通测试失败"));
@@ -721,6 +727,7 @@ async function removeAccount(row: AdminAccount) {
     await http.delete(`/api/admin/accounts/${row.id}`);
     ElMessage.success("已删除");
     await reload();
+    await trade.refresh();
   } catch (error: unknown) {
     const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
     ElMessage.error(detail || "删除失败");

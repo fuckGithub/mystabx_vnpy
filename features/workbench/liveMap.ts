@@ -107,6 +107,49 @@ export function quoteCode(code: string) {
   return code;
 }
 
+export function pickFunds(
+  funds: Record<string, unknown>[],
+  gatewayName: string,
+  gatewayRow?: Record<string, unknown> | null,
+): Record<string, unknown>[] {
+  if (!funds.length) return [];
+  if (!gatewayName) return funds;
+  const exact = funds.filter((row) => String(row.gateway_name || "") === gatewayName);
+  if (exact.length) return exact;
+  const connect = (gatewayRow?.connect || {}) as Record<string, unknown>;
+  const investor = String(connect["用户名"] || "").trim();
+  if (investor) {
+    const byInvestor = funds.filter((row) => String(row.accountid || "") === investor);
+    if (byInvestor.length) return byInvestor;
+  }
+  return funds.length === 1 ? [...funds] : [];
+}
+
+export function accountMetrics(
+  fundRow: Record<string, unknown> | undefined,
+  positions: Record<string, unknown>[],
+) {
+  if (!fundRow) {
+    return { equity: null as number | null, available: null as number | null, margin: null as number | null, pnl: null as number | null };
+  }
+  const equity = finiteNumber(fundRow.balance);
+  const available = finiteNumber(fundRow.available);
+  const marginDirect = finiteNumber(fundRow.margin);
+  const frozen = finiteNumber(fundRow.frozen);
+  const closeProfit = finiteNumber(fundRow.close_profit);
+  const positionProfit = finiteNumber(fundRow.position_profit);
+  const posPnl = positions.reduce((sum, pos) => sum + (finiteNumber(pos.pnl) || 0), 0);
+  const pnl =
+    closeProfit != null || positionProfit != null ? (closeProfit || 0) + (positionProfit || 0) : posPnl;
+  const margin =
+    marginDirect != null
+      ? marginDirect
+      : equity != null && available != null
+        ? Math.max(0, equity - available)
+        : frozen;
+  return { equity, available, margin, pnl };
+}
+
 export function quoteSector(code: string) {
   const c = code.toUpperCase();
   if (c.startsWith("CU") || c.startsWith("AU") || c.startsWith("AG") || c.startsWith("AL")) return "metal";

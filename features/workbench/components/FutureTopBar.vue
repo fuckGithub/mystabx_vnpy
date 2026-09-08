@@ -93,7 +93,7 @@ import { ArrowDown } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { http } from "@/api";
 import { useTradeStore } from "@/stores";
-import { pnlClass } from "../liveMap";
+import { pnlClass, pickFunds, accountMetrics } from "../liveMap";
 import EnvWaveIndicator from "./EnvWaveIndicator.vue";
 
 defineProps<{
@@ -136,8 +136,16 @@ function gatewayDedupeKey(gw: Record<string, unknown>) {
 
 const envOptions = computed(() => {
   const unique = new Map<string, Record<string, unknown>>();
+  const preferred = String(trade.activeGatewayName || "");
   for (const gw of trade.gateways) {
-    unique.set(gatewayDedupeKey(gw), preferGateway(unique.get(gatewayDedupeKey(gw)), gw));
+    const key = gatewayDedupeKey(gw);
+    const existing = unique.get(key);
+    if (preferred && String(gw.gateway_name || "") === preferred) {
+      unique.set(key, gw);
+      continue;
+    }
+    if (existing && preferred && String(existing.gateway_name || "") === preferred) continue;
+    unique.set(key, preferGateway(existing, gw));
   }
   return [...unique.values()].map((gw) => {
     const key = String(gw.gateway_name || "");
@@ -177,19 +185,9 @@ function formatMoney(value: number | null) {
 }
 
 const fund = computed(() => {
-  const rows = trade.funds.filter((row) => !selectedGw.value || row.gateway_name === selectedGw.value);
-  const first = rows[0];
-  if (!first) return { equity: null as number | null, available: null as number | null, margin: null as number | null, pnl: null as number | null };
-  const equity = Number(first.balance);
-  const available = Number(first.available);
-  const frozen = Number(first.frozen);
+  const rows = pickFunds(trade.funds, selectedGw.value, selectedGwRow.value);
   const positions = trade.positions.filter((pos) => !selectedGw.value || pos.gateway_name === selectedGw.value);
-  return {
-    equity: Number.isFinite(equity) ? equity : null,
-    available: Number.isFinite(available) ? available : null,
-    margin: Number.isFinite(equity) && Number.isFinite(available) ? equity - available : Number.isFinite(frozen) ? frozen : null,
-    pnl: positions.reduce((sum, pos) => sum + (Number(pos.pnl) || 0), 0),
-  };
+  return accountMetrics(rows[0], positions);
 });
 
 const metrics = computed(() => {
@@ -206,12 +204,72 @@ const metrics = computed(() => {
 });
 
 watch(
-  envOptions,
-  (list) => {
+  [envOptions, () => trade.activeGatewayName],
+  ([list, preferred]) => {
     if (!list.length) return;
-    if (!selectedGw.value || !list.some((item) => item.key === selectedGw.value)) {
-      selectedGw.value = list[0].key;
+    const preferredKey = String(preferred || "");
+    if (preferredKey && list.some((item) => item.key === preferredKey)) {
+      selectedGw.value = preferredKey;
+      return;
     }
+    const connectedItem = list.find((item) => item.tone === "ok");
+    if (!selectedGw.value || !list.some((item) => item.key === selectedGw.value)) {
+      selectedGw.value = (connectedItem || list[0]).key;
+      return;
+    }
+    const current = list.find((item) => item.key === selectedGw.value);
+    if (current && current.tone !== "ok" && connectedItem) {
+      selectedGw.value = connectedItem.key;
+    }
+  },
+  { immediate: true },
+);
+
+watch(selectedGw, (name) => {
+  if (name) trade.setActiveGateway(name);
+});
+
+let fundPoll: ReturnType<typeof setTimeout> | null = null;
+let fundTries = 0;
+
+async function syncChannelFunds() {
+  if (!selectedGw.value) return;
+  await trade.refresh();
+  if (fund.value.equity != null || !connected.value) return;
+  const row = selectedGwRow.value;
+  if (row?.id) {
+    try {
+      await http.post(`/api/gateways/${row.id}/query`);
+      await trade.refresh();
+    } catch {
+      /* 查询失败时仍用轮询兜底 */
+    }
+  }
+}
+
+watch(
+  [connected, selectedGw],
+  () => {
+    if (fundPoll) {
+      clearTimeout(fundPoll);
+      fundPoll = null;
+    }
+    fundTries = 0;
+    void (async () => {
+      await syncChannelFunds();
+      const tick = () => {
+        if (!connected.value || fund.value.equity != null || fundTries >= 8) return;
+        fundTries += 1;
+        void syncChannelFunds().then(() => {
+          if (connected.value && fund.value.equity == null && fundTries < 8) {
+            fundPoll = setTimeout(tick, 2000);
+          }
+        });
+      };
+      if (connected.value && fund.value.equity == null) {
+        fundPoll = setTimeout(tick, 2000);
+      }
+    })();
   },
   { immediate: true },
 );
@@ -263,6 +321,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer);
+  if (fundPoll) clearTimeout(fundPoll);
 });
 </script>
 

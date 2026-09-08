@@ -27,21 +27,24 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useTradeStore } from "@/stores";
+import { pickFunds } from "../liveMap";
 
 const trade = useTradeStore();
 const riskEnabled = ref(true);
 const blockNewPositions = ref(false);
 
 const gauges = computed(() => {
-  const fund = trade.funds[0];
+  const selected = String(trade.activeGatewayName || "");
+  const fund = pickFunds(trade.funds, selected, trade.gateways.find((gw) => String(gw.gateway_name) === selected))[0];
   const equity = Number(fund?.balance) || 0;
   const available = Number(fund?.available) || 0;
   const usage = equity > 0 ? Math.min(1, Math.max(0, (equity - available) / equity)) : 0;
-  const volumes = trade.positions.map((p) => Number(p.volume) || 0);
+  const positions = trade.positions.filter((p) => !selected || p.gateway_name === selected);
+  const volumes = positions.map((p) => Number(p.volume) || 0);
   const totalVol = volumes.reduce((a, b) => a + b, 0);
   const maxVol = volumes.reduce((a, b) => Math.max(a, b), 0);
   const concentrate = totalVol > 0 ? maxVol / totalVol : 0;
-  const pnls = trade.positions.map((p) => Number(p.pnl) || 0);
+  const pnls = positions.map((p) => Number(p.pnl) || 0);
   const loss = pnls.filter((v) => v < 0).reduce((a, b) => a + b, 0);
   const dailyLoss = equity > 0 ? Math.min(1, Math.abs(loss) / equity) : 0;
   return [

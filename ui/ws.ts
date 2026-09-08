@@ -20,10 +20,10 @@ function dispatch(msg: { type: string; data: Record<string, unknown> }) {
   if (msg.type === "order") trade.upsertBy(trade.orders, msg.data, "vt_orderid");
   if (msg.type === "trade") trade.upsertBy(trade.trades, msg.data, "tradeid");
   if (msg.type === "position") trade.upsertBy(trade.positions, msg.data, "symbol");
-  if (msg.type === "account") trade.upsertBy(trade.funds, msg.data, "accountid");
+  if (msg.type === "account") trade.upsertFund(msg.data);
   if (msg.type === "gateway") {
-    const gw = trade.gateways.find((row) => row.gateway_name === msg.data.gateway_name);
-    if (gw) gw.conn_status = msg.data.status;
+    const found = trade.upsertGateway(msg.data);
+    if (!found) void trade.refresh();
   }
   listeners.forEach((fn) => fn(msg));
 }
