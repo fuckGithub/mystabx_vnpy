@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from typing import Any
 
@@ -9,6 +10,8 @@ from vnpy.trader.engine import MainEngine
 from vnpy_ctp import CtpGateway
 
 from core.crypto import decrypt
+from core.serialize import envelope
+from core.ws import publish_threadsafe
 from mystabx.config.simnow import (
     apply_simnow_auto_fronts,
     ctp_connect_payload,
@@ -47,19 +50,20 @@ class AccountGatewayManager:
 
     def disconnect(self, gateway_name: str) -> None:
         gateway = self.me.get_gateway(gateway_name)
-        if gateway:
+        if gateway and sys.platform != "darwin":
             try:
                 gateway.close()
             except Exception:
-                # CTP close can raise after a successful login; status still drops.
                 pass
+        # macOS + SimNow CTP 6.7.13: TdApi/MdApi.exit() segfaults the process.
         self.status[gateway_name] = "DISCONNECTED"
 
     def test_connect(self, gateway_name: str, *, login_wait: float = 10.0) -> dict[str, Any]:
         """Probe fronts over TCP, then confirm CTP login if reachable.
 
-        Does not leave a newly opened session behind: if the channel was not
-        already CONNECTED, disconnect after the probe.
+        Do not call CTP ``close()`` / ``exit()`` after a successful Mac login:
+        SimNow v6.7.13 native teardown segfaults the whole Python process.
+        Keep the session if login succeeds.
         """
         acc = self.index.get(gateway_name)
         if acc is None:
@@ -99,18 +103,18 @@ class AccountGatewayManager:
                     "前置可连，但未在时限内收到登录确认。"
                     "请核账号密码；新 SimNow 账号连 7×24 可能要过若干个交易日。"
                 )
-            if opened_for_test:
-                try:
-                    self.disconnect(gateway_name)
-                    if login["ok"]:
-                        login["message"] += " 测试结束已断开，正式使用请再点连接。"
-                    else:
-                        login["status"] = "DISCONNECTED"
-                except Exception as exc:
-                    login["message"] = (
-                        (login["message"] + " ").strip()
-                        + f"登录结果已确认，但断开测试连接时异常：{exc}"
+            elif login["ok"]:
+                login["message"] += " 通道保持连接，可直接使用。"
+                self.mark_connected(gateway_name)
+                publish_threadsafe(
+                    envelope(
+                        "gateway",
+                        {
+                            "gateway_name": gateway_name,
+                            "status": "CONNECTED",
+                        },
                     )
+                )
         ok = reachable and login["ok"]
         if ok:
             summary = f"联通正常 · {meta.get('front_label') or '前置'} 登录已确认"
@@ -134,6 +138,7 @@ class AccountGatewayManager:
             "trade": trade,
             "market": market,
             "login": login,
+            "conn_status": self.status.get(gateway_name, "DISCONNECTED"),
         }
 
     def remove(self, gateway_name: str) -> None:

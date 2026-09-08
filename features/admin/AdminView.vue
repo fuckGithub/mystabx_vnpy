@@ -82,93 +82,107 @@
       <el-dialog
         v-model="accVisible"
         :title="accForm.id ? '编辑通道' : '分配 CTP 账户'"
-        width="560px"
+        width="600px"
         class="page-dialog"
         align-center
         :close-on-click-modal="false"
         destroy-on-close
         @closed="resetAccForm"
       >
-        <el-form :model="accForm" label-width="80px" label-position="right" class="page-dialog-form">
-          <p class="page-form-kicker">账户</p>
-          <el-form-item label="用户 ID">
-            <el-select v-model="accForm.user_id" filterable class="w-full">
-              <el-option
-                v-for="user in users"
-                :key="user.id"
-                :label="`${user.id} · ${user.username}`"
-                :value="user.id"
+        <el-form :model="accForm" label-width="88px" label-position="right" class="page-dialog-form" size="default">
+          <section class="page-form-card">
+            <h3 class="page-form-card__title">账户</h3>
+            <el-form-item label="用户 ID">
+              <el-select v-model="accForm.user_id" filterable class="w-full">
+                <el-option
+                  v-for="user in users"
+                  :key="user.id"
+                  :label="`${user.id} · ${user.username}`"
+                  :value="user.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="账户名">
+              <el-input v-model="accForm.account_name" />
+            </el-form-item>
+            <el-form-item label="资金账号">
+              <el-input v-model="accForm.用户名" autocomplete="off" placeholder="InvestorID" />
+            </el-form-item>
+            <el-form-item label="密码">
+              <el-input
+                v-model="accForm.密码"
+                type="password"
+                show-password
+                autocomplete="new-password"
+                :placeholder="accForm.id ? '更新时留空表示不改密码' : '写后即加密保存'"
               />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="账户名">
-            <el-input v-model="accForm.account_name" />
-          </el-form-item>
-          <el-form-item label="资金账号">
-            <el-input v-model="accForm.用户名" autocomplete="off" placeholder="InvestorID" />
-          </el-form-item>
-          <el-form-item label="密码">
-            <el-input
-              v-model="accForm.密码"
-              type="password"
-              show-password
-              autocomplete="new-password"
-              :placeholder="accForm.id ? '更新时留空表示不改密码' : '写后即加密保存'"
-            />
-          </el-form-item>
+            </el-form-item>
+          </section>
 
-          <p class="page-form-kicker">柜台</p>
-          <el-form-item label="经纪商">
-            <el-input v-model="accForm.经纪商代码" />
-          </el-form-item>
-          <el-form-item label="产品名称">
-            <el-input v-model="accForm.产品名称" />
-          </el-form-item>
-          <el-form-item label="授权编码">
-            <el-input v-model="accForm.授权编码" />
-          </el-form-item>
-          <el-form-item label="柜台环境">
-            <div class="page-static-value">
-              <el-tag size="small" effect="plain" type="info">{{ accForm.柜台环境 || "实盘" }}</el-tag>
-              <el-tooltip :content="interfaceNote" placement="top">
-                <el-icon class="page-label-tip"><QuestionFilled /></el-icon>
-              </el-tooltip>
-            </div>
-          </el-form-item>
+          <section class="page-form-card">
+            <h3 class="page-form-card__title">柜台</h3>
+            <el-form-item label="经纪商">
+              <el-input v-model="accForm.经纪商代码" />
+            </el-form-item>
+            <el-form-item label="产品名称">
+              <el-input v-model="accForm.产品名称" />
+            </el-form-item>
+            <el-form-item label="授权编码">
+              <el-input v-model="accForm.授权编码" />
+            </el-form-item>
+            <el-form-item label="柜台环境">
+              <div class="page-static-value">
+                <el-tag size="small" effect="plain" type="info">{{ accForm.柜台环境 || "实盘" }}</el-tag>
+                <el-tooltip :content="interfaceNote" placement="top">
+                  <el-icon class="page-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
+            </el-form-item>
+          </section>
 
-          <div class="page-front-block">
+          <section class="page-form-card page-form-card--front">
             <div class="page-front-bar">
               <div class="page-front-bar__title">
                 <span>前置</span>
-                <el-tag size="small" effect="plain" :type="accForm.manualFront ? 'warning' : 'info'">
+                <el-tag size="small" effect="plain" :type="accForm.manualFront ? 'warning' : 'primary'">
                   {{ accForm.manualFront ? "手动指定" : `自动 · ${autoHint.label || "—"}` }}
                 </el-tag>
               </div>
-              <div class="page-front-bar__switch">
+              <label class="page-front-bar__switch">
                 <el-switch v-model="accForm.manualFront" :active-value="false" :inactive-value="true" />
-                <span>自动切换前置</span>
-              </div>
+                <span>自动切换</span>
+              </label>
             </div>
             <div v-if="!accForm.manualFront" class="page-front-hint">
-              <p>
-                当前按上海时间自动使用 <strong>{{ autoHint.label || "—" }}</strong>
-                （{{ autoHint.交易服务器 }} / {{ autoHint.行情服务器 }}）。
-              </p>
-              <p>{{ autoHint.windows }}</p>
-              <p>交易时段与 7×24 只换前置，不会新建通道。新账号连 7×24 可能要过若干个交易日才可用。</p>
+              <div class="page-front-hint__row">
+                <span class="page-front-hint__env">{{ autoHint.label || "—" }}</span>
+                <code>{{ autoHint.交易服务器 }}</code>
+                <span class="page-front-hint__sep">/</span>
+                <code>{{ autoHint.行情服务器 }}</code>
+                <el-tooltip placement="top">
+                  <template #content>
+                    <div class="page-dialog-tip">
+                      <p>{{ autoHint.windows }}</p>
+                      <p>交易时段与 7×24 只换前置，不会新建通道。新账号连 7×24 可能要过若干个交易日才可用。</p>
+                    </div>
+                  </template>
+                  <el-icon class="page-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </div>
             </div>
             <div v-else class="page-front-hint page-front-hint--manual">
-              已关闭自动切换。下方地址将固定使用，不再按交易时段 / 7×24 更换。
+              已关闭自动切换。下方地址将固定使用。
             </div>
-          </div>
-          <template v-if="accForm.manualFront">
-            <el-form-item label="交易服务器">
-              <el-input v-model="accForm.交易服务器" />
-            </el-form-item>
-            <el-form-item label="行情服务器">
-              <el-input v-model="accForm.行情服务器" />
-            </el-form-item>
-          </template>
+            <template v-if="accForm.manualFront">
+              <el-form-item label="交易服务器">
+                <el-input v-model="accForm.交易服务器" />
+              </el-form-item>
+              <el-form-item label="行情服务器">
+                <el-input v-model="accForm.行情服务器" />
+              </el-form-item>
+            </template>
+          </section>
+
           <el-alert
             v-if="testResult"
             class="page-connect-result"
@@ -319,6 +333,7 @@ interface ConnectTestResult {
   ok: boolean;
   reachable?: boolean;
   summary: string;
+  conn_status?: string;
   trade?: FrontProbe;
   market?: FrontProbe;
   login?: { message?: string; ok?: boolean; attempted?: boolean };
@@ -605,19 +620,29 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
       timeout: 45000,
     });
     testResult.value = data;
+    if (data.ok) {
+      const row = accounts.value.find((item) => item.id === accountId);
+      if (row) row.conn_status = data.conn_status || "CONNECTED";
+    }
     if (notify) {
       ElMessage[data.ok ? "success" : data.reachable ? "warning" : "error"](data.summary || "联通测试完成");
     }
+    await reload();
     return data;
   } catch (error: unknown) {
     const payload = (error as { response?: { data?: ConnectTestResult } })?.response?.data;
     if (payload && typeof payload === "object" && "summary" in payload) {
       testResult.value = payload;
+      if (payload.ok) {
+        const row = accounts.value.find((item) => item.id === accountId);
+        if (row) row.conn_status = payload.conn_status || "CONNECTED";
+      }
       if (notify) {
         ElMessage[payload.ok ? "success" : payload.reachable ? "warning" : "error"](
           payload.summary || "联通测试完成",
         );
       }
+      await reload();
       return payload;
     }
     ElMessage.error(apiError(error, "联通测试失败"));
