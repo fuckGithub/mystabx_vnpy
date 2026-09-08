@@ -48,7 +48,11 @@ class AccountGatewayManager:
     def disconnect(self, gateway_name: str) -> None:
         gateway = self.me.get_gateway(gateway_name)
         if gateway:
-            gateway.close()
+            try:
+                gateway.close()
+            except Exception:
+                # CTP close can raise after a successful login; status still drops.
+                pass
         self.status[gateway_name] = "DISCONNECTED"
 
     def test_connect(self, gateway_name: str, *, login_wait: float = 10.0) -> dict[str, Any]:
@@ -96,11 +100,17 @@ class AccountGatewayManager:
                     "请核账号密码；新 SimNow 账号连 7×24 可能要过若干个交易日。"
                 )
             if opened_for_test:
-                self.disconnect(gateway_name)
-                if login["ok"]:
-                    login["message"] += " 测试结束已断开，正式使用请再点连接。"
-                else:
-                    login["status"] = "DISCONNECTED"
+                try:
+                    self.disconnect(gateway_name)
+                    if login["ok"]:
+                        login["message"] += " 测试结束已断开，正式使用请再点连接。"
+                    else:
+                        login["status"] = "DISCONNECTED"
+                except Exception as exc:
+                    login["message"] = (
+                        (login["message"] + " ").strip()
+                        + f"登录结果已确认，但断开测试连接时异常：{exc}"
+                    )
         ok = reachable and login["ok"]
         if ok:
             summary = f"联通正常 · {meta.get('front_label') or '前置'} 登录已确认"

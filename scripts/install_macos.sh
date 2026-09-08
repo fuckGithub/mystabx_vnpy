@@ -18,12 +18,15 @@ fi
 uv pip install -e "${ROOT}"
 
 mkdir -p "${DEPS}"
-# Mac CTP official API is 6.7.7; 6.7.11 headers do not compile on darwin.
+# Python bindings come from vnpy_ctp 6.7.7.2; Mac CTP dylibs/headers are overlaid
+# from SimNow official v6.7.13 (merged production/eval, Create* production mode).
 CTP_TAG="6.7.7.2"
 if [[ ! -d "${DEPS}/vnpy_ctp/.git" ]]; then
   git clone --depth 1 --branch "${CTP_TAG}" https://github.com/vnpy/vnpy_ctp.git "${DEPS}/vnpy_ctp"
 fi
 
+bash "${ROOT}/scripts/load_simnow_ctp.sh"
+
 uv pip install "${DEPS}/vnpy_ctp"
 
-echo "依赖已就绪。产品入口是 Web：在仓库根目录执行 ./start.sh（不要用 main.py / Qt）。"
+echo "依赖已就绪（SimNow Mac CTP v6.7.13 + vnpy_ctp）。产品入口是 Web：./start.sh"

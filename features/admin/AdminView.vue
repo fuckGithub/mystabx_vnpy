@@ -601,13 +601,25 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
   accTesting.value = true;
   testingId.value = accountId;
   try {
-    const { data } = await http.post<ConnectTestResult>(`/api/admin/accounts/${accountId}/test-connect`);
+    const { data } = await http.post<ConnectTestResult>(`/api/admin/accounts/${accountId}/test-connect`, null, {
+      timeout: 45000,
+    });
     testResult.value = data;
     if (notify) {
-      ElMessage[data.ok ? "success" : data.reachable ? "warning" : "error"](data.summary);
+      ElMessage[data.ok ? "success" : data.reachable ? "warning" : "error"](data.summary || "联通测试完成");
     }
     return data;
   } catch (error: unknown) {
+    const payload = (error as { response?: { data?: ConnectTestResult } })?.response?.data;
+    if (payload && typeof payload === "object" && "summary" in payload) {
+      testResult.value = payload;
+      if (notify) {
+        ElMessage[payload.ok ? "success" : payload.reachable ? "warning" : "error"](
+          payload.summary || "联通测试完成",
+        );
+      }
+      return payload;
+    }
     ElMessage.error(apiError(error, "联通测试失败"));
     return null;
   } finally {

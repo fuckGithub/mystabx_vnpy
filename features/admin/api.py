@@ -211,6 +211,8 @@ def test_account_connect(account_id: int, _: User = Depends(require_admin)) -> d
             return runtime.gw.test_connect(acc.gateway_name)
         except KeyError:
             raise HTTPException(status_code=404, detail="gateway not registered") from None
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"联通测试异常：{exc}") from exc
     finally:
         db.close()
 

@@ -79,6 +79,8 @@ def test_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
         return runtime.gw.test_connect(gateway_name)
     except KeyError:
         raise HTTPException(status_code=404, detail="gateway not registered") from None
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"联通测试异常：{exc}") from exc
 
 
 @router.post("/api/gateways/{account_id}/disconnect")

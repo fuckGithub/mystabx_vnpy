@@ -100,16 +100,21 @@ python3 -m venv .venv
 
 `pip install -e .` 不会装好可用的 CTP 接口，需按平台另装。
 
-**macOS**（本仓库脚本）：Mac 官方 CTP API 是 6.7.7，**没有 6.7.11 的 Mac API**。用源码编译 6.7.7.2，不要对 `vnpy_ctp` 使用 `pip install -e`：
+**macOS**：Python 封装用 `vnpy_ctp` 6.7.7.2 源码编译；**柜台动态库与头文件用 SimNow 官方 Mac CTP v6.7.13**（测评/生产合并包，本项目 `Create*` 固定生产模式，连看穿式前置）。不要对 `vnpy_ctp` 使用 `pip install -e`。
+
+先准备 SimNow 组件（二选一）：
+
+- 本机已有 `/Users/x/Documents/Stabx/simnow-ctp/production/api/macos/*.framework`（默认搜索路径）
+- 或从 [SimNow API 下载](https://www.simnow.com.cn/static/apiDownload.action) 解压到 `vendor/simnow-ctp/macos/`（或设 `STABX_SIMNOW_CTP`）
 
 ```bash
 # 需先有 .venv，以及本机 uv、Homebrew ta-lib（脚本读 /opt/homebrew）
 ./scripts/install_macos.sh
 ```
 
-该脚本会 `uv pip install -e .`，再 `git clone` `vnpy_ctp` 到 `.deps/vnpy_ctp` 后 `uv pip install .deps/vnpy_ctp`。
+该脚本会 `uv pip install -e .`，clone `vnpy_ctp` 到 `.deps/vnpy_ctp`，用 `scripts/load_simnow_ctp.sh` 覆盖 6.7.13 framework/头文件，再 `uv pip install .deps/vnpy_ctp`。CTP 二进制版权属上期技术，不进 git（见 `vendor/simnow-ctp/README.md`）。
 
-当前 Mac 构建的 `vnpy_ctp` **只带实盘 API**。通道里「柜台环境」固定为「实盘」；SimNow 也走生产前置，不是评测/穿透式测试 API。
+通道里「柜台环境」固定为「实盘」；SimNow 走生产前置。
 
 **Linux**：需要对应平台的 `vnpy_ctp`（Linux `.so`）。不要把 Mac 编译产物拷到服务器。
 

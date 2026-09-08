@@ -140,6 +140,10 @@ ui/components.d.ts
 # 本地编译的 CTP 源码（运行时也可能依赖其中的 framework）
 .deps/
 
+# 上期技术 CTP 二进制（SimNow 官网下载，勿提交）
+vendor/simnow-ctp/macos/
+vendor/simnow-ctp/**/*.zip
+
 # vnpy 运行时数据
 .vntrader/
 *.db
