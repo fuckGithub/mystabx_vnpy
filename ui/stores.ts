@@ -43,10 +43,56 @@ function contractTickKey(tick: Record<string, unknown>): string {
   return `${String(tick.exchange || "").toUpperCase()}.${String(tick.symbol || "").toUpperCase()}`;
 }
 
+export type ClickHouseHealth = {
+  ok: boolean;
+  state: string;
+  host: string;
+  port: number;
+  database: string;
+  error: string;
+};
+
 export const useMarketStore = defineStore("market", () => {
   const ticks = reactive<Record<string, Record<string, unknown>>>({});
   const sessionTicks = reactive<Record<string, Record<string, unknown>[]>>({});
   const contracts = ref<Record<string, unknown>[]>([]);
+  const clickhouse = reactive<ClickHouseHealth>({
+    ok: false,
+    state: "",
+    host: "",
+    port: 0,
+    database: "",
+    error: "",
+  });
+
+  function applyClickhouse(
+    data: { ok?: boolean; state?: string; host?: string; port?: number; database?: string; error?: string } | string,
+  ) {
+    if (typeof data === "string") {
+      const state = data || "";
+      clickhouse.state = state;
+      clickhouse.ok = state === "ok";
+      if (state === "ok") clickhouse.error = "";
+      return;
+    }
+    const state = String(data.state || (data.ok ? "ok" : "down"));
+    clickhouse.ok = Boolean(data.ok ?? state === "ok");
+    clickhouse.state = state;
+    if (data.host) clickhouse.host = String(data.host);
+    if (data.port) clickhouse.port = Number(data.port);
+    if (data.database) clickhouse.database = String(data.database);
+    clickhouse.error = data.error ? String(data.error) : "";
+  }
+
+  async function loadHealth() {
+    try {
+      const { data } = await http.get("/health");
+      applyClickhouse(data?.clickhouse || {});
+    } catch {
+      applyClickhouse({ ok: false, state: "down" });
+    }
+    return clickhouse;
+  }
 
   function appendSessionTick(tick: Record<string, unknown>) {
     const key = contractTickKey(tick);
@@ -116,6 +162,7 @@ export const useMarketStore = defineStore("market", () => {
     const rows = Array.isArray(data) ? data : Array.isArray(data?.ticks) ? data.ticks : [];
     const isCurrent = Array.isArray(data) ? true : Boolean(data?.is_current ?? !tradeDate);
     if (isCurrent) replaceSessionTicks(symbol, exchange, rows);
+    if (data?.clickhouse) applyClickhouse(String(data.clickhouse));
     return {
       ticks: rows as Record<string, unknown>[],
       trade_date: String(data?.trade_date || tradeDate || ""),
@@ -126,6 +173,7 @@ export const useMarketStore = defineStore("market", () => {
 
   async function loadTradeDates(symbol: string, exchange: string) {
     const { data } = await http.get("/api/market/trade-dates", { params: { symbol, exchange } });
+    if (data?.clickhouse) applyClickhouse(String(data.clickhouse));
     return data as {
       current: string;
       clickhouse: string;
@@ -145,8 +193,11 @@ export const useMarketStore = defineStore("market", () => {
     ticks,
     sessionTicks,
     contracts,
+    clickhouse,
+    applyClickhouse,
     upsertTick,
     latestTick,
+    loadHealth,
     loadContracts,
     loadTicks,
     loadSessionTicks,

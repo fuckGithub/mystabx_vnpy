@@ -53,6 +53,7 @@ TTL datetime + INTERVAL {days} DAY DELETE
 
 _ready = False
 _down_logged = False
+_last_error: str | None = None
 _lock = threading.Lock()
 
 
@@ -66,14 +67,35 @@ def _base_url() -> str:
     return f"http://{host}:{port}"
 
 
+def _endpoint() -> tuple[str, int]:
+    parsed = urlparse(_base_url())
+    host = parsed.hostname or settings.clickhouse_host or "127.0.0.1"
+    port = parsed.port or int(settings.clickhouse_port or 8123)
+    return host, port
+
+
 def status() -> dict[str, Any]:
-    return {
+    host, port = _endpoint()
+    db = settings.clickhouse_database or DATABASE
+    payload: dict[str, Any] = {
         "ok": _ready,
+        "state": "ok" if _ready else "down",
+        "host": host,
+        "port": port,
         "url": _base_url(),
-        "database": settings.clickhouse_database,
+        "database": db,
         "table": TABLE,
         "ttl_days": _ttl_days(),
     }
+    if not _ready and _last_error:
+        payload["error"] = _last_error
+    return payload
+
+
+def describe() -> str:
+    host, port = _endpoint()
+    db = settings.clickhouse_database or DATABASE
+    return f"{host}:{port} database={db}"
 
 
 def _headers() -> dict[str, str]:
@@ -102,19 +124,31 @@ def _query(sql: str, *, body: bytes | None = None, timeout: float = 8.0) -> byte
 
 
 def _mark_down(exc: Exception) -> None:
-    global _ready, _down_logged
+    global _ready, _down_logged, _last_error
     _ready = False
+    _last_error = str(exc)
     if not _down_logged:
-        logger.warning("ClickHouse unavailable at %s: %s (live ticks stay in memory)", _base_url(), exc)
+        logger.warning(
+            "ClickHouse unreachable %s: %s (今日分时走内存，历史交易日不可查)",
+            describe(),
+            exc,
+        )
         _down_logged = True
 
 
 def _mark_up() -> None:
-    global _ready, _down_logged
+    global _ready, _down_logged, _last_error
     if not _ready or _down_logged:
-        logger.info("ClickHouse ready at %s, table %s.%s TTL %sd", _base_url(), DATABASE, TABLE, _ttl_days())
+        logger.info(
+            "ClickHouse reachable %s table=%s.%s TTL %sd",
+            describe(),
+            settings.clickhouse_database or DATABASE,
+            TABLE,
+            _ttl_days(),
+        )
     _ready = True
     _down_logged = False
+    _last_error = None
 
 
 def ping() -> bool:

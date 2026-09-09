@@ -16,6 +16,7 @@ from mystabx.paths import PROJECT_ROOT, ensure_project_trader_dir
 
 ensure_project_trader_dir()
 
+from core.clickhouse import describe as clickhouse_describe  # noqa: E402
 from core.clickhouse import init_clickhouse, status as clickhouse_status  # noqa: E402
 from core.config import settings  # noqa: E402
 from core.db import Account, User, account_to_dict, get_session, init_db  # noqa: E402
@@ -49,10 +50,11 @@ def _load_accounts() -> list[dict]:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    where = clickhouse_describe()
     if init_clickhouse():
-        logger.info("ClickHouse tick store ready")
+        logger.info("ClickHouse reachable %s", where)
     else:
-        logger.warning("ClickHouse down — 分时今日走内存，历史交易日不可查")
+        logger.warning("ClickHouse unreachable %s — 分时今日走内存，历史交易日不可查", where)
     start_tick_writer()
     main_engine, event_engine = build_headless_engines()
     manager = AccountGatewayManager(main_engine)

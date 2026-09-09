@@ -2,6 +2,7 @@
   <div v-if="section === 'ticks'" class="page-shell">
     <div class="page-section">
       <h3 class="page-section-title">实时行情</h3>
+      <p v-if="chStatusText" class="ch-status" :class="{ down: !market.clickhouse.ok }">{{ chStatusText }}</p>
       <el-table :data="tickRows" height="560">
         <el-table-column prop="symbol" label="合约" width="120" />
         <el-table-column prop="last_price" label="最新" width="100" />
@@ -15,6 +16,7 @@
     </div>
   </div>
   <div v-else class="equilibrix-dashboard market-terminal">
+    <p v-if="chStatusText" class="ch-status" :class="{ down: !market.clickhouse.ok }">{{ chStatusText }}</p>
     <div class="market-grid">
       <ContractListPanel
         :contracts="market.contracts"
@@ -74,7 +76,6 @@ const tradeDate = ref("");
 const tradeDates = ref<TradeDateOption[]>([]);
 const historyTicks = ref<Record<string, unknown>[]>([]);
 const historyKey = ref("");
-const clickhouseState = ref("");
 
 const section = computed(() => String(route.params.section || "quotes"));
 const tickRows = computed(() => Object.values(market.ticks));
@@ -126,7 +127,7 @@ const emptyHint = computed(() => {
   }
   if (!hasTimesharePrice.value) {
     if (!viewingCurrent.value) {
-      return clickhouseState.value === "down"
+      return market.clickhouse.state === "down"
         ? "ClickHouse 未连接，历史交易日无法加载。今日分时仍可走内存实时。"
         : `${tradeDate.value} 暂无 Tick。连接行情后会写入本地 ClickHouse（保留 10 天）。`;
     }
@@ -135,8 +136,16 @@ const emptyHint = computed(() => {
   return "";
 });
 
+const chStatusText = computed(() => {
+  const ch = market.clickhouse;
+  if (!ch.state) return "";
+  const loc = ch.host ? `${ch.host}${ch.port ? `:${ch.port}` : ""}${ch.database ? ` / ${ch.database}` : ""}` : "";
+  if (ch.ok) return `ClickHouse 可达${loc ? ` ${loc}` : ""}`;
+  return `ClickHouse 不可达${loc ? ` ${loc}` : ""}（今日分时走内存，历史交易日不可查）`;
+});
+
 onMounted(async () => {
-  await Promise.all([market.loadContracts(), market.loadTicks(), trade.refresh()]);
+  await Promise.allSettled([market.loadHealth(), market.loadContracts(), market.loadTicks(), trade.refresh()]);
 });
 
 async function onSearch(keyword: string) {
@@ -179,7 +188,6 @@ async function refreshTradeDates(row: ContractRow) {
   }));
   try {
     const data = await market.loadTradeDates(String(row.symbol || ""), String(row.exchange || ""));
-    clickhouseState.value = data.clickhouse || "";
     tradeDates.value = data.dates || fallback;
     if (!tradeDate.value && data.current) tradeDate.value = data.current;
   } catch {
@@ -191,7 +199,6 @@ async function refreshSession(row: ContractRow, date = tradeDate.value) {
   sessionLoading.value = true;
   try {
     const result = await market.loadSessionTicks(String(row.symbol || ""), String(row.exchange || ""), date);
-    clickhouseState.value = result.clickhouse || clickhouseState.value;
     if (result.is_current) {
       historyTicks.value = [];
       historyKey.value = "";
@@ -244,7 +251,18 @@ watch(tradeDate, (next, prev) => {
 <style src="@/styles/equilibrix-dashboard.css"></style>
 
 <style scoped>
+.ch-status {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-color-success);
+}
+.ch-status.down {
+  color: var(--el-color-warning);
+}
 .market-terminal {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
   padding: 10px 12px;
@@ -254,7 +272,7 @@ watch(tradeDate, (next, prev) => {
   display: grid;
   grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(180px, 220px);
   gap: 8px;
-  height: 100%;
+  flex: 1;
   min-height: 0;
 }
 @media (max-width: 1100px) {

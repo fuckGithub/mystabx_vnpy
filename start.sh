@@ -232,6 +232,36 @@ free_stabx_listen_port() {
   exit 1
 }
 
+probe_clickhouse() {
+  local url host port db ping
+  url="${STABX_CLICKHOUSE_URL:-http://${STABX_CLICKHOUSE_HOST:-127.0.0.1}:${STABX_CLICKHOUSE_PORT:-8123}}"
+  url="${url%/}"
+  host="${STABX_CLICKHOUSE_HOST:-}"
+  port="${STABX_CLICKHOUSE_PORT:-}"
+  db="${STABX_CLICKHOUSE_DATABASE:-vnpy}"
+  if [[ -z "${host}" || -z "${port}" ]]; then
+    host="${url#*://}"
+    host="${host%%/*}"
+    if [[ "${host}" == *:* ]]; then
+      port="${host##*:}"
+      host="${host%%:*}"
+    else
+      port="8123"
+    fi
+  fi
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "ClickHouse 未探测 ${host}:${port} database=${db}（未找到 curl，启动后由 FastAPI lifespan 再查）"
+    return 0
+  fi
+  ping="$(curl -fsS --max-time 2 "${url}/ping" 2>/dev/null || true)"
+  if [[ "${ping}" == Ok* ]]; then
+    echo "ClickHouse 可达 ${host}:${port} database=${db}"
+    return 0
+  fi
+  echo "ClickHouse 不可达 ${host}:${port} database=${db}（不阻止启动，今日分时走内存）"
+  return 0
+}
+
 ensure_node_modules() {
   if [[ ! -d "${ROOT}/node_modules" ]]; then
     echo "未找到 node_modules，正在 npm install ..."
@@ -257,6 +287,7 @@ if [[ "${MODE}" == "dev" ]]; then
     fi
   }
   trap cleanup EXIT INT TERM
+  probe_clickhouse
   free_stabx_listen_port "${PORT}"
   "${PY}" -m uvicorn core.main:app --reload --host "${HOST}" --port "${PORT}" &
   UVICORN_PID=$!
@@ -291,5 +322,6 @@ fi
 
 echo "生产模式（${OS}）：单进程托管 API + SPA  →  http://${HOST}:${PORT}"
 echo "提示：不要使用 uvicorn --workers，vnpy MainEngine 必须单进程。"
+probe_clickhouse
 free_stabx_listen_port "${PORT}"
 exec "${PY}" -m uvicorn core.main:app --host "${HOST}" --port "${PORT}"
