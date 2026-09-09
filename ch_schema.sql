@@ -44,6 +44,28 @@ PARTITION BY toYYYYMMDD(datetime)
 ORDER BY (symbol, exchange, datetime)
 TTL datetime + INTERVAL 6 MONTH;
 
+-- 分时 Tick：默认保留 10 个交易日（应用启动也会 CREATE IF NOT EXISTS）
+CREATE TABLE IF NOT EXISTS vnpy.market_tick (
+    symbol        String,
+    exchange      String,
+    gateway_name  String,
+    datetime      DateTime64(3, 'Asia/Shanghai'),
+    trade_date    Date,
+    last_price    Float64,
+    last_volume   Float64,
+    volume        Float64,
+    turnover      Float64,
+    open_interest Float64,
+    bid_price_1   Float64,
+    bid_volume_1  Float64,
+    ask_price_1   Float64,
+    ask_volume_1  Float64,
+    inserted_at   DateTime64(3, 'Asia/Shanghai') DEFAULT now64(3)
+) ENGINE = MergeTree()
+PARTITION BY trade_date
+ORDER BY (symbol, exchange, datetime)
+TTL datetime + INTERVAL 10 DAY DELETE;
+
 CREATE TABLE IF NOT EXISTS vnpy.order_event (
     event_time  DateTime64(3, 'Asia/Shanghai'),
     order_id    String,

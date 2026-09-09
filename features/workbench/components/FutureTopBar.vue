@@ -54,10 +54,16 @@
 
         <span class="env-chip__sep" aria-hidden="true" />
 
-        <span class="env-chip__status" :class="`env-chip__status--${statusTone}`" role="status">
-          <EnvWaveIndicator :tone="statusTone" :ripple="connected" size="sm" />
-          {{ connected ? "已连接" : "未连接" }}
-        </span>
+        <div class="env-chip__statuses" role="status">
+          <span class="env-chip__status" :class="`env-chip__status--${loginTone}`">
+            <EnvWaveIndicator :tone="loginTone" :ripple="loginOk" size="sm" />
+            账号 {{ loginText }}
+          </span>
+          <span class="env-chip__status" :class="`env-chip__status--${quoteTone}`">
+            <EnvWaveIndicator :tone="quoteTone" :ripple="quoteOk" size="sm" />
+            行情 {{ quoteText }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -96,6 +102,14 @@ import { isSseOpen } from "@/sse";
 import { useTradeStore } from "@/stores";
 import { pnlClass, pickFunds, accountMetrics } from "../liveMap";
 import EnvWaveIndicator from "./EnvWaveIndicator.vue";
+import {
+  isStatusOk,
+  loginLabel,
+  loginStatusOf,
+  quoteLabel,
+  quoteStatusOf,
+  statusTone,
+} from "@/gatewayStatus";
 
 defineProps<{
   brand: { icon: string; text: string; en: string };
@@ -115,13 +129,13 @@ function gatewayKind(gw: Record<string, unknown>) {
 }
 
 function gatewayTone(gw: Record<string, unknown>) {
-  return String(gw.conn_status) === "CONNECTED" ? "ok" : "muted";
+  return statusTone(loginStatusOf(gw));
 }
 
 function preferGateway(current: Record<string, unknown> | undefined, next: Record<string, unknown>) {
   if (!current) return next;
-  const curOk = String(current.conn_status) === "CONNECTED";
-  const nextOk = String(next.conn_status) === "CONNECTED";
+  const curOk = isStatusOk(loginStatusOf(current));
+  const nextOk = isStatusOk(loginStatusOf(next));
   if (nextOk && !curOk) return next;
   if (nextOk === curOk && Number(next.id || 0) < Number(current.id || 0)) return next;
   return current;
@@ -177,8 +191,15 @@ const envOptionGroups = computed(() =>
 const selectedMeta = computed(() => envOptions.value.find((item) => item.key === selectedGw.value));
 const selectedEnvKind = computed(() => selectedMeta.value?.kind ?? "simulation");
 const selectedGwRow = computed(() => trade.gateways.find((gw) => String(gw.gateway_name) === selectedGw.value));
-const connected = computed(() => String(selectedGwRow.value?.conn_status) === "CONNECTED");
-const statusTone = computed(() => (connected.value ? "ok" : "muted"));
+const loginState = computed(() => loginStatusOf(selectedGwRow.value));
+const quoteState = computed(() => quoteStatusOf(selectedGwRow.value));
+const loginOk = computed(() => isStatusOk(loginState.value));
+const quoteOk = computed(() => isStatusOk(quoteState.value));
+const loginTone = computed(() => statusTone(loginState.value));
+const quoteTone = computed(() => statusTone(quoteState.value));
+const loginText = computed(() => loginLabel(loginState.value));
+const quoteText = computed(() => quoteLabel(quoteState.value));
+const connected = computed(() => loginOk.value);
 
 function formatMoney(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "--";
@@ -552,9 +573,16 @@ onUnmounted(() => {
   color: var(--env-accent);
 }
 
-.env-chip__status {
-  gap: 6px;
+.env-chip__statuses {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-right: 2px;
+}
+
+.env-chip__status {
+  gap: 5px;
+  padding: 0 7px;
   cursor: default;
   pointer-events: none;
   user-select: none;

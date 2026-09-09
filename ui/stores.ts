@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import { clearTokens, fetchMe, getAccessToken, http, login as loginApi } from "./api";
+import { mergeGatewayStatuses } from "./gatewayStatus";
 
 export const useAuthStore = defineStore("auth", () => {
   const user = ref<Record<string, unknown> | null>(null);
@@ -38,13 +39,62 @@ export const useAuthStore = defineStore("auth", () => {
   return { user, ready, isLogin, isAdmin, login, hydrate, logout };
 });
 
+function contractTickKey(tick: Record<string, unknown>): string {
+  return `${String(tick.exchange || "").toUpperCase()}.${String(tick.symbol || "").toUpperCase()}`;
+}
+
 export const useMarketStore = defineStore("market", () => {
   const ticks = reactive<Record<string, Record<string, unknown>>>({});
+  const sessionTicks = reactive<Record<string, Record<string, unknown>[]>>({});
   const contracts = ref<Record<string, unknown>[]>([]);
+
+  function appendSessionTick(tick: Record<string, unknown>) {
+    const key = contractTickKey(tick);
+    if (!key.startsWith(".") && key.includes(".")) {
+      const cutoff = Date.now() - 20 * 3600 * 1000;
+      const list = (sessionTicks[key] ? [...sessionTicks[key]] : []).filter((row) => {
+        const raw = String(row.datetime || "");
+        const ms = Date.parse(raw);
+        return Number.isNaN(ms) || ms >= cutoff;
+      });
+      const dt = String(tick.datetime || "");
+      const last = list[list.length - 1];
+      if (last && String(last.datetime || "") === dt && last.last_price === tick.last_price) {
+        list[list.length - 1] = tick;
+      } else {
+        list.push(tick);
+      }
+      if (list.length > 24_000) list.splice(0, list.length - 24_000);
+      sessionTicks[key] = list;
+    }
+  }
 
   function upsertTick(tick: Record<string, unknown>) {
     const key = `${tick.exchange}.${tick.symbol}.${tick.gateway_name}`;
     ticks[key] = tick;
+    appendSessionTick(tick);
+  }
+
+  function latestTick(symbol: string, exchange: string): Record<string, unknown> | undefined {
+    const want = `${exchange.toUpperCase()}.${symbol.toUpperCase()}`;
+    return Object.values(ticks).find((tick) => contractTickKey(tick) === want);
+  }
+
+  function replaceSessionTicks(symbol: string, exchange: string, rows: Record<string, unknown>[]) {
+    const key = `${exchange.toUpperCase()}.${symbol.toUpperCase()}`;
+    const merged = new Map<string, Record<string, unknown>>();
+    for (const row of [...(sessionTicks[key] || []), ...rows]) {
+      merged.set(String(row.datetime || `${row.last_price}:${row.volume}`), row);
+    }
+    const sorted = [...merged.values()].sort((a, b) =>
+      String(a.datetime || "").localeCompare(String(b.datetime || "")),
+    );
+    sessionTicks[key] = sorted;
+    const last = sorted[sorted.length - 1];
+    if (last) {
+      const tickKey = `${last.exchange}.${last.symbol}.${last.gateway_name}`;
+      ticks[tickKey] = last;
+    }
   }
 
   async function loadContracts(q = "") {
@@ -59,7 +109,50 @@ export const useMarketStore = defineStore("market", () => {
     return data;
   }
 
-  return { ticks, contracts, upsertTick, loadContracts, loadTicks };
+  async function loadSessionTicks(symbol: string, exchange: string, tradeDate?: string) {
+    const { data } = await http.get("/api/market/session-ticks", {
+      params: { symbol, exchange, ...(tradeDate ? { trade_date: tradeDate } : {}) },
+    });
+    const rows = Array.isArray(data) ? data : Array.isArray(data?.ticks) ? data.ticks : [];
+    const isCurrent = Array.isArray(data) ? true : Boolean(data?.is_current ?? !tradeDate);
+    if (isCurrent) replaceSessionTicks(symbol, exchange, rows);
+    return {
+      ticks: rows as Record<string, unknown>[],
+      trade_date: String(data?.trade_date || tradeDate || ""),
+      is_current: isCurrent,
+      clickhouse: String(data?.clickhouse || ""),
+    };
+  }
+
+  async function loadTradeDates(symbol: string, exchange: string) {
+    const { data } = await http.get("/api/market/trade-dates", { params: { symbol, exchange } });
+    return data as {
+      current: string;
+      clickhouse: string;
+      dates: { date: string; is_current: boolean; has_data: boolean }[];
+    };
+  }
+
+  async function subscribeContract(gatewayName: string, symbol: string, exchange: string) {
+    await http.post("/api/market/subscribe", {
+      gateway_name: gatewayName,
+      symbol,
+      exchange,
+    });
+  }
+
+  return {
+    ticks,
+    sessionTicks,
+    contracts,
+    upsertTick,
+    latestTick,
+    loadContracts,
+    loadTicks,
+    loadSessionTicks,
+    loadTradeDates,
+    subscribeContract,
+  };
 });
 
 export const useTradeStore = defineStore("trade", () => {
@@ -87,14 +180,15 @@ export const useTradeStore = defineStore("trade", () => {
   function upsertGateway(data: Record<string, unknown>) {
     const name = String(data.gateway_name || "");
     if (!name) return false;
-    const status = String(data.status ?? data.conn_status ?? "DISCONNECTED");
     const index = gateways.value.findIndex((row) => String(row.gateway_name) === name);
+    const prev = index >= 0 ? gateways.value[index] : undefined;
+    const statuses = mergeGatewayStatuses(prev, data);
     if (index >= 0) {
       gateways.value[index] = {
-        ...gateways.value[index],
+        ...prev,
         ...data,
+        ...statuses,
         gateway_name: name,
-        conn_status: status,
       };
       return true;
     }
@@ -102,8 +196,8 @@ export const useTradeStore = defineStore("trade", () => {
       {
         gateway_name: name,
         account_name: data.account_name || name,
-        conn_status: status,
         ...data,
+        ...statuses,
       },
       ...gateways.value,
     ];
@@ -124,7 +218,11 @@ export const useTradeStore = defineStore("trade", () => {
     const nextFunds = Array.isArray(f.data) ? f.data : [];
     // Empty GET must not wipe a later WS/query snapshot (connect race).
     funds.value = nextFunds.length ? nextFunds : funds.value;
-    gateways.value = g.data;
+    const rows = Array.isArray(g.data) ? g.data : [];
+    gateways.value = rows.map((row: Record<string, unknown>) => ({
+      ...row,
+      ...mergeGatewayStatuses(undefined, row),
+    }));
   }
 
   return {

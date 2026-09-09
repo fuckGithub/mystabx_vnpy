@@ -26,6 +26,8 @@ from core.serialize import (
     trade_payload,
 )
 from core.ws import publish_threadsafe
+from features.market.tick_buffer import record_tick
+from features.market.tick_writer import enqueue_tick
 
 
 def _gateway_name(data) -> str | None:
@@ -34,7 +36,13 @@ def _gateway_name(data) -> str | None:
 
 def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> None:
     def on_tick(event: Event) -> None:
-        publish_threadsafe(envelope("tick", tick_payload(event.data)))
+        gw = _gateway_name(event.data)
+        if gw:
+            manager.note_market_event(str(gw), from_tick=True)
+        payload = tick_payload(event.data)
+        record_tick(payload)
+        enqueue_tick(payload)
+        publish_threadsafe(envelope("tick", payload))
 
     def on_order(event: Event) -> None:
         publish_threadsafe(envelope("order", order_payload(event.data)))
@@ -49,22 +57,24 @@ def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> No
         payload = account_payload(event.data)
         gw = payload.get("gateway_name") or _gateway_name(event.data)
         if gw:
-            manager.mark_connected(str(gw))
+            manager.mark_td_connected(str(gw))
             manager.cache_account(payload)
-            manager._publish_status(str(gw), "CONNECTED")
         publish_threadsafe(envelope("account", payload))
 
     def on_contract(event: Event) -> None:
         gw = _gateway_name(event.data)
         if gw:
-            manager.mark_connected(gw)
+            manager.note_market_event(str(gw), from_tick=False)
         publish_threadsafe(envelope("contract", contract_payload(event.data)))
 
     def on_log(event: Event) -> None:
         publish_threadsafe(envelope("log", log_payload(event.data)))
         msg = str(getattr(event.data, "msg", "") or "")
         gw = _gateway_name(event.data)
-        if gw and "合约信息查询成功" in msg:
+        if not gw:
+            return
+        manager.apply_log_status(str(gw), msg)
+        if "合约信息查询成功" in msg:
             manager.start_account_sync(str(gw))
             manager.request_account_query(str(gw))
 

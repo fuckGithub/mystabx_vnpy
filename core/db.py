@@ -211,6 +211,8 @@ def account_channel_dict(
     account: Account,
     *,
     conn_status: str = "DISCONNECTED",
+    login_status: str = "DISCONNECTED",
+    quote_status: str = "DISCONNECTED",
     front_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Public channel row: never includes 密码."""
@@ -233,6 +235,11 @@ def account_channel_dict(
     data["connect"] = public_connect_settings(merged)
     data["auto_front"] = auto_front_enabled(merged)
     data["conn_status"] = conn_status
+    data["login_status"] = login_status
+    data["td_status"] = login_status
+    data["trade_status"] = login_status
+    data["quote_status"] = quote_status
+    data["md_status"] = quote_status
     if front_info:
         data["front_env"] = front_info.get("front_env")
         data["front_label"] = front_info.get("front_label")

@@ -80,6 +80,12 @@ class Settings:
         self.simnow_user = os.environ.get("STABX_SIMNOW_USER", "").strip()
         self.simnow_password = os.environ.get("STABX_SIMNOW_PASSWORD", "").strip()
         self.clickhouse_url = os.environ.get("STABX_CLICKHOUSE_URL", "http://127.0.0.1:8123")
+        self.clickhouse_host = os.environ.get("STABX_CLICKHOUSE_HOST", "127.0.0.1")
+        self.clickhouse_port = int(os.environ.get("STABX_CLICKHOUSE_PORT", "8123"))
+        self.clickhouse_user = os.environ.get("STABX_CLICKHOUSE_USER", "default")
+        self.clickhouse_password = os.environ.get("STABX_CLICKHOUSE_PASSWORD", "")
+        self.clickhouse_database = os.environ.get("STABX_CLICKHOUSE_DATABASE", "vnpy")
+        self.clickhouse_tick_ttl_days = int(os.environ.get("STABX_CLICKHOUSE_TICK_TTL_DAYS", "10"))
         self.host = os.environ.get("STABX_HOST", "0.0.0.0")
         self.port = int(os.environ.get("STABX_PORT", "8000"))
         raw_origins = os.environ.get(

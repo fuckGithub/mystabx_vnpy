@@ -16,6 +16,7 @@ from mystabx.paths import PROJECT_ROOT, ensure_project_trader_dir
 
 ensure_project_trader_dir()
 
+from core.clickhouse import init_clickhouse, status as clickhouse_status  # noqa: E402
 from core.config import settings  # noqa: E402
 from core.db import Account, User, account_to_dict, get_session, init_db  # noqa: E402
 from core.deps import decode_token, get_user_by_id, user_public, visible_gateways  # noqa: E402
@@ -30,6 +31,7 @@ from features.account.api import router as account_router  # noqa: E402
 from features.admin.api import router as admin_router  # noqa: E402
 from features.auth.api import router as auth_router  # noqa: E402
 from features.market.api import router as market_router  # noqa: E402
+from features.market.tick_writer import start_tick_writer, stop_tick_writer  # noqa: E402
 from features.trade.api import router as trade_router  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
@@ -47,6 +49,11 @@ def _load_accounts() -> list[dict]:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    if init_clickhouse():
+        logger.info("ClickHouse tick store ready")
+    else:
+        logger.warning("ClickHouse down — 分时今日走内存，历史交易日不可查")
+    start_tick_writer()
     main_engine, event_engine = build_headless_engines()
     manager = AccountGatewayManager(main_engine)
     manager.load_all(_load_accounts())
@@ -59,6 +66,7 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
+        stop_tick_writer()
         set_loop(None)
         runtime.gateways = None
         runtime.event_engine = None
@@ -91,6 +99,7 @@ def health() -> dict:
         "gateways": list(runtime.gw.index) if runtime.gateways else [],
         "ws": hub.snapshot_counts(),
         "sse": sse_hub.snapshot_counts(),
+        "clickhouse": clickhouse_status(),
     }
 
 
@@ -121,7 +130,7 @@ def _kick_account_sync(names: set[str] | None) -> None:
         return
     targets = runtime.gw.index.keys() if names is None else names
     for name in targets:
-        if runtime.gw.status.get(name) == "CONNECTED" and not runtime.gw.has_account(name):
+        if runtime.gw.is_td_connected(name) and not runtime.gw.has_account(name):
             runtime.gw.start_account_sync(name)
 
 
@@ -208,12 +217,15 @@ async def ws_endpoint(ws: WebSocket) -> None:
             elif msg_type == "subscribe":
                 topics = {str(t) for t in data.get("topics") or []}
                 conn.topics.update(topics)
+                names = None if conn.is_admin else conn.gateways
+                if runtime.gateways and ("gateway" in conn.topics or not conn.topics):
+                    for payload in runtime.gw.statuses_for(names):
+                        await ws.send_json(envelope("gateway", payload))
                 if runtime.gateways and ("account" in conn.topics or not conn.topics):
-                    names = None if conn.is_admin else conn.gateways
                     for payload in runtime.gw.funds_for(names):
                         await ws.send_json(envelope("account", payload))
                     for name in conn.gateways:
-                        if runtime.gw.status.get(name) == "CONNECTED" and not runtime.gw.has_account(name):
+                        if runtime.gw.is_td_connected(name) and not runtime.gw.has_account(name):
                             runtime.gw.start_account_sync(name)
             elif msg_type == "unsubscribe":
                 topics = {str(t) for t in data.get("topics") or []}

@@ -34,10 +34,13 @@ def list_gateways(user: User = Depends(current_user)) -> list[dict]:
             stmt = stmt.where(Account.user_id == user.id)
         rows = []
         for acc in db.scalars(stmt):
+            st = runtime.gw.channel_statuses(acc.gateway_name)
             rows.append(
                 account_channel_dict(
                     acc,
-                    conn_status=runtime.gw.status.get(acc.gateway_name, "DISCONNECTED"),
+                    conn_status=st["conn_status"],
+                    login_status=st["login_status"],
+                    quote_status=st["quote_status"],
                     front_info=runtime.gw.front_info.get(acc.gateway_name),
                 )
             )
@@ -59,7 +62,7 @@ def connect_gateway(account_id: int, user: User = Depends(current_user)) -> dict
         finally:
             db.close()
     meta = runtime.gw.connect(gateway_name)
-    return {"ok": True, "gateway_name": gateway_name, "status": "CONNECTING", **meta}
+    return {"ok": True, "gateway_name": gateway_name, **runtime.gw.channel_statuses(gateway_name, live=False), **meta}
 
 
 @router.post("/api/gateways/{account_id}/test-connect")
@@ -86,7 +89,7 @@ def test_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
 def disconnect_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
     _row_id, gateway_name = _owned_account(user, account_id)
     runtime.gw.disconnect(gateway_name)
-    return {"ok": True, "gateway_name": gateway_name, "status": "DISCONNECTED"}
+    return {"ok": True, "gateway_name": gateway_name, **runtime.gw.channel_statuses(gateway_name, live=False)}
 
 
 @router.post("/api/gateways/{account_id}/query")
@@ -101,6 +104,6 @@ def query_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
 def list_funds(user: User = Depends(current_user)) -> list[dict]:
     gws = set(visible_gateways(user))
     for name in gws:
-        if runtime.gw.status.get(name) == "CONNECTED" and not runtime.gw.has_account(name):
+        if runtime.gw.is_td_connected(name) and not runtime.gw.has_account(name):
             runtime.gw.refresh_account(name, wait=0.8)
     return runtime.gw.funds_for(gws)

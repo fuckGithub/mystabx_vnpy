@@ -59,8 +59,8 @@
       </el-aside>
 
       <el-main class="layout-main">
-        <div class="layout-padding" :class="{ 'layout-padding-unset': isWorkbench }">
-          <div class="layout-padding-view" :class="{ 'layout-padding-unset-view': isWorkbench }">
+        <div class="layout-padding" :class="{ 'layout-padding-unset': isFullBleed }">
+          <div class="layout-padding-view" :class="{ 'layout-padding-unset-view': isFullBleed }">
             <router-view />
           </div>
         </div>
@@ -100,6 +100,8 @@ const market = useMarketStore();
 const visibleMenus = computed(() => topMenus.filter((item) => !item.admin || auth.isAdmin));
 const userInitial = computed(() => String(auth.user?.username || "U").slice(0, 1).toUpperCase());
 const isWorkbench = computed(() => route.path === "/workbench" || route.path.startsWith("/workbench/"));
+const isMarketQuotes = computed(() => route.path === "/market/quotes" || route.path === "/market");
+const isFullBleed = computed(() => isWorkbench.value || isMarketQuotes.value);
 const currentModule = computed(() => moduleKeyFromPath(route.path));
 const showSidebar = computed(() => Boolean(currentModule.value));
 const sidebarItems = computed(() => sidebars[currentModule.value] ?? []);

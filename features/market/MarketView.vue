@@ -1,77 +1,270 @@
 <template>
-  <div class="page-shell">
-    <template v-if="section === 'ticks'">
-      <div class="page-section">
-        <h3 class="page-section-title">实时行情</h3>
-        <el-table :data="tickRows" height="560">
-          <el-table-column prop="symbol" label="合约" width="120" />
-          <el-table-column prop="last_price" label="最新" width="100" />
-          <el-table-column prop="bid_price_1" label="买一" width="100" />
-          <el-table-column prop="bid_volume_1" label="买量" width="80" />
-          <el-table-column prop="ask_price_1" label="卖一" width="100" />
-          <el-table-column prop="ask_volume_1" label="卖量" width="80" />
-          <el-table-column prop="volume" label="成交量" />
-          <el-table-column prop="gateway_name" label="账户" width="120" />
-        </el-table>
-      </div>
-    </template>
-    <template v-else>
-      <div class="page-query">
-        <el-input v-model="keyword" placeholder="搜索合约代码 / 名称" clearable style="width: 280px" @change="search" />
-        <el-select v-model="gateway" placeholder="账户" clearable style="width: 180px">
-          <el-option v-for="gw in trade.gateways" :key="String(gw.gateway_name)" :label="String(gw.gateway_name)" :value="String(gw.gateway_name)" />
-        </el-select>
-        <el-button type="primary" :disabled="!selected || !gateway" @click="subscribe">订阅选中</el-button>
-      </div>
-      <el-table :data="market.contracts" height="560" highlight-current-row @current-change="onPick">
-        <el-table-column prop="symbol" label="代码" width="120" />
-        <el-table-column prop="exchange" label="交易所" width="100" />
-        <el-table-column prop="name" label="名称" />
+  <div v-if="section === 'ticks'" class="page-shell">
+    <div class="page-section">
+      <h3 class="page-section-title">实时行情</h3>
+      <el-table :data="tickRows" height="560">
+        <el-table-column prop="symbol" label="合约" width="120" />
         <el-table-column prop="last_price" label="最新" width="100" />
+        <el-table-column prop="bid_price_1" label="买一" width="100" />
+        <el-table-column prop="bid_volume_1" label="买量" width="80" />
+        <el-table-column prop="ask_price_1" label="卖一" width="100" />
+        <el-table-column prop="ask_volume_1" label="卖量" width="80" />
+        <el-table-column prop="volume" label="成交量" />
         <el-table-column prop="gateway_name" label="账户" width="120" />
       </el-table>
-    </template>
+    </div>
+  </div>
+  <div v-else class="equilibrix-dashboard market-terminal">
+    <div class="market-grid">
+      <ContractListPanel
+        :contracts="market.contracts"
+        :ticks="market.ticks"
+        :selected-key="selectedKey"
+        @select="onPick"
+        @search="onSearch"
+      />
+      <QuoteChart
+        v-model:period="period"
+        v-model:trade-date="tradeDate"
+        :heading="chartHeading"
+        :timeshare="timesharePoints"
+        :bars="bars"
+        :empty-hint="emptyHint"
+        :pre-close="preClose"
+        :trade-dates="tradeDates"
+        :live="viewingCurrent"
+        :session-hint="sessionCaption"
+      />
+      <QuoteTape :contract="selected" :tick="selectedTick" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
-import { http } from "@/api";
 import { useMarketStore, useTradeStore } from "@/stores";
+import { finitePrice, quoteName } from "../workbench/liveMap";
+import ContractListPanel from "./components/ContractListPanel.vue";
+import QuoteChart from "./components/QuoteChart.vue";
+import QuoteTape from "./components/QuoteTape.vue";
+import { contractKey, exchangeLabel, productName, type ContractRow } from "./contracts";
+import { fetchHistoryBars, type ChartPeriod, type HistoryBar } from "./history";
+import {
+  aggregateTimeshare,
+  currentTradeDate,
+  recentTradeDates,
+  sessionHint,
+  type TimesharePoint,
+} from "./timeshare";
+import type { TradeDateOption } from "./components/QuoteChart.vue";
 
 const route = useRoute();
 const market = useMarketStore();
 const trade = useTradeStore();
-const keyword = ref("");
-const gateway = ref("");
-const selected = ref<Record<string, unknown> | null>(null);
+
+const selected = ref<ContractRow | null>(null);
+const period = ref<ChartPeriod>("timeshare");
+const bars = ref<HistoryBar[]>([]);
+const barsLoading = ref(false);
+const sessionLoading = ref(false);
+const subscribedKeys = new Set<string>();
+const tradeDate = ref("");
+const tradeDates = ref<TradeDateOption[]>([]);
+const historyTicks = ref<Record<string, unknown>[]>([]);
+const historyKey = ref("");
+const clickhouseState = ref("");
 
 const section = computed(() => String(route.params.section || "quotes"));
 const tickRows = computed(() => Object.values(market.ticks));
+const selectedKey = computed(() => contractKey(selected.value));
 
-onMounted(async () => {
-  await market.loadContracts();
-  if (trade.gateways[0]) gateway.value = String(trade.gateways[0].gateway_name);
+const selectedTick = computed(() => {
+  if (!selected.value) return undefined;
+  return market.latestTick(String(selected.value.symbol || ""), String(selected.value.exchange || ""));
 });
 
-function onPick(row: Record<string, unknown> | null) {
-  selected.value = row;
-  if (row?.gateway_name) gateway.value = String(row.gateway_name);
-}
+const sessionKey = computed(() => selectedKey.value);
+const selectedExchange = computed(() => String(selected.value?.exchange || ""));
+const viewingCurrent = computed(() => {
+  if (!tradeDate.value) return true;
+  return tradeDate.value === currentTradeDate(selectedExchange.value);
+});
+const sessionCaption = computed(() => sessionHint(selectedExchange.value));
+const sessionRows = computed(() => {
+  const key = sessionKey.value;
+  return key ? market.sessionTicks[key] || [] : [];
+});
 
-async function search() {
-  await market.loadContracts(keyword.value);
-}
-
-async function subscribe() {
-  if (!selected.value) return;
-  await http.post("/api/market/subscribe", {
-    gateway_name: gateway.value,
-    symbol: selected.value.symbol,
-    exchange: selected.value.exchange,
+const timesharePoints = computed<TimesharePoint[]>(() => {
+  if (!selected.value) return [];
+  const ticks = viewingCurrent.value ? sessionRows.value : historyTicks.value;
+  return aggregateTimeshare(ticks, selectedExchange.value, {
+    tradeDate: tradeDate.value || currentTradeDate(selectedExchange.value),
+    live: viewingCurrent.value,
   });
-  ElMessage.success(`已订阅 ${selected.value.symbol}`);
+});
+
+const hasTimesharePrice = computed(() => timesharePoints.value.some((p) => p.price !== null));
+const preClose = computed(() => finitePrice(selectedTick.value?.pre_close));
+
+const chartHeading = computed(() => {
+  if (!selected.value) return "选择合约查看分时";
+  const code = String(selected.value.symbol || "");
+  const name = quoteName(code, selected.value.name) || productName(selected.value);
+  return `${code}  ${name}  ${exchangeLabel(selected.value.exchange)}`;
+});
+
+const emptyHint = computed(() => {
+  if (!selected.value) return "点击左侧合约，默认打开当前交易时段分时图。";
+  if (period.value !== "timeshare") {
+    return barsLoading.value ? "正在加载模拟 K 线…" : bars.value.length ? "" : "暂无 K 线数据。";
+  }
+  if (sessionLoading.value && !hasTimesharePrice.value) {
+    return viewingCurrent.value ? "正在订阅并等待 SimNow 分时 Tick…" : "正在从 ClickHouse 加载该交易日…";
+  }
+  if (!hasTimesharePrice.value) {
+    if (!viewingCurrent.value) {
+      return clickhouseState.value === "down"
+        ? "ClickHouse 未连接，历史交易日无法加载。今日分时仍可走内存实时。"
+        : `${tradeDate.value} 暂无 Tick。连接行情后会写入本地 ClickHouse（保留 10 天）。`;
+    }
+    return "暂无分时数据。请先连接行情通道并订阅该合约，分时由 SimNow 实时 Tick 聚合（非模拟）。";
+  }
+  return "";
+});
+
+onMounted(async () => {
+  await Promise.all([market.loadContracts(), market.loadTicks(), trade.refresh()]);
+});
+
+async function onSearch(keyword: string) {
+  await market.loadContracts(keyword);
 }
+
+async function onPick(row: ContractRow) {
+  selected.value = row;
+  period.value = "timeshare";
+  historyTicks.value = [];
+  historyKey.value = "";
+  const next = currentTradeDate(String(row.exchange || ""));
+  const unchanged = tradeDate.value === next;
+  tradeDate.value = next;
+  await Promise.all([ensureSubscribed(row), refreshTradeDates(row)]);
+  if (unchanged) await refreshSession(row, next);
+}
+
+async function ensureSubscribed(row: ContractRow) {
+  const key = contractKey(row);
+  const gateway = String(row.gateway_name || trade.gateways[0]?.gateway_name || "");
+  if (!gateway) {
+    ElMessage.warning("没有可用账户，无法订阅行情");
+    return;
+  }
+  if (subscribedKeys.has(`${gateway}:${key}`)) return;
+  try {
+    await market.subscribeContract(gateway, String(row.symbol || ""), String(row.exchange || ""));
+    subscribedKeys.add(`${gateway}:${key}`);
+  } catch {
+    ElMessage.error(`订阅 ${row.symbol} 失败，请确认行情通道已连接`);
+  }
+}
+
+async function refreshTradeDates(row: ContractRow) {
+  const fallback = recentTradeDates(10, String(row.exchange || "")).map((date, i) => ({
+    date,
+    is_current: i === 0,
+    has_data: i === 0,
+  }));
+  try {
+    const data = await market.loadTradeDates(String(row.symbol || ""), String(row.exchange || ""));
+    clickhouseState.value = data.clickhouse || "";
+    tradeDates.value = data.dates || fallback;
+    if (!tradeDate.value && data.current) tradeDate.value = data.current;
+  } catch {
+    tradeDates.value = fallback;
+  }
+}
+
+async function refreshSession(row: ContractRow, date = tradeDate.value) {
+  sessionLoading.value = true;
+  try {
+    const result = await market.loadSessionTicks(String(row.symbol || ""), String(row.exchange || ""), date);
+    clickhouseState.value = result.clickhouse || clickhouseState.value;
+    if (result.is_current) {
+      historyTicks.value = [];
+      historyKey.value = "";
+    } else {
+      historyTicks.value = result.ticks;
+      historyKey.value = `${String(row.exchange || "").toUpperCase()}.${String(row.symbol || "").toUpperCase()}.${result.trade_date}`;
+    }
+  } catch {
+    /* keep WS ticks already in store */
+  } finally {
+    sessionLoading.value = false;
+  }
+}
+
+async function loadBars() {
+  if (!selected.value || period.value === "timeshare") {
+    bars.value = [];
+    return;
+  }
+  barsLoading.value = true;
+  try {
+    const result = await fetchHistoryBars({
+      symbol: String(selected.value.symbol || ""),
+      exchange: String(selected.value.exchange || ""),
+      interval: period.value,
+    });
+    bars.value = result.bars;
+  } catch {
+    bars.value = [];
+    ElMessage.warning("K 线暂为模拟数据；RQData 尚未对接");
+  } finally {
+    barsLoading.value = false;
+  }
+}
+
+watch(period, () => {
+  void loadBars();
+});
+
+watch(selectedKey, () => {
+  if (period.value !== "timeshare") void loadBars();
+});
+
+watch(tradeDate, (next, prev) => {
+  if (!selected.value || !next || next === prev) return;
+  void refreshSession(selected.value, next);
+});
 </script>
+
+<style src="@/styles/equilibrix-dashboard.css"></style>
+
+<style scoped>
+.market-terminal {
+  height: 100%;
+  min-height: 0;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+.market-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(180px, 220px);
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+@media (max-width: 1100px) {
+  .market-grid {
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .market-grid > :last-child {
+    grid-column: 1 / -1;
+    height: auto;
+  }
+}
+</style>

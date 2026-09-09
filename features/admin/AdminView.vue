@@ -51,9 +51,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="120" align="center">
+        <el-table-column label="状态" width="188" align="center">
           <template #default="{ row }">
-            <StatusTag :text="String(row.conn_status || 'DISCONNECTED')" />
+            <ChannelStatusPair :row="row" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="200" class-name="table-action-col">
@@ -193,6 +193,10 @@
           >
             <p>交易前置：{{ formatProbe(testResult.trade) }}</p>
             <p>行情前置：{{ formatProbe(testResult.market) }}</p>
+            <p>
+              账号 {{ loginLabel(testResult.login_status || testResult.td_status || "") }}
+              · 行情 {{ quoteLabel(testResult.quote_status || testResult.md_status || "") }}
+            </p>
             <p v-if="testResult.login?.message">{{ testResult.login.message }}</p>
           </el-alert>
         </el-form>
@@ -300,7 +304,8 @@ import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, QuestionFilled, Refresh, Search } from "@element-plus/icons-vue";
 import { http } from "@/api";
-import StatusTag from "@/components/StatusTag.vue";
+import ChannelStatusPair from "@/components/ChannelStatusPair.vue";
+import { loginLabel, quoteLabel } from "@/gatewayStatus";
 import { useAuthStore, useTradeStore } from "@/stores";
 
 interface AdminUser {
@@ -316,6 +321,10 @@ interface AdminAccount {
   gateway_name: string;
   account_name?: string;
   conn_status?: string;
+  login_status?: string;
+  td_status?: string;
+  quote_status?: string;
+  md_status?: string;
   auto_front?: boolean;
   front_label?: string;
   交易服务器?: string;
@@ -335,6 +344,10 @@ interface ConnectTestResult {
   summary: string;
   gateway_name?: string;
   conn_status?: string;
+  login_status?: string;
+  td_status?: string;
+  quote_status?: string;
+  md_status?: string;
   trade?: FrontProbe;
   market?: FrontProbe;
   login?: { message?: string; ok?: boolean; attempted?: boolean };
@@ -610,6 +623,20 @@ function formatProbe(probe?: FrontProbe) {
   return `${address} 不通${probe.error ? ` · ${probe.error}` : ""}`;
 }
 
+function applyChannelStatuses(row: AdminAccount, data: ConnectTestResult) {
+  const login = data.login_status || data.td_status || row.login_status;
+  const quote = data.quote_status || data.md_status || row.quote_status;
+  if (data.conn_status) row.conn_status = data.conn_status;
+  if (login) {
+    row.login_status = login;
+    row.td_status = login;
+  }
+  if (quote) {
+    row.quote_status = quote;
+    row.md_status = quote;
+  }
+}
+
 async function testAccount(accountId: number | null, { notify = true } = {}) {
   if (!accountId) {
     ElMessage.warning("请先保存通道");
@@ -624,7 +651,7 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
     testResult.value = data;
     if (data.ok) {
       const row = accounts.value.find((item) => item.id === accountId);
-      if (row) row.conn_status = data.conn_status || "CONNECTED";
+      if (row) applyChannelStatuses(row, data);
       trade.setActiveGateway(String(data.gateway_name || row?.gateway_name || ""));
     }
     if (notify) {
@@ -639,7 +666,7 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
       testResult.value = payload;
       if (payload.ok) {
         const row = accounts.value.find((item) => item.id === accountId);
-        if (row) row.conn_status = payload.conn_status || "CONNECTED";
+        if (row) applyChannelStatuses(row, payload);
         trade.setActiveGateway(String(payload.gateway_name || row?.gateway_name || ""));
       }
       if (notify) {
@@ -739,6 +766,26 @@ watch([accPageSize, filteredAccounts], clampAccPage);
 watch(section, () => {
   void reload();
 });
+watch(
+  () => trade.gateways,
+  (rows) => {
+    for (const gw of rows) {
+      const row = accounts.value.find((item) => String(item.gateway_name) === String(gw.gateway_name || ""));
+      if (row) {
+        applyChannelStatuses(row, {
+          ok: true,
+          summary: "",
+          conn_status: String(gw.conn_status || ""),
+          login_status: String(gw.login_status || gw.td_status || ""),
+          td_status: String(gw.td_status || gw.login_status || ""),
+          quote_status: String(gw.quote_status || gw.md_status || ""),
+          md_status: String(gw.md_status || gw.quote_status || ""),
+        });
+      }
+    }
+  },
+  { deep: true },
+);
 
 onMounted(() => {
   void reload();

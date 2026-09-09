@@ -56,9 +56,12 @@ def _safe_decrypt(ciphertext: str) -> dict:
 
 
 def _channel_row(account: Account) -> dict:
+    st = runtime.gw.channel_statuses(account.gateway_name)
     return account_channel_dict(
         account,
-        conn_status=runtime.gw.status.get(account.gateway_name, "DISCONNECTED"),
+        conn_status=st["conn_status"],
+        login_status=st["login_status"],
+        quote_status=st["quote_status"],
         front_info=runtime.gw.front_info.get(account.gateway_name),
     )
 

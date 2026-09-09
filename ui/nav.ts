@@ -34,7 +34,7 @@ export const topMenus: NavItem[] = [
 
 export const sidebars: Record<string, NavItem[]> = {
   market: [
-    { path: "/market/quotes", title: "行情列表", icon: List },
+    { path: "/market/quotes", title: "行情中心", icon: List },
     { path: "/market/ticks", title: "实时行情", icon: TrendCharts },
   ],
   trade: [

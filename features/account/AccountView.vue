@@ -46,8 +46,10 @@
         <el-table-column label="交易前置" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">{{ row["交易服务器"] || "—" }}</template>
         </el-table-column>
-        <el-table-column label="状态">
-          <template #default="{ row }"><StatusTag :text="String(row.conn_status || 'DISCONNECTED')" /></template>
+        <el-table-column label="状态" min-width="168" align="center">
+          <template #default="{ row }">
+            <ChannelStatusPair :row="row" />
+          </template>
         </el-table-column>
         <el-table-column label="操作" width="280" class-name="table-action-col">
           <template #default="{ row }">
@@ -69,7 +71,7 @@ import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { http } from "@/api";
 import { useTradeStore } from "@/stores";
-import StatusTag from "@/components/StatusTag.vue";
+import ChannelStatusPair from "@/components/ChannelStatusPair.vue";
 
 const route = useRoute();
 const trade = useTradeStore();
