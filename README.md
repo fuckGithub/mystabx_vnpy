@@ -1,8 +1,8 @@
 # Stabx Web 交易台
 
-浏览器里用的期货交易台：Vue 网页 + FastAPI（REST / WebSocket）+ 进程内 vnpy `MainEngine`。产品入口是 Web，不是桌面 Qt / `main.py`。
+浏览器里用的期货交易台：Vue 网页 + FastAPI（REST / WebSocket / SSE）+ 进程内 vnpy `MainEngine`。产品入口是 Web，不是桌面 Qt / `main.py`。
 
-> 状态：**P0 骨架已落地**（FastAPI headless + Vue 交易台）。产品入口是 **Web**：`./start.sh`。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
+> 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）：`./start.sh`（macOS / Linux）。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
 规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/07](docs/07-用户服务协议与免责声明.md)）。
 
@@ -30,7 +30,7 @@
 将 vnpy（VeighNa）从 PySide6 桌面终端改造成 **B/S 架构的团队交易终端**：
 
 - Python 进程内跑 vnpy 的 `MainEngine` / `EventEngine`（无界面，headless）
-- 通过 **REST + WebSocket** 暴露能力
+- 通过 **REST + WebSocket + SSE** 暴露能力（Tick 走 WS；工作台账号/资金走 SSE）
 - 前端用 **Vue 3** 做完整交易台
 - 支持**多用户**、**每用户独立账户**、**用户级隔离 + 管理员**
 
@@ -40,13 +40,13 @@
 
 | 菜单 | 路由 | 做什么 |
 |---|---|---|
-| **工作台** | `/workbench` | 首页：连接状态、持仓、已订阅行情、风险表、成交日志 |
-| **市场行情** | `/market/quotes`、`/market/ticks` | 搜合约、订阅；实时 Tick |
+| **工作台** | `/workbench` | 首页：顶栏拆开 **账号登录**（交易 TD）与 **行情**（行情 MD）；持仓、已订阅行情、风险表、成交日志。账号/资金走 **SSE**（`gateway` / `account`）；Tick 行情走 **WebSocket** |
+| **市场行情** | `/market/quotes`、`/market/ticks` | 搜合约、订阅；实时 Tick；**分时**（当日 SimNow 内存 tick + ClickHouse 近 10 日 tick）；周期图为 **模拟 K 线**（RQData 未对接） |
 | **交易下单** | `/trade/order`、`/trade/orders` | 下单面板（二次确认）；活动委托、撤单 |
 | **资金持仓** | `/account/gateways`、`/account/funds`、`/account/positions`、`/account/trades` | 连接/断开网关；资金、持仓、成交 |
 | **系统管理** | `/admin/users`、`/admin/accounts` | 管理员：用户管理、通道配置（SimNow / CTP） |
 
-技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn；配置与账号在 SQLite（密钥 Fernet 加密）。ClickHouse 表结构在 `ch_schema.sql`，P0 实时链路不依赖 ClickHouse 进程。P1 尚未作为产品入口：K 线、ClickHouse 行情入库、风控、策略/回测、Docker（见 [docs/06-实施路线图.md](docs/06-实施路线图.md)）。
+技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn；**用户 / 通道 / 会话**在 SQLite（默认 `.vntrader/stabx_web.db`，密钥 Fernet 加密）。**ClickHouse 只存 Tick**（库表 `vnpy.market_tick`，默认 TTL 10 天，进程不可用时软失败，当日分时仍走内存）。根目录 `ch_schema.sql` 是早期设计稿，运行时建表以 `core/clickhouse.py` 为准。风控开关、策略/回测、Docker、RQData 历史行情都还不是产品能力。
 
 不要对 vnpy 引擎使用 `uvicorn --workers`（`MainEngine` 必须在同一进程内）。
 
@@ -58,7 +58,7 @@
 | 用户规模 | 局域网 / 小团队多用户 |
 | 前端技术栈 | Vue 3 + Vite + TypeScript + Element Plus + ECharts |
 | 后端技术栈 | FastAPI + Uvicorn，headless 启动 vnpy |
-| 数据存储 | ClickHouse（时序/事件）+ SQLite（业务/配置）三层混合 |
+| 数据存储 | SQLite（用户/通道/会话）+ ClickHouse（仅 Tick，默认 10 天） |
 | 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
 | 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
 | 目录组织 | 功能域优先：`features/ + core/ + ui/`（不按 backend/frontend 分层） |
@@ -69,7 +69,7 @@
 | 文档 | 内容 |
 |---|---|
 | [01-架构与功能规划](docs/01-架构与功能规划.md) | 总体架构、技术栈、功能模块 |
-| [02-数据存储方案](docs/02-数据存储方案.md) | 三层存储、ClickHouse/SQLite 表结构、加密 |
+| [02-数据存储方案](docs/02-数据存储方案.md) | 设计稿：存储分层；实现以 SQLite 用户库 + CH Tick 为准 |
 | [03-账户隔离与权限](docs/03-账户隔离与权限.md) | 多 gateway、用户级隔离、管理员、后端伪代码 |
 | [04-WebSocket消息协议](docs/04-WebSocket消息协议.md) | 消息 envelope 与字段级 payload |
 | [05-前端方案与目录结构](docs/05-前端方案与目录结构.md) | 轻量化前端、功能域目录、依赖清单 |
@@ -81,7 +81,7 @@
 - **产品（Web）**：`core/` + `features/` + `ui/`，`./start.sh` 一键起 FastAPI + Vue
 - **遗留（桌面）**：根目录 `main.py` + `mystabx/`，官方 MainWindow。保留但不作为入口，不要按这个跑产品
 
-未完成（见 [06-实施路线图](docs/06-实施路线图.md) P1）：K 线、ClickHouse 行情入库、风控、策略/回测、Docker。
+未完成（见 [06-实施路线图](docs/06-实施路线图.md)）：RQData 历史 K 线、完整风控、策略/回测、Docker。分时与 ClickHouse Tick 入库（近 10 日）已落地；周期 K 线目前是 mock。
 
 ## 目录说明
 
@@ -89,28 +89,30 @@
 
 ```text
 mystabx_vnpy/
-├── core/                          # Web 后端内核：FastAPI 入口、vnpy 引擎、网关、库表、鉴权、WS
-│   ├── main.py                    #   uvicorn 应用：挂路由、静态 dist、lifespan
+├── core/                          # Web 后端内核：FastAPI 入口、vnpy 引擎、网关、库表、鉴权、WS / SSE
+│   ├── main.py                    #   uvicorn 应用：挂路由、静态 dist、lifespan、/api/sse
 │   ├── engine.py                #   无界面创建 MainEngine / EventEngine
 │   ├── runtime.py               #   进程内单例：引擎、OMS、网关管理器
 │   ├── gateways.py              #   多账户 CtpGateway 注册 / 连接 / 测试联通
-│   ├── events.py                #   vnpy 事件转到 WebSocket
-│   ├── ws.py                    #   WebSocket 连接池、鉴权、主题过滤
-│   ├── db.py                    #   SQLite 用户/通道表、加密字段
+│   ├── events.py                #   vnpy 事件转到 WebSocket；Tick 同时入内存与 CH 队列
+│   ├── ws.py                    #   WebSocket：Tick / 委托 / 持仓等实时推送
+│   ├── sse.py                   #   SSE：工作台账号登录与资金（gateway / account）
+│   ├── db.py                    #   SQLite：users / accounts / sessions（默认 .vntrader/stabx_web.db）
+│   ├── clickhouse.py            #   ClickHouse：仅 market_tick，TTL 10 天，不可用时软失败
 │   ├── config.py                #   读 .env 与本机密钥
 │   ├── deps.py                  #   登录用户 / 管理员依赖
 │   ├── crypto.py                #   Fernet 加解密通道配置
 │   └── serialize.py             #   REST/WS 载荷序列化
 ├── features/                      # 按业务域划分的 API + Vue 页面（前后端同目录）
 │   ├── auth/                    #   登录、免责声明页
-│   ├── workbench/               #   工作台首页
+│   ├── workbench/               #   工作台首页（顶栏账号登录 vs 行情）
 │   │   └── components/           #     顶栏、持仓/行情/风控卡片、成交日志、日历
-│   ├── market/                 #   行情列表、实时 Tick、订阅
+│   ├── market/                 #   行情中心：订阅、分时、模拟 K 线、Tick 入库
 │   ├── trade/                   #   下单、委托列表
 │   ├── account/                 #   账户连接、资金、持仓、成交
 │   └── admin/                   #   用户管理、通道配置（仅管理员）
 ├── ui/                            # Vue 壳：入口、路由、布局、全局样式（Vite root）
-│   ├── main.ts / App.vue / router.ts / stores.ts / api.ts / ws.ts / nav.ts
+│   ├── main.ts / App.vue / router.ts / stores.ts / api.ts / ws.ts / sse.ts / nav.ts
 │   ├── components/             #   布局 AppLayout、状态标签
 │   │   └── auth/                 #     登录页左侧品牌栏
 │   ├── styles/                  #   顶栏/侧栏、内页表格、登录、工作台 CSS
@@ -145,11 +147,11 @@ mystabx_vnpy/
 
 | 路径 | 用途 |
 |---|---|
-| `core/` | Web 后端唯一运行时。`main.py` 提供 FastAPI；`engine.py` 拉起 vnpy；`gateways.py` 管 CTP 通道。 |
+| `core/` | Web 后端唯一运行时。`main.py` 提供 FastAPI；`engine.py` 拉起 vnpy；`gateways.py` 管 CTP 通道；`sse.py` 推账号状态；`clickhouse.py` 只写 Tick。 |
 | `features/auth/` | `LoginView.vue`、`DisclaimerView.vue`、登录 API。 |
 | `features/workbench/` | `index.vue` 工作台；`liveMap.ts` 把 Pinia 数据映到卡片；`mockData.ts` 日历等占位。 |
-| `features/workbench/components/` | `FutureTopBar`（环境/通道）、持仓/行情/风控卡、成交日志、日历、`EnvWaveIndicator`。 |
-| `features/market/` | 合约搜索订阅、Tick 页与 `/api/market`。 |
+| `features/workbench/components/` | `FutureTopBar`（账号登录 vs 行情两路状态）、持仓/行情/风控卡、成交日志、日历、`EnvWaveIndicator`。 |
+| `features/market/` | 合约搜索订阅、分时（SimNow + CH 10d）、模拟 K 线（`bars.py` / `history.ts`，RQData 未接线）、Tick 缓冲与 `tick_writer`。 |
 | `features/trade/` | `OrderTicket` 下单、`TradeView` 委托、`/api/trade`。 |
 | `features/account/` | 网关连接/断开、资金持仓成交列表。 |
 | `features/admin/` | 用户 CRUD、通道保存加密、测试联通。 |
@@ -167,7 +169,7 @@ mystabx_vnpy/
 | `.deps/vnpy_ctp/vnpy_ctp/gateway/` | `CtpGateway` Python 封装。 |
 | `.cursor/rules/` | Agent 提交规范。 |
 
-根目录常见文件（不是目录，便于对照资源管理器）：`start.sh` 产品启动；`pyproject.toml` / `package.json` / `vite.config.ts` 构建；`.env` / `.env.example` 本机配置（`.env` 勿提交）；`NOTICE` / `THIRD_PARTY.md` 第三方版权；`ch_schema.sql` ClickHouse 表。
+根目录常见文件（不是目录，便于对照资源管理器）：`start.sh` 产品启动（macOS / Linux）；`pyproject.toml` / `package.json` / `vite.config.ts` 构建；`.env` / `.env.example` 本机配置（`.env` 勿提交）；`NOTICE` / `THIRD_PARTY.md` 第三方版权；`ch_schema.sql` 早期 ClickHouse 设计稿（运行时以 `core/clickhouse.py` 的 `market_tick` 为准）。
 
 ## 搭建步骤
 
@@ -274,7 +276,7 @@ cp .env.example .env
 
 - **本机 Mac**：适合开发与个人模拟；生产 API 限制见上一节。
 - **Linux 服务器**：适合 7×24 挂着给浏览器用。先 `./scripts/install_linux.sh`，再 `./start.sh`（默认生产：构建 + 单进程 uvicorn）。必须用 Linux 版 `vnpy_ctp`。不要用 `uvicorn --workers`。
-- 磁盘主要给系统、`.venv`、`node_modules`、`dist/`、`.vntrader`（SQLite / 密钥）。P0 不强制 ClickHouse；若以后开时序库再单独加内存和盘。
+- 磁盘主要给系统、`.venv`、`node_modules`、`dist/`、`.vntrader`（SQLite `stabx_web.db` / 密钥）。ClickHouse 可选：本机 `127.0.0.1:8123` 存近 10 日 Tick；没起来时服务仍可跑，历史交易日分时不可查。
 - 安全：监听 `0.0.0.0` 时用防火墙或反向代理限制来源；改默认管理员密码；`.env` 不要提交。
 
 ## 业务操作流程
@@ -301,10 +303,11 @@ cp .env.example .env
    用该通道所属用户登录 → **资金持仓 → 账户连接 → 连接**。状态变为已连接后再做后面步骤。工作台顶栏也会显示连接状态。
 
 6. **订阅行情**  
-   **市场行情 → 行情列表**：选账户与合约 → **订阅选中**。**实时行情**看 Tick；工作台「订阅合约行情」显示已订阅快照。
+   **市场行情 → 行情中心**：选账户与合约 → **订阅选中**。**实时行情**看 Tick。  
+   **分时**：当日用 SimNow 内存 tick；历史交易日读 ClickHouse（默认保留约 10 天）。周期图是 **模拟 K 线**，不是 RQData 实盘历史。
 
 7. **看盘与交易**  
-   - **工作台**：持仓、行情、日志一屏  
+   - **工作台**：顶栏「账号」= 交易登录，「行情」= 行情连接；持仓、行情、日志一屏。账号/资金靠 SSE 推送，Tick 靠 WebSocket。  
    - **交易下单**：下单面板（确认后才发单）；**委托列表**撤单  
    - **资金持仓**：资金账户、持仓明细、成交记录  
 
@@ -323,6 +326,9 @@ cp .env.example .env
 | `STABX_SIMNOW_USER` | （空） | 本机新建通道预填资金账号，只写 `.env` |
 | `STABX_SIMNOW_PASSWORD` | （空） | 本机新建通道预填密码，只写 `.env`，勿提交 |
 | `STABX_JWT_SECRET` | 自动生成 | JWT 密钥；缺省写入 `.vntrader/web_keys.json` |
+| `STABX_SQLITE_PATH` | `.vntrader/stabx_web.db` | 业务库：用户、通道、会话 |
+| `STABX_CLICKHOUSE_URL` | `http://127.0.0.1:8123` | Tick 库 HTTP 口；不可用时软失败 |
+| `STABX_CLICKHOUSE_TICK_TTL_DAYS` | `10` | ClickHouse Tick 保留天数 |
 
 **产品（Web）**：`core/` + `features/` + `ui/`，`./start.sh` 一键起 FastAPI + Vue。**遗留（桌面）**：根目录 `main.py` + `mystabx/`（官方 MainWindow），保留但不作为入口。
 
@@ -334,7 +340,7 @@ cp .env.example .env
 | 用户规模 | 局域网 / 小团队多用户 |
 | 前端技术栈 | Vue 3 + Vite + TypeScript + Element Plus + ECharts |
 | 后端技术栈 | FastAPI + Uvicorn，进程内 headless 启动 **vnpy**（非自研引擎） |
-| 数据存储 | ClickHouse（时序/事件）+ SQLite（业务/配置）三层混合 |
+| 数据存储 | SQLite（用户/通道/会话）+ ClickHouse（仅 Tick，默认 10 天） |
 | 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
 | 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
 | 目录组织 | 功能域优先：`features/` + `core/` + `ui/` |
@@ -345,7 +351,7 @@ cp .env.example .env
 | 文档 | 内容 |
 |---|---|
 | [01-架构与功能规划](docs/01-架构与功能规划.md) | 总体架构、技术栈、功能模块 |
-| [02-数据存储方案](docs/02-数据存储方案.md) | 三层存储、ClickHouse/SQLite 表结构、加密 |
+| [02-数据存储方案](docs/02-数据存储方案.md) | 设计稿：存储分层；实现以 SQLite 用户库 + CH Tick 为准 |
 | [03-账户隔离与权限](docs/03-账户隔离与权限.md) | 多 gateway、用户级隔离、管理员 |
 | [04-WebSocket消息协议](docs/04-WebSocket消息协议.md) | 消息 envelope 与字段级 payload |
 | [05-前端方案与目录结构](docs/05-前端方案与目录结构.md) | 轻量化前端、功能域目录、依赖清单 |
