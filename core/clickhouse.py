@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,10 +28,18 @@ def _ttl_days() -> int:
     return max(1, int(settings.clickhouse_tick_ttl_days or 10))
 
 
+def _database() -> str:
+    name = (settings.clickhouse_database or DATABASE).strip() or DATABASE
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        raise ValueError(f"invalid ClickHouse database name: {name}")
+    return name
+
+
 def _table_ddl() -> str:
     days = _ttl_days()
+    db = _database()
     return f"""
-CREATE TABLE IF NOT EXISTS {DATABASE}.{TABLE} (
+CREATE TABLE IF NOT EXISTS {db}.{TABLE} (
     symbol        String,
     exchange      String,
     gateway_name  String,
@@ -54,6 +64,8 @@ TTL datetime + INTERVAL {days} DAY DELETE
 _ready = False
 _down_logged = False
 _last_error: str | None = None
+_last_probe_at = 0.0
+_PROBE_GAP = 3.0
 _lock = threading.Lock()
 
 
@@ -74,9 +86,14 @@ def _endpoint() -> tuple[str, int]:
     return host, port
 
 
-def status() -> dict[str, Any]:
+def status(*, refresh: bool = False) -> dict[str, Any]:
+    if refresh:
+        probe()
     host, port = _endpoint()
-    db = settings.clickhouse_database or DATABASE
+    try:
+        db = _database()
+    except ValueError:
+        db = settings.clickhouse_database or DATABASE
     payload: dict[str, Any] = {
         "ok": _ready,
         "state": "ok" if _ready else "down",
@@ -94,7 +111,10 @@ def status() -> dict[str, Any]:
 
 def describe() -> str:
     host, port = _endpoint()
-    db = settings.clickhouse_database or DATABASE
+    try:
+        db = _database()
+    except ValueError:
+        db = settings.clickhouse_database or DATABASE
     return f"{host}:{port} database={db}"
 
 
@@ -109,18 +129,35 @@ def _qstr(value: str) -> str:
     return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def _query(sql: str, *, body: bytes | None = None, timeout: float = 8.0) -> bytes:
-    db = urllib.parse.quote(settings.clickhouse_database or DATABASE, safe="")
+def _query(
+    sql: str,
+    *,
+    body: bytes | None = None,
+    timeout: float = 8.0,
+    database: str | None = None,
+) -> bytes:
+    params: dict[str, str] = {}
+    if database:
+        params["database"] = database
     if body is None:
-        url = f"{_base_url()}/?database={db}"
+        url = f"{_base_url()}/?{urllib.parse.urlencode(params)}" if params else f"{_base_url()}/"
         payload = sql.encode("utf-8")
     else:
-        url = f"{_base_url()}/?database={db}&query={urllib.parse.quote(sql)}"
+        params["query"] = sql
+        url = f"{_base_url()}/?{urllib.parse.urlencode(params)}"
         payload = body
     req = urllib.request.Request(url, data=payload, method="POST", headers=_headers())
     req.add_header("Content-Type", "text/plain; charset=utf-8")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", "replace").strip().split("\n", 1)[0]
+        except Exception:
+            detail = ""
+        raise urllib.error.URLError(detail or str(exc)) from exc
 
 
 def _mark_down(exc: Exception) -> None:
@@ -142,7 +179,7 @@ def _mark_up() -> None:
         logger.info(
             "ClickHouse reachable %s table=%s.%s TTL %sd",
             describe(),
-            settings.clickhouse_database or DATABASE,
+            _database(),
             TABLE,
             _ttl_days(),
         )
@@ -152,8 +189,9 @@ def _mark_up() -> None:
 
 
 def ping() -> bool:
+    """SELECT 1 against `default` so a missing app DB is not a false down."""
     try:
-        raw = _query("SELECT 1", timeout=3.0)
+        raw = _query("SELECT 1", timeout=3.0, database="default")
         return raw.strip() in {b"1", b"1\n"}
     except (urllib.error.URLError, TimeoutError, OSError, ValueError):
         return False
@@ -161,16 +199,29 @@ def ping() -> bool:
 
 def init_clickhouse() -> bool:
     """Create database/table. Returns False if ClickHouse is down (non-fatal)."""
-    global _ready
     with _lock:
         try:
-            _query(f"CREATE DATABASE IF NOT EXISTS {DATABASE}", timeout=10.0)
-            _query(_table_ddl(), timeout=10.0)
+            db = _database()
+            # Never ?database=<target>: CH 404s UNKNOWN_DATABASE before CREATE runs.
+            _query(f"CREATE DATABASE IF NOT EXISTS {db}", timeout=10.0, database="default")
+            _query(_table_ddl(), timeout=10.0, database=db)
             _mark_up()
             return True
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
             _mark_down(exc)
             return False
+
+
+def probe(*, force: bool = False) -> bool:
+    """Re-check ClickHouse. Recovers if the server came up after process start."""
+    global _last_probe_at
+    now = time.monotonic()
+    if not force and _last_probe_at and now - _last_probe_at < _PROBE_GAP:
+        return _ready
+    _last_probe_at = now
+    if _ready and ping():
+        return True
+    return init_clickhouse()
 
 
 def available() -> bool:
@@ -223,7 +274,7 @@ def insert_ticks(payloads: list[dict[str, Any]]) -> int:
         return 0
     body = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows).encode("utf-8")
     sql = (
-        f"INSERT INTO {DATABASE}.{TABLE} "
+        f"INSERT INTO {_database()}.{TABLE} "
         "(symbol, exchange, gateway_name, datetime, trade_date, last_price, last_volume, "
         "volume, turnover, open_interest, bid_price_1, bid_volume_1, ask_price_1, ask_volume_1) "
         "FORMAT JSONEachRow"
@@ -250,7 +301,7 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
     sql = (
         f"SELECT symbol, exchange, gateway_name, datetime, last_price, last_volume, "
         f"volume, turnover, open_interest, bid_price_1, bid_volume_1, ask_price_1, ask_volume_1 "
-        f"FROM {DATABASE}.{TABLE} "
+        f"FROM {_database()}.{TABLE} "
         f"WHERE symbol = {_qstr(symbol)} "
         f"AND upper(exchange) = {_qstr(exchange.upper())} "
         f"AND trade_date = '{trade_date.isoformat()}' "
@@ -296,7 +347,7 @@ def list_stored_dates(symbol: str, exchange: str, dates: list[date]) -> set[date
         return None
     in_list = ", ".join(f"'{d.isoformat()}'" for d in dates)
     sql = (
-        f"SELECT trade_date FROM {DATABASE}.{TABLE} "
+        f"SELECT trade_date FROM {_database()}.{TABLE} "
         f"WHERE symbol = {_qstr(symbol)} "
         f"AND upper(exchange) = {_qstr(exchange.upper())} "
         f"AND trade_date IN ({in_list}) "

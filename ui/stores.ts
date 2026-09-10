@@ -75,6 +75,9 @@ export const useMarketStore = defineStore("market", () => {
       if (state === "ok") clickhouse.error = "";
       return;
     }
+    if (data.ok === undefined && data.state === undefined) {
+      return;
+    }
     const state = String(data.state || (data.ok ? "ok" : "down"));
     clickhouse.ok = Boolean(data.ok ?? state === "ok");
     clickhouse.state = state;
@@ -87,7 +90,9 @@ export const useMarketStore = defineStore("market", () => {
   async function loadHealth() {
     try {
       const { data } = await http.get("/health");
-      applyClickhouse(data?.clickhouse || {});
+      const ch = data?.clickhouse;
+      if (ch && typeof ch === "object") applyClickhouse(ch);
+      else if (typeof ch === "string" && ch) applyClickhouse(ch);
     } catch {
       applyClickhouse({ ok: false, state: "down" });
     }
@@ -145,8 +150,8 @@ export const useMarketStore = defineStore("market", () => {
 
   async function loadContracts(q = "") {
     const { data } = await http.get("/api/contracts", { params: { q } });
-    contracts.value = data;
-    return data;
+    contracts.value = Array.isArray(data) ? data : [];
+    return contracts.value;
   }
 
   async function loadTicks() {

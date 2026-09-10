@@ -101,7 +101,7 @@ def health() -> dict:
         "gateways": list(runtime.gw.index) if runtime.gateways else [],
         "ws": hub.snapshot_counts(),
         "sse": sse_hub.snapshot_counts(),
-        "clickhouse": clickhouse_status(),
+        "clickhouse": clickhouse_status(refresh=True),
     }
 
 

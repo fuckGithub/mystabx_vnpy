@@ -24,7 +24,7 @@
           <tr v-for="item in rows" :key="`${item.code}-${item.side}-${item.gateway}`">
             <td class="col-contract">
               <strong>{{ item.name }}</strong>
-              <small>{{ item.code }}</small>
+              <small v-if="item.distinct">{{ item.code }}</small>
             </td>
             <td class="col-side"><span class="side" :class="item.side === '多' ? 'long' : 'short'">{{ item.side }}</span></td>
             <td class="col-qty">{{ item.qty ?? "--" }}</td>
@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useMarketStore, useTradeStore } from "@/stores";
-import { finiteNumber, finitePrice, fmtPriceOrDash, fmtSigned, pnlClass, positionSide, quoteName } from "../liveMap";
+import { contractNameOf, finiteNumber, finitePrice, fmtPriceOrDash, fmtSigned, instrumentLines, pnlClass, positionSide } from "../liveMap";
 
 const trade = useTradeStore();
 const market = useMarketStore();
@@ -62,9 +62,11 @@ const rows = computed(() => {
       const qty = finiteNumber(p.volume);
       if (!code || qty === null || qty <= 0) return null;
       const tick = Object.values(market.ticks).find((t) => t.symbol === code);
+      const lines = instrumentLines(code, contractNameOf(market.contracts, code, p.exchange), tick?.name);
       return {
-        code,
-        name: quoteName(code, tick?.name),
+        code: lines.code,
+        name: lines.name,
+        distinct: lines.distinct,
         side: positionSide(p.direction),
         qty,
         avgPrice: finitePrice(p.price),

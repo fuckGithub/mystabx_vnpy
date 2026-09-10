@@ -6,7 +6,22 @@
       </el-select>
     </el-form-item>
     <el-form-item label="合约">
-      <el-input v-model="form.symbol" />
+      <el-select
+        v-model="picked"
+        filterable
+        clearable
+        allow-create
+        default-first-option
+        placeholder="名称 / 代码"
+        @change="onPick"
+      >
+        <el-option
+          v-for="item in contractOptions"
+          :key="item.key"
+          :label="item.label"
+          :value="item.key"
+        />
+      </el-select>
     </el-form-item>
     <el-form-item label="交易所">
       <el-input v-model="form.exchange" />
@@ -35,11 +50,15 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { http } from "@/api";
+import { useMarketStore } from "@/stores";
+import { instrumentLabel } from "../workbench/liveMap";
 
 const props = defineProps<{ gateways: Record<string, unknown>[] }>();
+const market = useMarketStore();
+const picked = ref("");
 const form = reactive({
   gateway_name: String(props.gateways[0]?.gateway_name || ""),
   symbol: "",
@@ -51,9 +70,51 @@ const form = reactive({
   volume: 1,
 });
 
+const contractOptions = computed(() =>
+  market.contracts
+    .map((row) => {
+      const symbol = String(row.symbol || "").trim();
+      const exchange = String(row.exchange || "").trim();
+      if (!symbol) return null;
+      const name = String(row.name || "").trim();
+      return {
+        key: exchange ? `${exchange}.${symbol}` : symbol,
+        symbol,
+        exchange,
+        name,
+        label: instrumentLabel(symbol, name),
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => !!row),
+);
+
+onMounted(() => {
+  if (!market.contracts.length) void market.loadContracts();
+});
+
+function onPick(value: string) {
+  const key = String(value || "").trim();
+  const hit = contractOptions.value.find((item) => item.key === key);
+  if (hit) {
+    form.symbol = hit.symbol;
+    if (hit.exchange) form.exchange = hit.exchange;
+    return;
+  }
+  const dot = key.lastIndexOf(".");
+  if (dot > 0) {
+    form.exchange = key.slice(0, dot);
+    form.symbol = key.slice(dot + 1);
+    return;
+  }
+  form.symbol = key;
+}
+
 async function confirmSend() {
+  const hit = contractOptions.value.find(
+    (item) => item.symbol === form.symbol && (!item.exchange || item.exchange === form.exchange),
+  );
   await ElMessageBox.confirm(
-    `${form.direction} ${form.offset} ${form.exchange}.${form.symbol} × ${form.volume} @ ${form.price}`,
+    `${form.direction} ${form.offset} ${instrumentLabel(form.symbol, hit?.name)} × ${form.volume} @ ${form.price}`,
     "确认下单",
     { type: "warning" },
   );

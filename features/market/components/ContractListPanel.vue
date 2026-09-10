@@ -28,8 +28,8 @@
           @click="emit('select', row)"
         >
           <span class="board-row__id">
-            <strong>{{ String(row.symbol || "") }}</strong>
-            <em>{{ productName(row) }}</em>
+            <strong>{{ displayName(row) }}</strong>
+            <em v-if="hasDistinctName(row)">{{ String(row.symbol || "") }}</em>
           </span>
           <span class="board-row__px" :class="pnlClass(changeOf(row))">
             {{ fmtPriceOrDash(lastOf(row)) }}
@@ -48,8 +48,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { contractKey, groupContracts, productName, type BoardTab, type ContractRow } from "../contracts";
-import { finitePrice, fmtPct, fmtPriceOrDash, pnlClass, quoteChangePct } from "../../workbench/liveMap";
+import { contractKey, groupContracts, type BoardTab, type ContractRow } from "../contracts";
+import { finitePrice, fmtPct, fmtPriceOrDash, instrumentLines, pnlClass, quoteChangePct } from "../../workbench/liveMap";
 
 const props = defineProps<{
   contracts: ContractRow[];
@@ -70,6 +70,14 @@ const groups = computed(() => groupContracts(props.contracts, tab.value, props.t
 
 function rowKey(row: ContractRow) {
   return contractKey(row);
+}
+
+function displayName(row: ContractRow) {
+  return instrumentLines(String(row.symbol || ""), row.name).name;
+}
+
+function hasDistinctName(row: ContractRow) {
+  return instrumentLines(String(row.symbol || ""), row.name).distinct;
 }
 
 function tickOf(row: ContractRow) {

@@ -4,7 +4,11 @@
       <h3 class="page-section-title">实时行情</h3>
       <p v-if="chStatusText" class="ch-status" :class="{ down: !market.clickhouse.ok }">{{ chStatusText }}</p>
       <el-table :data="tickRows" height="560">
-        <el-table-column prop="symbol" label="合约" width="120" />
+        <el-table-column label="合约" min-width="140">
+          <template #default="{ row }">
+            <InstrumentCell :code="String(row.symbol || '')" :name="contractNameOf(market.contracts, String(row.symbol || ''), row.exchange) || row.name" />
+          </template>
+        </el-table-column>
         <el-table-column prop="last_price" label="最新" width="100" />
         <el-table-column prop="bid_price_1" label="买一" width="100" />
         <el-table-column prop="bid_volume_1" label="买量" width="80" />
@@ -43,15 +47,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useMarketStore, useTradeStore } from "@/stores";
-import { finitePrice, quoteName } from "../workbench/liveMap";
+import { contractNameOf, finitePrice, instrumentLabel } from "../workbench/liveMap";
+import InstrumentCell from "@/components/InstrumentCell.vue";
 import ContractListPanel from "./components/ContractListPanel.vue";
 import QuoteChart from "./components/QuoteChart.vue";
 import QuoteTape from "./components/QuoteTape.vue";
-import { contractKey, exchangeLabel, productName, type ContractRow } from "./contracts";
+import { contractKey, exchangeLabel, type ContractRow } from "./contracts";
 import { fetchHistoryBars, type ChartPeriod, type HistoryBar } from "./history";
 import {
   aggregateTimeshare,
@@ -117,8 +122,8 @@ const preClose = computed(() => finitePrice(selectedTick.value?.pre_close));
 const chartHeading = computed(() => {
   if (!selected.value) return "选择合约查看分时";
   const code = String(selected.value.symbol || "");
-  const name = quoteName(code, selected.value.name) || productName(selected.value);
-  return `${code}  ${name}  ${exchangeLabel(selected.value.exchange)}`;
+  const label = instrumentLabel(code, selected.value.name, selectedTick.value?.name);
+  return `${label}  ${exchangeLabel(selected.value.exchange)}`;
 });
 
 const emptyHint = computed(() => {
@@ -148,8 +153,17 @@ const chStatusText = computed(() => {
   return `ClickHouse 不可达${loc ? ` ${loc}` : ""}（今日分时走内存，历史交易日不可查）`;
 });
 
+let healthTimer: ReturnType<typeof setInterval> | undefined;
+
 onMounted(async () => {
   await Promise.allSettled([market.loadHealth(), market.loadContracts(), market.loadTicks(), trade.refresh()]);
+  healthTimer = setInterval(() => {
+    void market.loadHealth();
+  }, 15_000);
+});
+
+onUnmounted(() => {
+  if (healthTimer) clearInterval(healthTimer);
 });
 
 async function onSearch(keyword: string) {
@@ -157,6 +171,7 @@ async function onSearch(keyword: string) {
 }
 
 async function onPick(row: ContractRow) {
+  void market.loadHealth();
   selected.value = row;
   period.value = "timeshare";
   historyTicks.value = [];

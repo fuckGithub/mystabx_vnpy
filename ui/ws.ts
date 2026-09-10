@@ -5,8 +5,16 @@ type Handler = (msg: { type: string; data: Record<string, unknown> }) => void;
 
 let socket: WebSocket | null = null;
 let pingTimer: number | undefined;
+let contractReloadTimer: number | undefined;
 let retry = 0;
 const listeners = new Set<Handler>();
+
+function scheduleContractReload() {
+  window.clearTimeout(contractReloadTimer);
+  contractReloadTimer = window.setTimeout(() => {
+    void useMarketStore().loadContracts();
+  }, 800);
+}
 
 function wsUrl(): string {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -17,6 +25,7 @@ export function dispatch(msg: { type: string; data: Record<string, unknown> }) {
   const market = useMarketStore();
   const trade = useTradeStore();
   if (msg.type === "tick") market.upsertTick(msg.data);
+  if (msg.type === "contract") scheduleContractReload();
   if (msg.type === "order") trade.upsertBy(trade.orders, msg.data, "vt_orderid");
   if (msg.type === "trade") trade.upsertBy(trade.trades, msg.data, "tradeid");
   if (msg.type === "position") trade.upsertBy(trade.positions, msg.data, "symbol");
@@ -56,7 +65,7 @@ export function connectWs() {
     const msg = JSON.parse(event.data);
     dispatch(msg);
     if (msg.type === "auth_ok") {
-      socket?.send(JSON.stringify({ type: "subscribe", data: { topics: ["tick", "order", "trade", "position", "account", "gateway", "log"] } }));
+      socket?.send(JSON.stringify({ type: "subscribe", data: { topics: ["tick", "order", "trade", "position", "account", "gateway", "log", "contract"] } }));
       useTradeStore().refresh();
     }
   });
@@ -71,6 +80,7 @@ export function connectWs() {
 
 export function disconnectWs() {
   window.clearInterval(pingTimer);
+  window.clearTimeout(contractReloadTimer);
   retry = 99;
   socket?.close();
   socket = null;

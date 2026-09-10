@@ -16,7 +16,7 @@
       <article v-for="item in rows" :key="item.code" class="quote-row">
         <div class="left">
           <strong>{{ item.name }}</strong>
-          <span>{{ item.code }}</span>
+          <span v-if="item.distinct">{{ item.code }}</span>
         </div>
         <div class="mid" :class="pnlClass(item.change)">{{ fmtPct(item.change) }}</div>
         <div class="book">
@@ -37,7 +37,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useMarketStore } from "@/stores";
 import { contractSectors } from "../mockData";
-import { finiteNumber, finitePrice, fmtPct, fmtPriceOrDash, fmtVolume, pnlClass, quoteAmplitude, quoteChangePct, quoteName, quoteSector } from "../liveMap";
+import { contractNameOf, finiteNumber, finitePrice, fmtPct, fmtPriceOrDash, fmtVolume, instrumentLines, pnlClass, quoteAmplitude, quoteChangePct, quoteSector } from "../liveMap";
 
 const market = useMarketStore();
 const sector = ref("all");
@@ -51,15 +51,18 @@ const sortOptions = [
 ];
 
 onMounted(() => {
-  market.loadTicks();
+  void market.loadTicks();
+  if (!market.contracts.length) void market.loadContracts();
 });
 
 const rows = computed(() => {
   let list = Object.values(market.ticks).map((q, index) => {
     const code = String(q.symbol || "");
+    const lines = instrumentLines(code, contractNameOf(market.contracts, code, q.exchange), q.name);
     return {
-      code,
-      name: quoteName(code, q.name),
+      code: lines.code,
+      name: lines.name,
+      distinct: lines.distinct,
       sector: quoteSector(code),
       change: quoteChangePct(q),
       vol: finiteNumber(q.volume),

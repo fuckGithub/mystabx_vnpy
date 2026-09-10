@@ -18,7 +18,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
+import { useMarketStore } from "@/stores";
 import { topBarBrand } from "./mockData";
 import FutureTopBar from "./components/FutureTopBar.vue";
 import FuturePositionsCard from "./components/FuturePositionsCard.vue";
@@ -27,7 +28,12 @@ import FutureRiskGaugeCard from "./components/FutureRiskGaugeCard.vue";
 import FutureTradeLogBar from "./components/FutureTradeLogBar.vue";
 import FutureCalendarPanel from "./components/FutureCalendarPanel.vue";
 
+const market = useMarketStore();
 const calendarExpanded = ref(true);
+
+onMounted(() => {
+  void market.loadContracts();
+});
 </script>
 
 <style src="@/styles/equilibrix-dashboard.css"></style>

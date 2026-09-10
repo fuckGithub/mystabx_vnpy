@@ -113,7 +113,7 @@ const activeSidebarPath = computed(() => {
 });
 
 onMounted(async () => {
-  await Promise.all([trade.refresh(), market.loadTicks()]);
+  await Promise.all([trade.refresh(), market.loadTicks(), market.loadContracts()]);
   connectWs();
   connectSse();
 });

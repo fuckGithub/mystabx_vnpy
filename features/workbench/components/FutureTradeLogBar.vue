@@ -11,7 +11,7 @@
           <el-option label="只看成交" value="trade" />
           <el-option label="只看委托" value="order" />
         </el-select>
-        <el-input v-model="codeFilter" size="small" placeholder="品种代码" class="filter-input" clearable />
+        <el-input v-model="codeFilter" size="small" placeholder="名称 / 代码" class="filter-input" clearable />
       </div>
     </header>
     <div class="log-scroll">
@@ -30,7 +30,10 @@
         <tbody>
           <tr v-for="item in pagedRows" :key="item.id">
             <td>{{ item.time }}</td>
-            <td>{{ item.code }}</td>
+            <td class="col-contract">
+              <strong>{{ item.name }}</strong>
+              <small v-if="item.distinct">{{ item.code }}</small>
+            </td>
             <td>{{ item.side }}</td>
             <td>{{ item.qty ?? "--" }}</td>
             <td>{{ fmtPriceOrDash(item.price) }}</td>
@@ -58,45 +61,61 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useTradeStore } from "@/stores";
-import { eventTimeMs, eventTimeText, finiteNumber, finitePrice, fmtPriceOrDash, orderStatusLabel, tradeSideLabel } from "../liveMap";
+import { useMarketStore, useTradeStore } from "@/stores";
+import { contractNameOf, eventTimeMs, eventTimeText, finiteNumber, finitePrice, fmtPriceOrDash, instrumentLines, orderStatusLabel, tradeSideLabel } from "../liveMap";
 
 const trade = useTradeStore();
+const market = useMarketStore();
 const kindFilter = ref("all");
 const codeFilter = ref("");
 const current = ref(1);
 const size = ref(10);
 
 const liveLogs = computed(() => {
-  const trades = trade.trades.map((t) => ({
+  const trades = trade.trades.map((t) => {
+    const code = String(t.symbol || "");
+    const lines = instrumentLines(code, contractNameOf(market.contracts, code, t.exchange));
+    return {
     id: `t-${t.tradeid}`,
     ts: eventTimeMs(t.datetime),
     time: eventTimeText(t.datetime),
-    code: String(t.symbol || ""),
+    code: lines.code,
+    name: lines.name,
+    distinct: lines.distinct,
     side: tradeSideLabel(t.direction, t.offset),
     qty: finiteNumber(t.volume),
     price: finitePrice(t.price),
     gateway: String(t.gateway_name || ""),
     kind: "trade" as const,
-  }));
-  const orders = trade.orders.map((o) => ({
+  };
+  });
+  const orders = trade.orders.map((o) => {
+    const code = String(o.symbol || "");
+    const lines = instrumentLines(code, contractNameOf(market.contracts, code, o.exchange));
+    return {
     id: `o-${o.vt_orderid || o.orderid}`,
     ts: eventTimeMs(o.datetime),
     time: eventTimeText(o.datetime),
-    code: String(o.symbol || ""),
+    code: lines.code,
+    name: lines.name,
+    distinct: lines.distinct,
     side: `${tradeSideLabel(o.direction, o.offset)}·${orderStatusLabel(o.status)}`,
     qty: finiteNumber(o.volume),
     price: finitePrice(o.price),
     gateway: String(o.gateway_name || ""),
     kind: "order" as const,
-  }));
+  };
+  });
   return [...trades, ...orders].sort((a, b) => b.ts - a.ts);
 });
 
 const filteredRows = computed(() =>
   liveLogs.value.filter((item) => {
     if (kindFilter.value !== "all" && item.kind !== kindFilter.value) return false;
-    if (codeFilter.value && !item.code.toUpperCase().includes(codeFilter.value.toUpperCase())) return false;
+    if (codeFilter.value) {
+      const q = codeFilter.value.toUpperCase();
+      if (!item.code.toUpperCase().includes(q) && !item.name.toUpperCase().includes(q)) return false;
+    }
     return true;
   }),
 );
@@ -141,6 +160,8 @@ const pagedRows = computed(() => {
 table { width: 100%; border-collapse: collapse; font-size: 11px; }
 th, td { padding: 6px 8px; border-bottom: 1px solid var(--dash-border); text-align: left; white-space: nowrap; }
 th { position: sticky; top: 0; color: var(--dash-text-muted); background: var(--dash-surface-soft); z-index: 1; }
+.col-contract strong, .col-contract small { display: block; }
+.col-contract small { color: var(--dash-text-muted); }
 code { font-size: 10px; color: var(--primary); }
 .env { padding: 2px 6px; border-radius: 999px; font-size: 10px; }
 </style>

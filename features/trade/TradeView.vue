@@ -4,7 +4,11 @@
       <div class="page-section">
         <h3 class="page-section-title">活动委托</h3>
         <el-table :data="trade.orders" height="560">
-          <el-table-column prop="symbol" label="合约" width="100" />
+          <el-table-column label="合约" min-width="140">
+            <template #default="{ row }">
+              <InstrumentCell :code="String(row.symbol || '')" :name="contractNameOf(market.contracts, String(row.symbol || ''), row.exchange)" />
+            </template>
+          </el-table-column>
           <el-table-column prop="direction" label="方向" width="80" />
           <el-table-column prop="offset" label="开平" width="80" />
           <el-table-column prop="price" label="价格" width="90" />
@@ -35,12 +39,15 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
 import { http } from "@/api";
-import { useTradeStore } from "@/stores";
+import { useMarketStore, useTradeStore } from "@/stores";
+import { contractNameOf } from "../workbench/liveMap";
 import OrderTicket from "./OrderTicket.vue";
 import StatusTag from "@/components/StatusTag.vue";
+import InstrumentCell from "@/components/InstrumentCell.vue";
 
 const route = useRoute();
 const trade = useTradeStore();
+const market = useMarketStore();
 const section = computed(() => String(route.params.section || "order"));
 
 async function cancel(row: Record<string, unknown>) {

@@ -100,11 +100,50 @@ export function quoteAmplitude(tick: Record<string, unknown> | undefined): numbe
 
 export function quoteName(code: string, name?: unknown) {
   const n = String(name ?? "").trim();
-  return n || code;
+  return n || String(code || "").trim();
 }
 
 export function quoteCode(code: string) {
   return code;
+}
+
+/** ContractData.name from `/api/contracts`, matched by symbol (and exchange when given). */
+export function contractNameOf(
+  contracts: Array<Record<string, unknown>>,
+  symbol: string,
+  exchange?: unknown,
+): string {
+  const sym = String(symbol || "").trim().toUpperCase();
+  if (!sym) return "";
+  const ex = String(exchange || "").trim().toUpperCase();
+  let fallback = "";
+  for (const row of contracts) {
+    if (String(row.symbol || "").toUpperCase() !== sym) continue;
+    const name = String(row.name ?? "").trim();
+    if (ex && String(row.exchange || "").toUpperCase() === ex) return name;
+    if (!fallback) fallback = name;
+  }
+  return fallback;
+}
+
+export function instrumentLines(code: string, ...candidates: unknown[]) {
+  const symbol = String(code || "").trim();
+  let resolved = "";
+  for (const candidate of candidates) {
+    const name = String(candidate ?? "").trim();
+    if (name) {
+      resolved = name;
+      break;
+    }
+  }
+  const name = resolved || symbol;
+  const distinct = Boolean(symbol) && name.toUpperCase() !== symbol.toUpperCase();
+  return { name: distinct ? name : symbol, code: symbol, distinct };
+}
+
+export function instrumentLabel(code: string, ...candidates: unknown[]) {
+  const lines = instrumentLines(code, ...candidates);
+  return lines.distinct ? `${lines.name} ${lines.code}` : lines.code;
 }
 
 export function pickFunds(

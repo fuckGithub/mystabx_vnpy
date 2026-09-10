@@ -64,8 +64,8 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { finiteNumber, finitePrice, fmtPct, fmtPriceOrDash, fmtSigned, fmtVolume, pnlClass, quoteChangePct } from "../../workbench/liveMap";
-import { exchangeLabel, productName } from "../contracts";
+import { finiteNumber, finitePrice, fmtPct, fmtPriceOrDash, fmtSigned, fmtVolume, instrumentLines, pnlClass, quoteChangePct } from "../../workbench/liveMap";
+import { exchangeLabel } from "../contracts";
 
 const props = defineProps<{
   contract: Record<string, unknown> | null;
@@ -74,11 +74,15 @@ const props = defineProps<{
 
 const title = computed(() => {
   if (!props.contract) return "未选合约";
-  return String(props.contract.symbol || "");
+  const code = String(props.contract.symbol || "");
+  return instrumentLines(code, props.contract.name, props.tick?.name).name;
 });
 const subtitle = computed(() => {
   if (!props.contract) return "点击左侧列表";
-  return `${productName(props.contract)} · ${exchangeLabel(props.contract.exchange)}`;
+  const code = String(props.contract.symbol || "");
+  const lines = instrumentLines(code, props.contract.name, props.tick?.name);
+  const ex = exchangeLabel(props.contract.exchange);
+  return lines.distinct ? `${lines.code} · ${ex}` : ex;
 });
 
 const last = computed(() => finitePrice(props.tick?.last_price));
