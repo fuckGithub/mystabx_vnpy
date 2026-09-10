@@ -44,7 +44,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as echarts from "echarts";
 import type { ChartPeriod, HistoryBar } from "../history";
-import { AXIS_LABELS, type TimesharePoint } from "../timeshare";
+import { AXIS_LABELS, timesharePriceRange, type TimesharePoint } from "../timeshare";
 
 export type TradeDateOption = { date: string; is_current: boolean; has_data: boolean };
 
@@ -119,6 +119,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
   const vols = props.timeshare.map((p) => (p.session === "break" ? 0 : p.volume));
   const last = [...prices].reverse().find((v) => v !== null) ?? props.preClose ?? 0;
   const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
+  const yRange = timesharePriceRange(props.timeshare, props.preClose);
   const breakIdx = props.timeshare.findIndex((p) => p.session === "break");
   const nightEnd = breakIdx > 0 ? labels[breakIdx - 1] : "";
   const dayStart = breakIdx >= 0 && breakIdx + 1 < labels.length ? labels[breakIdx + 1] : "";
@@ -197,6 +198,8 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     yAxis: [
       {
         scale: true,
+        min: yRange.min,
+        max: yRange.max,
         splitLine: { lineStyle: { color: c.line, type: "dashed" } },
         axisLabel: { color: c.text, fontSize: 10 },
       },

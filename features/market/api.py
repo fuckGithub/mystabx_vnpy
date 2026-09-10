@@ -48,7 +48,12 @@ def list_ticks(user: User = Depends(current_user)) -> list[dict]:
 
 
 def _visible_ticks(rows: list[dict], gws: set[str]) -> list[dict]:
-    return [row for row in rows if not row.get("gateway_name") or row.get("gateway_name") in gws]
+    allowed = {str(name).upper() for name in gws}
+    return [
+        row
+        for row in rows
+        if not row.get("gateway_name") or str(row.get("gateway_name")).upper() in allowed
+    ]
 
 
 def _merge_ticks(*groups: list[dict]) -> list[dict]:

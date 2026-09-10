@@ -281,6 +281,7 @@ uv run start --dev
 - **本机 Mac**：适合开发与个人模拟；生产 API 限制见上一节。
 - **Linux 服务器**：适合 7×24 挂着给浏览器用。先 `./scripts/install_linux.sh`，再 `./start.sh`（默认生产：构建 + 单进程 uvicorn）。必须用 Linux 版 `vnpy_ctp`。不要用 `uvicorn --workers`。
 - 磁盘主要给系统、`.venv`、`node_modules`、`dist/`、`.vntrader`（SQLite `stabx_web.db` / 密钥）。ClickHouse 可选：本机 `127.0.0.1:8123` 存近 10 日 Tick；没起来时服务仍可跑，历史交易日分时不可查。
+- **ClickHouse 开机启动**（HTTP `8123`）：Mac Homebrew 用 `brew services start clickhouse`（或 `clickhouse-server`）；Linux 用 `sudo systemctl enable --now clickhouse-server`。本机官方单二进制也可用 LaunchAgent：`launchctl enable gui/$(id -u)/com.stabx.clickhouse`（`RunAtLoad` + `KeepAlive`）。Docker 部署则 `docker update --restart unless-stopped <容器>`。
 - 安全：监听 `0.0.0.0` 时用防火墙或反向代理限制来源；改默认管理员密码；`.env` 不要提交。
 
 ## 业务操作流程

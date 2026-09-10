@@ -81,10 +81,26 @@ function isCffex(exchange: string): boolean {
 }
 
 function parseTickDate(raw: unknown): Date | null {
-  if (!raw) return null;
-  const text = String(raw);
-  const dt = new Date(text.includes("T") ? text : Number(text));
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "number") {
+    const dt = new Date(raw < 1e12 ? raw * 1000 : raw);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const text = String(raw).trim();
+  if (!text) return null;
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const n = Number(text);
+    const dt = new Date(n < 1e12 ? n * 1000 : n);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const iso = text.includes("T") ? text : text.replace(" ", "T");
+  const withTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}+08:00`;
+  const dt = new Date(withTz);
   return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function tickLastPrice(tick: TickLike): number | null {
+  return finitePrice(tick.last_price ?? tick.lastPrice);
 }
 
 function clockMinutes(date: Date): number {
@@ -196,7 +212,7 @@ export function aggregateTimeshare(
   const windows = sessionWindows(exchange);
   const startMs = sessionStartMs(exchange, tradeDate);
   const endMs = sessionEndMs(exchange, tradeDate);
-  const buckets = new Map<number, { price: number; volume: number; turnover: number }>();
+  const buckets = new Map<number, { price: number; volume: number; notional: number }>();
   let prevCum = 0;
 
   const sorted = [...ticks].sort((a, b) => {
@@ -210,24 +226,24 @@ export function aggregateTimeshare(
     if (!dt) continue;
     const ms = dt.getTime();
     if (ms < startMs || ms >= endMs) continue;
-    const price = finitePrice(tick.last_price);
+    const price = tickLastPrice(tick);
     if (price === null) continue;
     const mins = clockMinutes(dt);
     if (!inWindows(mins, windows)) continue;
 
     const cum = Number(tick.volume);
-    const lastVol = Number(tick.last_volume);
+    const lastVol = Number(tick.last_volume ?? tick.lastVolume);
     let delta = 0;
     if (Number.isFinite(lastVol) && lastVol > 0) delta = lastVol;
     else if (Number.isFinite(cum) && cum >= prevCum) delta = cum - prevCum;
     if (Number.isFinite(cum) && cum > 0) prevCum = cum;
 
-    const turnover = Number(tick.turnover);
     const prev = buckets.get(mins);
+    const vol = Math.max(0, delta);
     buckets.set(mins, {
       price,
-      volume: (prev?.volume || 0) + Math.max(0, delta),
-      turnover: Number.isFinite(turnover) ? turnover : prev?.turnover || 0,
+      volume: (prev?.volume || 0) + vol,
+      notional: (prev?.notional || 0) + price * vol,
     });
   }
 
@@ -235,7 +251,7 @@ export function aggregateTimeshare(
   const points: TimesharePoint[] = [];
   let lastPrice: number | null = null;
   let cumVol = 0;
-  let cumTurnover = 0;
+  let cumNotional = 0;
   let prevSession: SessionKind | null = null;
 
   for (const win of windows) {
@@ -254,11 +270,13 @@ export function aggregateTimeshare(
       if (hit) {
         lastPrice = hit.price;
         cumVol += hit.volume;
-        if (hit.turnover > 0) cumTurnover = hit.turnover;
+        cumNotional += hit.notional;
       }
       const pastOrNow = !live || isPastSlot(m, nowMins);
       const price = hit || (pastOrNow && lastPrice !== null) ? lastPrice : null;
-      const avg = cumVol > 0 && cumTurnover > 0 ? cumTurnover / cumVol : lastPrice;
+      const rawAvg = cumVol > 0 ? cumNotional / cumVol : lastPrice;
+      const avg =
+        price != null && rawAvg != null && (rawAvg > price * 5 || rawAvg < price * 0.2) ? price : rawAvg;
       points.push({
         ts: m,
         label: formatHm(m),
@@ -271,6 +289,24 @@ export function aggregateTimeshare(
     prevSession = win.session;
   }
   return points;
+}
+
+export function timesharePriceRange(
+  points: TimesharePoint[],
+  preClose?: number | null,
+): { min?: number; max?: number } {
+  const vals: number[] = [];
+  for (const p of points) {
+    if (p.session === "break") continue;
+    if (p.price != null && p.price > 0) vals.push(p.price);
+  }
+  const ref = finitePrice(preClose);
+  if (ref != null) vals.push(ref);
+  if (!vals.length) return {};
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  const pad = Math.max((hi - lo) * 0.12, lo * 0.002, 0.01);
+  return { min: lo - pad, max: hi + pad };
 }
 
 export const AXIS_LABELS = new Set([

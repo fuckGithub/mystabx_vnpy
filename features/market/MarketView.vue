@@ -100,7 +100,11 @@ const sessionRows = computed(() => {
 
 const timesharePoints = computed<TimesharePoint[]>(() => {
   if (!selected.value) return [];
-  const ticks = viewingCurrent.value ? sessionRows.value : historyTicks.value;
+  const ticks = viewingCurrent.value ? [...sessionRows.value] : [...historyTicks.value];
+  if (viewingCurrent.value && selectedTick.value) {
+    const dt = String(selectedTick.value.datetime || "");
+    if (!ticks.some((row) => String(row.datetime || "") === dt)) ticks.push(selectedTick.value);
+  }
   return aggregateTimeshare(ticks, selectedExchange.value, {
     tradeDate: tradeDate.value || currentTradeDate(selectedExchange.value),
     live: viewingCurrent.value,
@@ -158,25 +162,33 @@ async function onPick(row: ContractRow) {
   historyTicks.value = [];
   historyKey.value = "";
   const next = currentTradeDate(String(row.exchange || ""));
-  const unchanged = tradeDate.value === next;
   tradeDate.value = next;
-  await Promise.all([ensureSubscribed(row), refreshTradeDates(row)]);
-  if (unchanged) await refreshSession(row, next);
+  await ensureSubscribed(row);
+  await Promise.all([refreshTradeDates(row), refreshSession(row, next)]);
 }
 
 async function ensureSubscribed(row: ContractRow) {
   const key = contractKey(row);
-  const gateway = String(row.gateway_name || trade.gateways[0]?.gateway_name || "");
+  const gateway = String(
+    row.gateway_name || trade.activeGatewayName || trade.gateways[0]?.gateway_name || "",
+  );
   if (!gateway) {
     ElMessage.warning("没有可用账户，无法订阅行情");
     return;
   }
-  if (subscribedKeys.has(`${gateway}:${key}`)) return;
+  const subKey = `${gateway}:${key}`;
   try {
-    await market.subscribeContract(gateway, String(row.symbol || ""), String(row.exchange || ""));
-    subscribedKeys.add(`${gateway}:${key}`);
+    if (!subscribedKeys.has(subKey)) {
+      await market.subscribeContract(gateway, String(row.symbol || ""), String(row.exchange || ""));
+      subscribedKeys.add(subKey);
+    }
   } catch {
     ElMessage.error(`订阅 ${row.symbol} 失败，请确认行情通道已连接`);
+  }
+  try {
+    await market.loadTicks();
+  } catch {
+    /* latest OMS tick is optional; live WS still merges */
   }
 }
 
