@@ -125,10 +125,8 @@ atlassian-ide-plugin.xml
 .LSOverride
 ._*
 
-# Cursor 本地状态（保留可共享的 rules）
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**
+# Cursor 本地配置与规则（不提交）
+.cursor/
 
 # 前端构建（含 ui/node_modules 符号链接，供 IDE 在 Vite root 下解析依赖）
 node_modules/
