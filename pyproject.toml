@@ -27,11 +27,16 @@ dependencies = [
     "httpx>=0.27",
 ]
 
+[project.scripts]
+start = "core.start:main"
+
 [tool.setuptools.packages.find]
 include = ["mystabx*", "core*", "features*"]
 exclude = ["ui*", "vendor*", "licenses*", "node_modules*", "docs*", "scripts*"]
 
 [tool.uv]
+# Product start: uv run start → exec ./start.sh (args pass through; no extra --dev).
+# Keep a local CTP build: uv run --no-sync start
 # Mac: compile vnpy_ctp 6.7.7.2 against SimNow official CTP v6.7.13
 #   ./scripts/install_macos.sh
 # Linux: compile vnpy_ctp 6.7.7.2 against Linux CTP .so (not Mac .framework)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stabx Web 交易台一键启动（Linux / macOS 部署用）。
 # 默认生产模式：npm run build 后由单个 uvicorn 托管 REST/WS + Vue dist，无需两个终端。
-# 桌面 Qt / main.py 不是产品入口，本脚本不会启动 GUI。
+# 产品入口：./start.sh、uv run start、python main.py（均不启动桌面 Qt）。
 # Linux：不假设 Homebrew / Xcode / Mac CTP .framework；不要对 vnpy 使用 --workers。
 set -euo pipefail
 
@@ -114,6 +114,8 @@ for arg in "$@"; do
     -h|--help)
       cat <<'EOF'
 用法: ./start.sh [--dev] [--skip-build]
+      uv run start [--dev] [--skip-build]
+      python main.py [--dev] [--skip-build]
 
   （默认）生产模式：构建 Vue，再由 uvicorn 单进程托管 API + SPA
   --dev         本机热更新：同一脚本内启动 uvicorn --reload 与 Vite

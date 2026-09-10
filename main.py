@@ -1,4 +1,9 @@
-"""Legacy Qt desktop (not the product). Use ./start.sh for the Vue web trader."""
+"""Product entry: exec ./start.sh (Vue web trader). Same as `uv run start`.
+
+`python main.py` and IDE Run on this file start the Web trader (not Qt).
+Args pass through to start.sh: --dev, --skip-build, --help.
+Legacy Qt desktop only with explicit --qt.
+"""
 
 from __future__ import annotations
 
@@ -12,16 +17,12 @@ if str(ROOT) not in sys.path:
 
 os.chdir(ROOT)
 
-from mystabx.paths import ensure_project_trader_dir
 
-ensure_project_trader_dir()
+def _run_legacy_qt() -> None:
+    from mystabx.paths import ensure_project_trader_dir
 
+    ensure_project_trader_dir()
 
-def main() -> None:
-    print(
-        "桌面 Qt 不是产品入口。请用 ./start.sh 启动 Web 交易台。",
-        file=sys.stderr,
-    )
     from vnpy.trader.ui import create_qapp
 
     from mystabx.trader import build_engines
@@ -37,6 +38,17 @@ def main() -> None:
     main_window = build_main_window(main_engine, event_engine)
     main_window.showMaximized()
     qapp.exec()
+
+
+def main() -> None:
+    if "--qt" in sys.argv[1:]:
+        sys.argv = [sys.argv[0], *[a for a in sys.argv[1:] if a != "--qt"]]
+        _run_legacy_qt()
+        return
+
+    from core.start import main as start_main
+
+    start_main()
 
 
 if __name__ == "__main__":

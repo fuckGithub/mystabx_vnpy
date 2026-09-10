@@ -36,6 +36,13 @@ export default defineConfig({
       "/ws": { target: apiOrigin.replace("http", "ws"), ws: true },
     },
   },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: "modern-compiler",
+      },
+    },
+  },
   build: {
     outDir: "../dist",
     emptyOutDir: true,

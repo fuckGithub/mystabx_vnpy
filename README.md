@@ -2,7 +2,7 @@
 
 浏览器里用的期货交易台：Vue 网页 + FastAPI（REST / WebSocket / SSE）+ 进程内 vnpy `MainEngine`。产品入口是 Web，不是桌面 Qt / `main.py`。
 
-> 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）：`./start.sh`（macOS / Linux）。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
+> 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）：`uv run start` 或 `./start.sh`（macOS / Linux）。桌面 `main.py` / PySide MainWindow 仅作遗留代码，不是默认入口。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
 规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/07](docs/07-用户服务协议与免责声明.md)）。
 
@@ -62,7 +62,7 @@
 | 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
 | 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
 | 目录组织 | 功能域优先：`features/ + core/ + ui/`（不按 backend/frontend 分层） |
-| 运行入口 | `./start.sh`（单进程托管 API + 构建后的 SPA）；不要用 `main.py` 当产品 |
+| 运行入口 | `uv run start` 或 `./start.sh`（单进程托管 API + 构建后的 SPA）；不要用 `main.py` 当产品 |
 
 ## 文档索引
 
@@ -78,7 +78,7 @@
 
 ## 与桌面端的关系
 
-- **产品（Web）**：`core/` + `features/` + `ui/`，`./start.sh` 一键起 FastAPI + Vue
+- **产品（Web）**：`core/` + `features/` + `ui/`，`uv run start` / `./start.sh` 一键起 FastAPI + Vue
 - **遗留（桌面）**：根目录 `main.py` + `mystabx/`，官方 MainWindow。保留但不作为入口，不要按这个跑产品
 
 未完成（见 [06-实施路线图](docs/06-实施路线图.md)）：RQData 历史 K 线、完整风控、策略/回测、Docker。分时与 ClickHouse Tick 入库（近 10 日）已落地；周期 K 线目前是 mock。
@@ -174,7 +174,7 @@ mystabx_vnpy/
 ## 搭建步骤
 
 
-仓库根目录操作。`./start.sh` 要求已有 **`.venv`**、**Node.js**、**npm**。Linux 服务器缺依赖时脚本会给出 `apt-get` 提示；不要假设 Homebrew。
+仓库根目录操作。`uv run start` 会先准备项目环境再 `exec ./start.sh`。`./start.sh` 要求已有 **`.venv`**、**Node.js**、**npm**。Linux 服务器缺依赖时脚本会给出 `apt-get` 提示；不要假设 Homebrew。
 
 ### 1. Python 虚拟环境
 
@@ -240,19 +240,23 @@ cp .env.example .env
 
 ### 5. 启动
 
-部署默认（构建 Vue，**一个 uvicorn 进程**同时提供 API 和 `dist/` SPA）。Linux 服务器用这条；Mac 本机开发可用 `--dev`：
+部署默认（构建 Vue，**一个 uvicorn 进程**同时提供 API 和 `dist/` SPA）。Linux 服务器用这条；Mac 本机开发可用 `--dev`。`uv run start` 与 `./start.sh` 行为相同（参数原样交给 `start.sh`，不会在 Linux 上偷偷加 `--dev`）：
 
 ```bash
+uv run start
+# 或
 ./start.sh
 ```
 
 本机热更新（同一脚本内 `uvicorn --reload` + Vite，默认前端 http://127.0.0.1:5173）：
 
 ```bash
+uv run start --dev
+# 或
 ./start.sh --dev
 ```
 
-已有 `dist/index.html` 时可跳过构建：`./start.sh --skip-build`。
+已有 `dist/index.html` 时可跳过构建：`uv run start --skip-build`。
 
 浏览器打开 `http://<主机>:<端口>/`。默认 `STABX_HOST=0.0.0.0`、`STABX_PORT=8000`。
 
@@ -282,7 +286,7 @@ cp .env.example .env
 ## 业务操作流程
 
 1. **启动**  
-   仓库根目录 `./start.sh`（或 `--dev`）。浏览器打开上述地址。
+   仓库根目录 `uv run start` 或 `./start.sh`（或 `--dev`）。浏览器打开上述地址。
 
 2. **登录管理员**  
    首次可用文档默认账号 `admin` / `admin123`，**登录后立刻改密**。管理员才能进 **系统管理**。
@@ -330,7 +334,7 @@ cp .env.example .env
 | `STABX_CLICKHOUSE_URL` | `http://127.0.0.1:8123` | Tick 库 HTTP 口；不可用时软失败 |
 | `STABX_CLICKHOUSE_TICK_TTL_DAYS` | `10` | ClickHouse Tick 保留天数 |
 
-**产品（Web）**：`core/` + `features/` + `ui/`，`./start.sh` 一键起 FastAPI + Vue。**遗留（桌面）**：根目录 `main.py` + `mystabx/`（官方 MainWindow），保留但不作为入口。
+**产品（Web）**：`core/` + `features/` + `ui/`，`uv run start` / `./start.sh` 一键起 FastAPI + Vue。**遗留（桌面）**：根目录 `main.py` + `mystabx/`（官方 MainWindow），保留但不作为入口。
 
 ## 关键决策
 
@@ -344,7 +348,7 @@ cp .env.example .env
 | 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
 | 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
 | 目录组织 | 功能域优先：`features/` + `core/` + `ui/` |
-| 运行入口 | `./start.sh`（单进程托管 API + 构建后的 SPA）；不要用 `main.py` 当产品 |
+| 运行入口 | `uv run start` 或 `./start.sh`（单进程托管 API + 构建后的 SPA）；不要用 `main.py` 当产品 |
 
 ## 设计文档
 
