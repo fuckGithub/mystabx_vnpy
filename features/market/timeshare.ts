@@ -171,32 +171,6 @@ function putBucket(
   });
 }
 
-function isPastSlot(mins: number, nowMins: number): boolean {
-  const nightLate = mins >= 21 * 60;
-  const nightEarly = mins < 3 * 60;
-  if (nowMins >= 20 * 60 + 50) return nightLate && mins <= nowMins;
-  if (nowMins < 3 * 60) return nightLate || (nightEarly && mins <= nowMins);
-  if (nightLate || nightEarly) return true;
-  return mins <= nowMins;
-}
-
-/** Whether this axis minute should already show last_price (not a future blank). */
-function slotElapsed(mins: number, nowMins: number, windows: Window[]): boolean {
-  if (inWindows(nowMins, windows)) return isPastSlot(mins, nowMins);
-  const hasNight = windows.some((w) => w.session === "night");
-  if (!hasNight) {
-    const lastEnd = windows[windows.length - 1]?.end ?? 0;
-    const firstStart = windows[0]?.start ?? 0;
-    if (nowMins >= lastEnd || nowMins < firstStart) return true;
-    const next = windows.find((w) => nowMins < w.start);
-    if (next) return mins < next.start;
-    return true;
-  }
-  if (nowMins >= 15 * 60 && nowMins < 20 * 60 + 50) return true;
-  if (nowMins >= 2 * 60 + 30 && nowMins < 9 * 60) return mins >= 21 * 60 || mins < 3 * 60;
-  return isPastSlot(mins, nowMins);
-}
-
 function finitePrice(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -300,22 +274,15 @@ export function aggregateTimeshare(
       ? clockMinutes(new Date())
       : clockMinutes(parseTickDate(sorted[sorted.length - 1]?.datetime) || new Date());
     const snapped = snapToSessionMinute(clock, windows);
-    putBucket(buckets, snapped, last.price, last.volume);
-    if (!inWindows(clock, windows) && windows[0] && windows[0].start !== snapped) {
-      putBucket(buckets, windows[0].start, last.price, last.volume);
-    }
+    const open = windows[0]?.start;
+    if (open != null) putBucket(buckets, open, last.price, last.volume);
+    if (snapped !== open) putBucket(buckets, snapped, last.price, last.volume);
   }
 
-  const nowMins = clockMinutes(new Date());
+  const lastTickDt = parseTickDate(sorted[sorted.length - 1]?.datetime);
+  const lastTickMins = lastTickDt ? snapToSessionMinute(clockMinutes(lastTickDt), windows) : null;
   const points: TimesharePoint[] = [];
   let lastPrice: number | null = null;
-  for (const win of windows) {
-    for (let m = win.start; m < win.end && lastPrice === null; m += 1) {
-      const hit = buckets.get(m);
-      if (hit) lastPrice = hit.price;
-    }
-    if (lastPrice !== null) break;
-  }
   let cumVol = 0;
   let cumNotional = 0;
   let prevSession: SessionKind | null = null;
@@ -338,41 +305,122 @@ export function aggregateTimeshare(
         cumVol += hit.volume;
         cumNotional += hit.notional;
       }
-      const pastOrNow = !live || slotElapsed(m, nowMins, windows);
-      const price = hit || (pastOrNow && lastPrice !== null) ? lastPrice : null;
       const rawAvg = cumVol > 0 ? cumNotional / cumVol : lastPrice;
-      const avg =
-        price != null && rawAvg != null && (rawAvg > price * 5 || rawAvg < price * 0.2) ? price : rawAvg;
       points.push({
         ts: m,
         label: formatHm(m),
-        price,
+        price: hit ? lastPrice : null,
         volume: hit?.volume || 0,
-        avg: price === null ? null : avg,
+        avg: hit && rawAvg != null && lastPrice != null && (rawAvg > lastPrice * 5 || rawAvg < lastPrice * 0.2)
+          ? lastPrice
+          : hit
+            ? rawAvg
+            : null,
         session: win.session,
       });
     }
     prevSession = win.session;
   }
+
+  extendCarriedLastPrice(points, { live, lastTickMins });
   return points;
 }
 
-export function timesharePriceRange(
+/**
+ * Standard 分时: carry last_price through empty minutes. One SimNow snapshot
+ * otherwise becomes a single category point and ECharts draws a 2px stub.
+ * 今日 continues the step line to session end so it reads as a 分时, not a dot.
+ */
+function extendCarriedLastPrice(
   points: TimesharePoint[],
-  preClose?: number | null,
-): { min?: number; max?: number } {
-  const vals: number[] = [];
-  for (const p of points) {
-    if (p.session === "break") continue;
-    if (p.price != null && p.price > 0) vals.push(p.price);
+  opts: { live: boolean; lastTickMins: number | null },
+): void {
+  let first = -1;
+  let lastHit = -1;
+  for (let i = 0; i < points.length; i += 1) {
+    if (points[i].session === "break") continue;
+    if (points[i].price != null) {
+      if (first < 0) first = i;
+      lastHit = i;
+    }
   }
-  const ref = finitePrice(preClose);
-  if (ref != null) vals.push(ref);
+  if (first < 0 || lastHit < 0) return;
+
+  let fillTo = lastHit;
+  if (opts.lastTickMins != null) {
+    for (let i = 0; i < points.length; i += 1) {
+      const p = points[i];
+      if (p.session === "break") continue;
+      if (p.ts === opts.lastTickMins) fillTo = Math.max(fillTo, i);
+    }
+  }
+  if (opts.live) {
+    for (let i = points.length - 1; i >= 0; i -= 1) {
+      if (points[i].session !== "break") {
+        fillTo = i;
+        break;
+      }
+    }
+  }
+
+  const seed = points[first].price as number;
+  const seedAvg = points[first].avg ?? seed;
+  for (let i = 0; i < first; i += 1) {
+    if (points[i].session === "break") continue;
+    points[i].price = seed;
+    points[i].avg = seedAvg;
+  }
+
+  let price = seed;
+  let avg = seedAvg;
+  for (let i = first; i <= fillTo; i += 1) {
+    const p = points[i];
+    if (p.session === "break") continue;
+    if (p.price != null) {
+      price = p.price;
+      avg = p.avg ?? price;
+    } else {
+      p.price = price;
+      p.avg = avg;
+    }
+  }
+}
+
+/** Y-axis from plotted prices only: 4% of span, or 0.25% of level when the series is flat. */
+export function paddedPriceRange(values: number[]): { min?: number; max?: number } {
+  const vals = values.filter((n) => Number.isFinite(n) && n > 0);
   if (!vals.length) return {};
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
-  const pad = Math.max((hi - lo) * 0.12, lo * 0.002, 0.01);
+  const mid = (lo + hi) / 2;
+  const pad = Math.max((hi - lo) * 0.04, Math.abs(mid) * 0.0025, 0.01);
   return { min: lo - pad, max: hi + pad };
+}
+
+/**
+ * Timeshare price axis from 现价, plus 均价 only when it is the same unit
+ * (not turnover / VWAP blow-ups). Zeros, nulls, and 昨收 are ignored so a
+ * flat last_price is not stretched to pre-close or a dummy 0–100000 range.
+ */
+export function timesharePriceRange(points: TimesharePoint[]): { min?: number; max?: number } {
+  const prices: number[] = [];
+  const avgs: number[] = [];
+  for (const p of points) {
+    if (p.session === "break") continue;
+    if (p.price != null && p.price > 0) prices.push(p.price);
+    if (p.avg != null && p.avg > 0) avgs.push(p.avg);
+  }
+  const vals = [...prices];
+  if (prices.length) {
+    const lo = Math.min(...prices);
+    const hi = Math.max(...prices);
+    for (const avg of avgs) {
+      if (avg >= lo * 0.5 && avg <= hi * 2) vals.push(avg);
+    }
+  } else {
+    vals.push(...avgs);
+  }
+  return paddedPriceRange(vals);
 }
 
 export const AXIS_LABELS = new Set([

@@ -45,6 +45,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import * as echarts from "echarts";
 import type { ChartPeriod, HistoryBar } from "../history";
 import {
+  paddedPriceRange,
   timeshareAxisLabelText,
   timeshareAxisLabelVisible,
   timesharePriceRange,
@@ -95,6 +96,17 @@ let ro: ResizeObserver | null = null;
 
 const intervalLabel = computed(() => periods.find((p) => p.key === props.period)?.label || "");
 
+function klinePriceRange(bars: HistoryBar[]) {
+  const vals: number[] = [];
+  for (const b of bars) {
+    for (const v of [b.open, b.high, b.low, b.close]) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) vals.push(n);
+    }
+  }
+  return paddedPriceRange(vals);
+}
+
 function colors() {
   const style = el.value ? getComputedStyle(el.value) : getComputedStyle(document.documentElement);
   return {
@@ -123,9 +135,17 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
   const avgs = props.timeshare.map((p) => (p.session === "break" ? null : p.avg));
   const vols = props.timeshare.map((p) => (p.session === "break" ? 0 : p.volume));
   const last = [...prices].reverse().find((v) => v !== null) ?? props.preClose ?? 0;
-  const lastIdx = prices.reduce((acc, v, i) => (v != null ? i : acc), -1);
+  const lastIdx = (() => {
+    let volIdx = -1;
+    let priceIdx = -1;
+    for (let i = 0; i < prices.length; i += 1) {
+      if (prices[i] != null) priceIdx = i;
+      if (vols[i] > 0) volIdx = i;
+    }
+    return volIdx >= 0 ? volIdx : priceIdx;
+  })();
   const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
-  const yRange = timesharePriceRange(props.timeshare, props.preClose);
+  const yRange = timesharePriceRange(props.timeshare);
   const breakIdx = props.timeshare.findIndex((p) => p.session === "break");
   const nightEnd = breakIdx > 0 ? labels[breakIdx - 1] : "";
   const dayStart = breakIdx >= 0 && breakIdx + 1 < labels.length ? labels[breakIdx + 1] : "";
@@ -271,6 +291,7 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     value: b.volume,
     itemStyle: { color: b.close >= (props.bars[i - 1]?.close ?? b.open) ? c.rise : c.fall },
   }));
+  const yRange = klinePriceRange(props.bars);
   return {
     animation: false,
     backgroundColor: "transparent",
@@ -300,6 +321,8 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     yAxis: [
       {
         scale: true,
+        min: yRange.min,
+        max: yRange.max,
         splitLine: { lineStyle: { color: c.line, type: "dashed" } },
         axisLabel: { color: c.text, fontSize: 10 },
       },
