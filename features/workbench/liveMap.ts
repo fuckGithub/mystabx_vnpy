@@ -107,6 +107,30 @@ export function quoteCode(code: string) {
   return code;
 }
 
+/** Letter prefix of a futures symbol, e.g. T2609 → T, c2509 → C. */
+export function productPrefixOf(code: string): string {
+  const m = String(code || "").trim().match(/^([A-Za-z]+)/);
+  return (m?.[1] || "").toUpperCase();
+}
+
+/** Fallback product names when ContractData.name is missing. Exact letter-prefix match. */
+const PRODUCT_PREFIX_NAMES: Record<string, string> = {
+  T: "十年国债",
+  TF: "五年国债",
+  TS: "二年国债",
+  TL: "三十年国债",
+  IF: "沪深300",
+  IH: "上证50",
+  IC: "中证500",
+  IM: "中证1000",
+  C: "玉米",
+};
+
+export function productNameFromCode(code: string): string {
+  const prefix = productPrefixOf(code);
+  return prefix ? PRODUCT_PREFIX_NAMES[prefix] || "" : "";
+}
+
 /** ContractData.name from `/api/contracts`, matched by symbol (and exchange when given). */
 export function contractNameOf(
   contracts: Array<Record<string, unknown>>,
@@ -128,16 +152,18 @@ export function contractNameOf(
 
 export function instrumentLines(code: string, ...candidates: unknown[]) {
   const symbol = String(code || "").trim();
+  const symbolUpper = symbol.toUpperCase();
   let resolved = "";
   for (const candidate of candidates) {
     const name = String(candidate ?? "").trim();
-    if (name) {
+    if (name && name.toUpperCase() !== symbolUpper) {
       resolved = name;
       break;
     }
   }
+  if (!resolved) resolved = productNameFromCode(symbol);
   const name = resolved || symbol;
-  const distinct = Boolean(symbol) && name.toUpperCase() !== symbol.toUpperCase();
+  const distinct = Boolean(symbol) && name.toUpperCase() !== symbolUpper;
   return { name: distinct ? name : symbol, code: symbol, distinct };
 }
 

@@ -23,8 +23,7 @@
         <tbody>
           <tr v-for="item in rows" :key="`${item.code}-${item.side}-${item.gateway}`">
             <td class="col-contract">
-              <strong>{{ item.name }}</strong>
-              <small v-if="item.distinct">{{ item.code }}</small>
+              <InstrumentCell :code="item.code" :name="item.name" />
             </td>
             <td class="col-side"><span class="side" :class="item.side === '多' ? 'long' : 'short'">{{ item.side }}</span></td>
             <td class="col-qty">{{ item.qty ?? "--" }}</td>
@@ -48,6 +47,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useMarketStore, useTradeStore } from "@/stores";
+import InstrumentCell from "@/components/InstrumentCell.vue";
 import { contractNameOf, finiteNumber, finitePrice, fmtPriceOrDash, fmtSigned, instrumentLines, pnlClass, positionSide } from "../liveMap";
 
 const trade = useTradeStore();
@@ -113,10 +113,9 @@ th, td {
   vertical-align: middle;
 }
 th { font-weight: 500; color: var(--dash-text-muted); background: var(--dash-surface-soft); }
-.col-contract strong, .col-contract small { display: block; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+.col-contract :deep(.inst) { align-items: center; max-width: 100%; }
 .col-qty, .col-avg, .col-pnl { font-variant-numeric: tabular-nums; overflow: visible; }
-.col-contract strong { color: var(--dash-heading); }
-.col-contract small, .muted { color: var(--dash-text-muted); }
+.muted { color: var(--dash-text-muted); }
 .side { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
 code { font-size: 10px; color: var(--primary); }
 .card-foot { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--dash-border); font-size: 11px; color: var(--dash-text-muted); }

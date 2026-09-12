@@ -31,8 +31,7 @@
           <tr v-for="item in pagedRows" :key="item.id">
             <td>{{ item.time }}</td>
             <td class="col-contract">
-              <strong>{{ item.name }}</strong>
-              <small v-if="item.distinct">{{ item.code }}</small>
+              <InstrumentCell :code="item.code" :name="item.name" />
             </td>
             <td>{{ item.side }}</td>
             <td>{{ item.qty ?? "--" }}</td>
@@ -62,6 +61,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useMarketStore, useTradeStore } from "@/stores";
+import InstrumentCell from "@/components/InstrumentCell.vue";
 import { contractNameOf, eventTimeMs, eventTimeText, finiteNumber, finitePrice, fmtPriceOrDash, instrumentLines, orderStatusLabel, tradeSideLabel } from "../liveMap";
 
 const trade = useTradeStore();
@@ -160,8 +160,6 @@ const pagedRows = computed(() => {
 table { width: 100%; border-collapse: collapse; font-size: 11px; }
 th, td { padding: 6px 8px; border-bottom: 1px solid var(--dash-border); text-align: left; white-space: nowrap; }
 th { position: sticky; top: 0; color: var(--dash-text-muted); background: var(--dash-surface-soft); z-index: 1; }
-.col-contract strong, .col-contract small { display: block; }
-.col-contract small { color: var(--dash-text-muted); }
 code { font-size: 10px; color: var(--primary); }
 .env { padding: 2px 6px; border-radius: 999px; font-size: 10px; }
 </style>

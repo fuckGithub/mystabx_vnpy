@@ -297,7 +297,9 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
     """Ticks for one 交易日. None = ClickHouse down (caller should fall back)."""
     if not _ready and not init_clickhouse():
         return None
-    start, end = session_range(trade_date, exchange=exchange)
+    start, _end = session_range(trade_date, exchange=exchange)
+    # Upper-bound of 15:15 dropped SimNow CFFEX ticks stamped 17:xx (after close).
+    # trade_date already isolates the 交易日; keep a floor so prior nights stay out.
     sql = (
         f"SELECT symbol, exchange, gateway_name, datetime, last_price, last_volume, "
         f"volume, turnover, open_interest, bid_price_1, bid_volume_1, ask_price_1, ask_volume_1 "
@@ -306,7 +308,6 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
         f"AND upper(exchange) = {_qstr(exchange.upper())} "
         f"AND trade_date = '{trade_date.isoformat()}' "
         f"AND datetime >= toDateTime64('{_fmt_dt(start)}', 3, 'Asia/Shanghai') "
-        f"AND datetime < toDateTime64('{_fmt_dt(end)}', 3, 'Asia/Shanghai') "
         f"ORDER BY datetime "
         f"LIMIT 80000 "
         f"FORMAT JSONEachRow"

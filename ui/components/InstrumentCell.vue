@@ -25,6 +25,13 @@ const lines = computed(() => instrumentLines(props.code, props.name));
   min-width: 0;
   line-height: 1.25;
 }
+.inst strong,
+.inst small {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .inst strong {
   font-size: 12px;
   font-weight: 600;

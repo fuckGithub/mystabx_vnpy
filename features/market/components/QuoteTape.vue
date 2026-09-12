@@ -72,17 +72,16 @@ const props = defineProps<{
   tick?: Record<string, unknown>;
 }>();
 
-const title = computed(() => {
-  if (!props.contract) return "未选合约";
+const lines = computed(() => {
+  if (!props.contract) return null;
   const code = String(props.contract.symbol || "");
-  return instrumentLines(code, props.contract.name, props.tick?.name).name;
+  return instrumentLines(code, props.contract.name, props.tick?.name);
 });
+const title = computed(() => lines.value?.name || "未选合约");
 const subtitle = computed(() => {
-  if (!props.contract) return "点击左侧列表";
-  const code = String(props.contract.symbol || "");
-  const lines = instrumentLines(code, props.contract.name, props.tick?.name);
-  const ex = exchangeLabel(props.contract.exchange);
-  return lines.distinct ? `${lines.code} · ${ex}` : ex;
+  if (!lines.value) return "点击左侧列表";
+  const ex = exchangeLabel(props.contract?.exchange);
+  return lines.value.code ? `${lines.value.code} · ${ex}` : ex;
 });
 
 const last = computed(() => finitePrice(props.tick?.last_price));

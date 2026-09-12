@@ -28,8 +28,7 @@
           @click="emit('select', row)"
         >
           <span class="board-row__id">
-            <strong>{{ displayName(row) }}</strong>
-            <em v-if="hasDistinctName(row)">{{ String(row.symbol || "") }}</em>
+            <InstrumentCell :code="String(row.symbol || '')" :name="row.name" />
           </span>
           <span class="board-row__px" :class="pnlClass(changeOf(row))">
             {{ fmtPriceOrDash(lastOf(row)) }}
@@ -48,8 +47,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import InstrumentCell from "@/components/InstrumentCell.vue";
 import { contractKey, groupContracts, type BoardTab, type ContractRow } from "../contracts";
-import { finitePrice, fmtPct, fmtPriceOrDash, instrumentLines, pnlClass, quoteChangePct } from "../../workbench/liveMap";
+import { finitePrice, fmtPct, fmtPriceOrDash, pnlClass, quoteChangePct } from "../../workbench/liveMap";
 
 const props = defineProps<{
   contracts: ContractRow[];
@@ -70,14 +70,6 @@ const groups = computed(() => groupContracts(props.contracts, tab.value, props.t
 
 function rowKey(row: ContractRow) {
   return contractKey(row);
-}
-
-function displayName(row: ContractRow) {
-  return instrumentLines(String(row.symbol || ""), row.name).name;
-}
-
-function hasDistinctName(row: ContractRow) {
-  return instrumentLines(String(row.symbol || ""), row.name).distinct;
 }
 
 function tickOf(row: ContractRow) {
@@ -158,21 +150,6 @@ function changeOf(row: ContractRow) {
 .board-row:hover { background: var(--dash-surface-soft); }
 .board-row.active { background: var(--dash-primary-soft); }
 .board-row__id { min-width: 0; }
-.board-row__id strong {
-  display: block;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--dash-heading);
-}
-.board-row__id em {
-  display: block;
-  font-style: normal;
-  font-size: 10px;
-  color: var(--dash-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .board-row__px,
 .board-row__chg {
   font-size: 11px;

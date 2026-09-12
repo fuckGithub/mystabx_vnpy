@@ -103,11 +103,23 @@ export const useMarketStore = defineStore("market", () => {
     const key = contractTickKey(tick);
     if (!key.startsWith(".") && key.includes(".")) {
       const cutoff = Date.now() - 20 * 3600 * 1000;
-      const list = (sessionTicks[key] ? [...sessionTicks[key]] : []).filter((row) => {
+      const prev = sessionTicks[key] ? [...sessionTicks[key]] : [];
+      const recent = prev.filter((row) => {
         const raw = String(row.datetime || "");
         const ms = Date.parse(raw);
         return Number.isNaN(ms) || ms >= cutoff;
       });
+      // Keep a tail of live quotes even when SimNow stamps a stale exchange datetime
+      // (e.g. CFFEX 17:30 two days ago) so the 分时 can re-aggregate on each WS tick.
+      const tail = prev.slice(-256);
+      const seen = new Set<string>();
+      const list: Record<string, unknown>[] = [];
+      for (const row of [...recent, ...tail]) {
+        const id = `${row.datetime}:${row.last_price}:${row.volume}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        list.push(row);
+      }
       const dt = String(tick.datetime || "");
       const last = list[list.length - 1];
       if (last && String(last.datetime || "") === dt && last.last_price === tick.last_price) {

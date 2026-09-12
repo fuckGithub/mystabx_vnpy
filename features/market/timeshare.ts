@@ -135,6 +135,42 @@ function inWindows(mins: number, windows: Window[]): boolean {
   return windows.some((w) => mins >= w.start && mins < w.end);
 }
 
+/** Map an out-of-session clock (e.g. SimNow 17:30 after CFFEX close) onto the axis. */
+function snapToSessionMinute(mins: number, windows: Window[]): number {
+  if (!windows.length) return mins;
+  if (inWindows(mins, windows)) return mins;
+  if (mins < windows[0].start) return windows[0].start;
+  for (let i = windows.length - 1; i >= 0; i -= 1) {
+    if (mins >= windows[i].end) return windows[i].end - 1;
+  }
+  return windows[0].start;
+}
+
+function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; nextCum: number } {
+  const cum = Number(tick.volume);
+  const lastVol = Number(tick.last_volume ?? tick.lastVolume);
+  let delta = 0;
+  let nextCum = prevCum;
+  if (Number.isFinite(lastVol) && lastVol > 0) delta = lastVol;
+  else if (Number.isFinite(cum) && cum >= prevCum) delta = cum - prevCum;
+  if (Number.isFinite(cum) && cum > 0) nextCum = cum;
+  return { delta: Math.max(0, delta), nextCum };
+}
+
+function putBucket(
+  buckets: Map<number, { price: number; volume: number; notional: number }>,
+  mins: number,
+  price: number,
+  volume: number,
+) {
+  const prev = buckets.get(mins);
+  buckets.set(mins, {
+    price,
+    volume: (prev?.volume || 0) + volume,
+    notional: (prev?.notional || 0) + price * volume,
+  });
+}
+
 function isPastSlot(mins: number, nowMins: number): boolean {
   const nightLate = mins >= 21 * 60;
   const nightEarly = mins < 3 * 60;
@@ -142,6 +178,23 @@ function isPastSlot(mins: number, nowMins: number): boolean {
   if (nowMins < 3 * 60) return nightLate || (nightEarly && mins <= nowMins);
   if (nightLate || nightEarly) return true;
   return mins <= nowMins;
+}
+
+/** Whether this axis minute should already show last_price (not a future blank). */
+function slotElapsed(mins: number, nowMins: number, windows: Window[]): boolean {
+  if (inWindows(nowMins, windows)) return isPastSlot(mins, nowMins);
+  const hasNight = windows.some((w) => w.session === "night");
+  if (!hasNight) {
+    const lastEnd = windows[windows.length - 1]?.end ?? 0;
+    const firstStart = windows[0]?.start ?? 0;
+    if (nowMins >= lastEnd || nowMins < firstStart) return true;
+    const next = windows.find((w) => nowMins < w.start);
+    if (next) return mins < next.start;
+    return true;
+  }
+  if (nowMins >= 15 * 60 && nowMins < 20 * 60 + 50) return true;
+  if (nowMins >= 2 * 60 + 30 && nowMins < 9 * 60) return mins >= 21 * 60 || mins < 3 * 60;
+  return isPastSlot(mins, nowMins);
 }
 
 function finitePrice(v: unknown): number | null {
@@ -214,6 +267,7 @@ export function aggregateTimeshare(
   const endMs = sessionEndMs(exchange, tradeDate);
   const buckets = new Map<number, { price: number; volume: number; notional: number }>();
   let prevCum = 0;
+  const orphans: { price: number; volume: number }[] = [];
 
   const sorted = [...ticks].sort((a, b) => {
     const da = parseTickDate(a.datetime)?.getTime() ?? 0;
@@ -222,34 +276,46 @@ export function aggregateTimeshare(
   });
 
   for (const tick of sorted) {
-    const dt = parseTickDate(tick.datetime);
-    if (!dt) continue;
-    const ms = dt.getTime();
-    if (ms < startMs || ms >= endMs) continue;
     const price = tickLastPrice(tick);
     if (price === null) continue;
-    const mins = clockMinutes(dt);
-    if (!inWindows(mins, windows)) continue;
+    const { delta, nextCum } = tickVolumeDelta(tick, prevCum);
+    prevCum = nextCum;
+    const dt = parseTickDate(tick.datetime);
+    if (dt) {
+      const ms = dt.getTime();
+      const mins = clockMinutes(dt);
+      if (ms >= startMs && ms < endMs && inWindows(mins, windows)) {
+        putBucket(buckets, mins, price, delta);
+        continue;
+      }
+    }
+    orphans.push({ price, volume: delta });
+  }
 
-    const cum = Number(tick.volume);
-    const lastVol = Number(tick.last_volume ?? tick.lastVolume);
-    let delta = 0;
-    if (Number.isFinite(lastVol) && lastVol > 0) delta = lastVol;
-    else if (Number.isFinite(cum) && cum >= prevCum) delta = cum - prevCum;
-    if (Number.isFinite(cum) && cum > 0) prevCum = cum;
-
-    const prev = buckets.get(mins);
-    const vol = Math.max(0, delta);
-    buckets.set(mins, {
-      price,
-      volume: (prev?.volume || 0) + vol,
-      notional: (prev?.notional || 0) + price * vol,
-    });
+  // SimNow often stamps CFFEX ticks at 17:xx / 21:xx or a previous calendar day
+  // while last_price still updates. Seed the axis so 分时 is never blank.
+  if (buckets.size === 0 && orphans.length) {
+    const last = orphans[orphans.length - 1];
+    const clock = live
+      ? clockMinutes(new Date())
+      : clockMinutes(parseTickDate(sorted[sorted.length - 1]?.datetime) || new Date());
+    const snapped = snapToSessionMinute(clock, windows);
+    putBucket(buckets, snapped, last.price, last.volume);
+    if (!inWindows(clock, windows) && windows[0] && windows[0].start !== snapped) {
+      putBucket(buckets, windows[0].start, last.price, last.volume);
+    }
   }
 
   const nowMins = clockMinutes(new Date());
   const points: TimesharePoint[] = [];
   let lastPrice: number | null = null;
+  for (const win of windows) {
+    for (let m = win.start; m < win.end && lastPrice === null; m += 1) {
+      const hit = buckets.get(m);
+      if (hit) lastPrice = hit.price;
+    }
+    if (lastPrice !== null) break;
+  }
   let cumVol = 0;
   let cumNotional = 0;
   let prevSession: SessionKind | null = null;
@@ -258,7 +324,7 @@ export function aggregateTimeshare(
     if (prevSession === "night" && win.session === "day") {
       points.push({
         ts: -1,
-        label: "日盘",
+        label: "\u2003",
         price: null,
         volume: 0,
         avg: null,
@@ -272,7 +338,7 @@ export function aggregateTimeshare(
         cumVol += hit.volume;
         cumNotional += hit.notional;
       }
-      const pastOrNow = !live || isPastSlot(m, nowMins);
+      const pastOrNow = !live || slotElapsed(m, nowMins, windows);
       const price = hit || (pastOrNow && lastPrice !== null) ? lastPrice : null;
       const rawAvg = cumVol > 0 ? cumNotional / cumVol : lastPrice;
       const avg =
@@ -316,7 +382,6 @@ export const AXIS_LABELS = new Set([
   "00:00",
   "01:00",
   "02:30",
-  "日盘",
   "09:00",
   "09:30",
   "10:15",
@@ -326,3 +391,29 @@ export const AXIS_LABELS = new Set([
   "13:30",
   "15:00",
 ]);
+
+/** Clock text for the x-axis. Session names stay in the chart header, not on ticks. */
+export function timeshareAxisLabelText(points: TimesharePoint[], index: number): string {
+  const pt = points[index];
+  if (!pt || pt.session === "break") return "";
+  if (pt.session === "night" && points[index + 1]?.session === "break") {
+    return formatHm((pt.ts ?? 0) + 1);
+  }
+  return pt.label;
+}
+
+/**
+ * Show sparse clock labels only. Skip the night/day join (「日盘」/09:00 glued to 01:00)
+ * so the divider is a single vertical line.
+ */
+export function timeshareAxisLabelVisible(points: TimesharePoint[], index: number): boolean {
+  const pt = points[index];
+  if (!pt || pt.session === "break") return false;
+  const text = timeshareAxisLabelText(points, index);
+  if (!AXIS_LABELS.has(text)) return false;
+  const breakIdx = points.findIndex((p) => p.session === "break");
+  if (breakIdx < 0) return true;
+  if (index === breakIdx + 1) return false;
+  if (index < breakIdx && text === "01:00") return false;
+  return true;
+}

@@ -30,14 +30,17 @@ def record_tick(payload: dict[str, Any]) -> None:
     if not symbol or not exchange:
         return
     key = contract_key(exchange, symbol)
-    start = session_start(parse_tick_dt(payload.get("datetime")), exchange=exchange)
     dt = parse_tick_dt(payload.get("datetime"))
-    if dt is not None and dt < start:
+    start = session_start(dt, exchange=exchange)
+    priced = bool(payload.get("last_price"))
+    # SimNow may stamp CFFEX quotes after 15:00 or on a prior calendar day.
+    # Still keep last_price so 分时 can plot the same quote as the left list.
+    if dt is not None and dt < start and not priced:
         return
     with _lock:
         bucket = _store[key]
         bucket.append(dict(payload))
-        while bucket:
+        while bucket and not priced:
             first_dt = parse_tick_dt(bucket[0].get("datetime"))
             if first_dt is None or first_dt >= start:
                 break
@@ -53,7 +56,12 @@ def session_ticks(symbol: str, exchange: str, trade_date: date | None = None) ->
     for row in rows:
         dt = parse_tick_dt(row.get("datetime"))
         if dt is None:
+            if row.get("last_price"):
+                out.append(row)
             continue
         if trade_date_of(dt, exchange=exchange) == want:
             out.append(row)
+    # Stale SimNow stamps (previous calendar day / 17:xx) still carry live last_price.
+    if not out and rows:
+        return list(rows)
     return out

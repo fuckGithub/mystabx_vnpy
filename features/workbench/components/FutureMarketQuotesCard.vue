@@ -15,8 +15,7 @@
     <div class="quote-list">
       <article v-for="item in rows" :key="item.code" class="quote-row">
         <div class="left">
-          <strong>{{ item.name }}</strong>
-          <span v-if="item.distinct">{{ item.code }}</span>
+          <InstrumentCell :code="item.code" :name="item.name" />
         </div>
         <div class="mid" :class="pnlClass(item.change)">{{ fmtPct(item.change) }}</div>
         <div class="book">
@@ -36,6 +35,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useMarketStore } from "@/stores";
+import InstrumentCell from "@/components/InstrumentCell.vue";
 import { contractSectors } from "../mockData";
 import { contractNameOf, finiteNumber, finitePrice, fmtPct, fmtPriceOrDash, fmtVolume, instrumentLines, pnlClass, quoteAmplitude, quoteChangePct, quoteSector } from "../liveMap";
 
@@ -113,8 +113,7 @@ const rows = computed(() => {
 .quote-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .quote-empty { display: flex; align-items: center; justify-content: center; min-height: 72px; font-size: 12px; color: var(--dash-text-muted); }
 .quote-row { display: grid; grid-template-columns: minmax(0, 1.2fr) 0.7fr 0.9fr 0.8fr; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--dash-border); background: var(--dash-surface); font-size: 11px; }
-.left strong { display: block; font-size: 12px; color: var(--dash-heading); }
-.left span { font-size: 10px; color: var(--dash-text-muted); }
+.left { min-width: 0; }
 .mid { font-weight: 600; font-variant-numeric: tabular-nums; }
 .book, .vol { display: flex; flex-direction: column; gap: 2px; font-size: 10px; color: var(--dash-text-muted); }
 </style>

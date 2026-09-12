@@ -44,7 +44,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as echarts from "echarts";
 import type { ChartPeriod, HistoryBar } from "../history";
-import { AXIS_LABELS, timesharePriceRange, type TimesharePoint } from "../timeshare";
+import {
+  timeshareAxisLabelText,
+  timeshareAxisLabelVisible,
+  timesharePriceRange,
+  type TimesharePoint,
+} from "../timeshare";
 
 export type TradeDateOption = { date: string; is_current: boolean; has_data: boolean };
 
@@ -118,6 +123,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
   const avgs = props.timeshare.map((p) => (p.session === "break" ? null : p.avg));
   const vols = props.timeshare.map((p) => (p.session === "break" ? 0 : p.volume));
   const last = [...prices].reverse().find((v) => v !== null) ?? props.preClose ?? 0;
+  const lastIdx = prices.reduce((acc, v, i) => (v != null ? i : acc), -1);
   const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
   const yRange = timesharePriceRange(props.timeshare, props.preClose);
   const breakIdx = props.timeshare.findIndex((p) => p.session === "break");
@@ -127,13 +133,14 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     nightEnd && dayStart
       ? {
           silent: true,
+          label: { show: false },
           data: [
             [
-              { xAxis: labels[0], itemStyle: { color: "rgba(99, 102, 241, 0.06)" }, name: "夜盘" },
+              { xAxis: labels[0], itemStyle: { color: "rgba(99, 102, 241, 0.06)" } },
               { xAxis: nightEnd },
             ],
             [
-              { xAxis: dayStart, itemStyle: { color: "rgba(14, 165, 233, 0.05)" }, name: "日盘" },
+              { xAxis: dayStart, itemStyle: { color: "rgba(14, 165, 233, 0.05)" } },
               { xAxis: labels[labels.length - 1] },
             ],
           ],
@@ -145,7 +152,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
           silent: true,
           symbol: "none",
           lineStyle: { type: "solid", color: c.text, width: 1, opacity: 0.45 },
-          label: { formatter: "日盘", color: c.text, fontSize: 10 },
+          label: { show: false },
           data: [{ xAxis: labels[breakIdx] }],
         }
       : undefined;
@@ -181,7 +188,9 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         axisLabel: {
           color: c.text,
           fontSize: 10,
-          interval: (_i: number, value: string) => AXIS_LABELS.has(String(value)),
+          hideOverlap: true,
+          interval: (i: number) => timeshareAxisLabelVisible(props.timeshare, i),
+          formatter: (_value: string, i: number) => timeshareAxisLabelText(props.timeshare, i),
         },
         axisTick: { show: false },
       },
@@ -214,8 +223,10 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         name: "现价",
         type: "line",
         data: prices,
-        showSymbol: false,
-        connectNulls: false,
+        showSymbol: lastIdx >= 0,
+        symbolSize: (_v: unknown, params: { dataIndex?: number }) =>
+          params.dataIndex === lastIdx ? 7 : 0,
+        connectNulls: true,
         lineStyle: { width: 1.4, color: last >= ref ? c.rise : c.fall },
         itemStyle: { color: last >= ref ? c.rise : c.fall },
         markArea,
@@ -235,7 +246,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         type: "line",
         data: avgs,
         showSymbol: false,
-        connectNulls: false,
+        connectNulls: true,
         lineStyle: { width: 1, color: c.avg, opacity: 0.75 },
       },
       {

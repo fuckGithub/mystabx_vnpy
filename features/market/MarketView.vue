@@ -103,12 +103,33 @@ const sessionRows = computed(() => {
   return key ? market.sessionTicks[key] || [] : [];
 });
 
+function tickBookKey(tick: Record<string, unknown>): string {
+  return `${String(tick.exchange || "").toUpperCase()}.${String(tick.symbol || "").toUpperCase()}`;
+}
+
+/** Same WS book the left list reads (`market.ticks`), merged with the session buffer. */
+const liveTicks = computed(() => {
+  const key = sessionKey.value;
+  if (!key) return [];
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const row of sessionRows.value) {
+    merged.set(String(row.datetime || `${row.last_price}:${row.volume}`), row);
+  }
+  for (const row of Object.values(market.ticks)) {
+    if (tickBookKey(row) !== key) continue;
+    merged.set(String(row.datetime || `${row.last_price}:${row.volume}`), row);
+  }
+  return [...merged.values()];
+});
+
 const timesharePoints = computed<TimesharePoint[]>(() => {
   if (!selected.value) return [];
-  const ticks = viewingCurrent.value ? [...sessionRows.value] : [...historyTicks.value];
+  const ticks = viewingCurrent.value ? [...liveTicks.value] : [...historyTicks.value];
   if (viewingCurrent.value && selectedTick.value) {
     const dt = String(selectedTick.value.datetime || "");
-    if (!ticks.some((row) => String(row.datetime || "") === dt)) ticks.push(selectedTick.value);
+    if (!ticks.some((row) => String(row.datetime || "") === dt && row.last_price === selectedTick.value?.last_price)) {
+      ticks.push(selectedTick.value);
+    }
   }
   return aggregateTimeshare(ticks, selectedExchange.value, {
     tradeDate: tradeDate.value || currentTradeDate(selectedExchange.value),
@@ -140,6 +161,7 @@ const emptyHint = computed(() => {
         ? "ClickHouse 未连接，历史交易日无法加载。今日分时仍可走内存实时。"
         : `${tradeDate.value} 暂无 Tick。连接行情后会写入本地 ClickHouse（保留 10 天）。`;
     }
+    if (finitePrice(selectedTick.value?.last_price) != null) return "";
     return "暂无分时数据。请先连接行情通道并订阅该合约，分时由 SimNow 实时 Tick 聚合（非模拟）。";
   }
   return "";
@@ -184,8 +206,9 @@ async function onPick(row: ContractRow) {
 
 async function ensureSubscribed(row: ContractRow) {
   const key = contractKey(row);
+  const live = market.latestTick(String(row.symbol || ""), String(row.exchange || ""));
   const gateway = String(
-    row.gateway_name || trade.activeGatewayName || trade.gateways[0]?.gateway_name || "",
+    row.gateway_name || live?.gateway_name || trade.activeGatewayName || trade.gateways[0]?.gateway_name || "",
   );
   if (!gateway) {
     ElMessage.warning("没有可用账户，无法订阅行情");

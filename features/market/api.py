@@ -92,6 +92,19 @@ def list_trade_dates(
     }
 
 
+def _oms_ticks(symbol: str, exchange: str, gws: set[str]) -> list[dict]:
+    want_ex = exchange.upper()
+    want_sym = symbol.upper()
+    rows: list[dict] = []
+    for tick in runtime.oms.get_all_ticks():
+        if tick.gateway_name not in gws:
+            continue
+        ex = getattr(getattr(tick, "exchange", None), "name", str(getattr(tick, "exchange", "")))
+        if str(tick.symbol).upper() == want_sym and str(ex).upper() == want_ex:
+            rows.append(tick_payload(tick))
+    return rows
+
+
 @router.get("/api/market/session-ticks")
 def list_session_ticks(
     symbol: str,
@@ -99,11 +112,12 @@ def list_session_ticks(
     trade_date: str | None = None,
     user: User = Depends(current_user),
 ) -> dict:
-    """Ticks for one 交易日: today = memory + ClickHouse; past days = ClickHouse."""
+    """Ticks for one 交易日: today = memory + OMS + ClickHouse; past days = ClickHouse."""
     gws = set(visible_gateways(user))
     current = current_trade_date(exchange)
     td = parse_trade_date(trade_date) or current
     mem = _visible_ticks(session_ticks(symbol, exchange, td), gws) if td == current else []
+    oms = _oms_ticks(symbol, exchange, gws) if td == current else []
     ch_rows = query_ticks(symbol, exchange, td)
     ch_ok = ch_rows is not None
     visible_ch = _visible_ticks(ch_rows or [], gws)
@@ -111,7 +125,7 @@ def list_session_ticks(
         "trade_date": td.isoformat(),
         "is_current": td == current,
         "clickhouse": "ok" if ch_ok else "down",
-        "ticks": _merge_ticks(visible_ch, mem),
+        "ticks": _merge_ticks(visible_ch, mem, oms),
     }
 
 
