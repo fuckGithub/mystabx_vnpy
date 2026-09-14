@@ -30,6 +30,7 @@ from core.sse import SseClient, format_sse, sse_hub  # noqa: E402
 from core.ws import Connection, hub, pong, set_loop  # noqa: E402
 from features.account.api import router as account_router  # noqa: E402
 from features.admin.api import router as admin_router  # noqa: E402
+from features.apps.api import router as apps_router  # noqa: E402
 from features.auth.api import router as auth_router  # noqa: E402
 from features.market.api import router as market_router  # noqa: E402
 from features.market.tick_writer import start_tick_writer, stop_tick_writer  # noqa: E402
@@ -56,16 +57,22 @@ async def lifespan(_app: FastAPI):
     else:
         logger.warning("ClickHouse unreachable %s — 分时今日走内存，历史交易日不可查", where)
     start_tick_writer()
-    main_engine, event_engine = build_headless_engines()
+    main_engine, event_engine, app_registry = build_headless_engines()
     manager = AccountGatewayManager(main_engine)
     manager.load_all(_load_accounts())
     bind_events(event_engine, manager)
     runtime.main_engine = main_engine
     runtime.event_engine = event_engine
     runtime.gateways = manager
+    runtime.extra["apps"] = app_registry
     set_loop(asyncio.get_running_loop())
     manager.kickoff_auto_connects()
-    logger.info("headless engine ready, gateways=%s", list(manager.index))
+    loaded = [k for k, v in app_registry.items() if v.get("loaded")]
+    logger.info(
+        "headless engine ready, gateways=%s, apps_loaded=%s",
+        list(manager.index),
+        loaded,
+    )
     try:
         yield
     finally:
@@ -91,6 +98,7 @@ app.include_router(admin_router)
 app.include_router(account_router)
 app.include_router(market_router)
 app.include_router(trade_router)
+app.include_router(apps_router)
 
 
 @app.get("/health")

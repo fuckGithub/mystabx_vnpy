@@ -8,14 +8,9 @@ version = "0.1.0"
 description = "Stabx Vue web trader (FastAPI + headless vnpy). Desktop Qt is leftover, not the entry."
 requires-python = ">=3.10"
 dependencies = [
-    "vnpy>=4.0.0",
+    "vnpy>=4.0.0,<5",
     "pyside6>=6.8.2.1",
     "qdarkstyle>=3.2.3",
-    "vnpy_ctastrategy",
-    "vnpy_ctabacktester",
-    "vnpy_datamanager",
-    "vnpy_chartwizard",
-    "vnpy-spreadtrading",
     "vnpy_sqlite",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
@@ -25,6 +20,28 @@ dependencies = [
     "cryptography>=43",
     "python-multipart>=0.0.12",
     "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Soft-loaded by MainEngine (ImportError → skip). Install what you need:
+#   uv pip install -e ".[strategy]"
+# Excel RTD is Windows/Excel COM only — not included here.
+strategy = [
+    "vnpy_ctastrategy",
+    "vnpy_ctabacktester",
+    "vnpy_spreadtrading",
+    "vnpy_optionmaster",
+    "vnpy_portfoliostrategy",
+    "vnpy_algotrading",
+    "vnpy_scripttrader",
+    "vnpy_paperaccount",
+    "vnpy_datarecorder",
+    "vnpy_datamanager",
+    "vnpy_riskmanager",
+    "vnpy_rpcservice",
+    "vnpy_chartwizard",
+    "vnpy_portfoliomanager",
+    "vnpy_webtrader",
 ]
 
 [project.scripts]
@@ -42,6 +59,7 @@ exclude = ["ui*", "vendor*", "licenses*", "node_modules*", "docs*", "scripts*"]
 # Linux: compile vnpy_ctp 6.7.7.2 against Linux CTP .so (not Mac .framework)
 #   ./scripts/install_linux.sh
 # Do not use pip install -e for vnpy_ctp.
+# Strategy apps (optional): uv pip install -e ".[strategy]"
 
 [tool.pyright]
 venvPath = "."

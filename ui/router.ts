@@ -7,6 +7,7 @@ import MarketView from "../features/market/MarketView.vue";
 import TradeView from "../features/trade/TradeView.vue";
 import AccountView from "../features/account/AccountView.vue";
 import AdminView from "../features/admin/AdminView.vue";
+import AppsView from "../features/apps/AppsView.vue";
 import AppLayout from "./components/AppLayout.vue";
 
 const router = createRouter({
@@ -26,6 +27,8 @@ const router = createRouter({
         { path: "trade/:section", component: TradeView },
         { path: "account", redirect: "/account/gateways" },
         { path: "account/:section", component: AccountView },
+        { path: "apps", redirect: "/apps/overview" },
+        { path: "apps/:section", component: AppsView },
         { path: "admin", redirect: "/admin/users" },
         { path: "admin/:section", component: AdminView },
       ],

@@ -71,9 +71,21 @@
 - **SQLite**（默认 `.vntrader/stabx_web.db`）：用户、通道（含 `auto_connect`）、会话、通道操作日志等；通道密钥 Fernet 加密。
 - **ClickHouse** 只存 Tick：库表 `vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。根目录 `ch_schema.sql` 是早期设计稿，运行时建表以 `core/clickhouse.py` 为准。
 
-技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。风控开关、策略/回测 UI、Docker、RQData 历史行情都还不是产品能力。
+技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。策略应用（CTA / 回测 / 录制 / 风控等）以可选 `vnpy_*` 包软加载进进程内 MainEngine，Web「策略应用」页展示真实加载状态与轻量操作；Docker、RQData 历史行情仍非产品能力。
 
 不要对 vnpy 引擎使用 `uvicorn --workers`（`MainEngine` 必须在同一进程内）。
+
+### 策略应用（可选 vnpy 模块）
+
+```bash
+uv pip install -e ".[strategy]"
+# 或按需：uv pip install vnpy_ctastrategy vnpy_ctabacktester vnpy_datamanager …
+```
+
+- 环境变量 `MYSTABX_APPS=all`（默认）或逗号列表（如 `cta,backtester,risk`）；`none` 关闭。
+- 包缺失时启动不失败，页面显示「包未安装」。
+- **Excel RTD** 仅 Windows + Excel；**WebTrader** 不二次加载（本项目已是 Web 台，且与 RpcService `app_name` 冲突）。
+- 安装/变更包后需**重启后端**；前端刷新即可看状态。
 
 ## 已确认的关键决策
 
@@ -106,7 +118,7 @@
 - **产品（Web）**：`core/` + `features/` + `ui/`；`python main.py` / `uv run start` / `./start.sh` 一键起 FastAPI + Vue
 - **遗留（桌面）**：`mystabx/` + `python main.py --qt`（官方 MainWindow）。保留但不作为默认入口
 
-未完成（见 [06-实施路线图](docs/06-实施路线图.md)）：RQData 历史 K 线、完整风控、策略/回测、Docker。分时与 ClickHouse Tick 入库（近 10 日）已落地；周期 K 线目前是 mock。
+未完成（见 [06-实施路线图](docs/06-实施路线图.md)）：RQData 历史 K 线、Docker。分时与 ClickHouse Tick 入库（近 10 日）已落地；周期 K 线目前是 mock。策略应用已提供 Web 总览与优先接线（非 Qt 全量对等）。
 
 ## 目录说明
 

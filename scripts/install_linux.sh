@@ -74,7 +74,7 @@ else
   "${PY}" -m pip install -U pip
 fi
 
-"${PIP[@]}" install -e "${ROOT}"
+"${PIP[@]}" install -e "${ROOT}[strategy]"
 
 mkdir -p "${DEPS}"
 # Python 封装用 vnpy_ctp 6.7.7.2；Linux 用其自带 .so，或覆盖 vendor/simnow-ctp/linux。
