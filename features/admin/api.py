@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from core.channel_log import list_channel_logs, record_for_user, test_result_label
 from core.crypto import decrypt, encrypt
 from core.db import (
     Account,
@@ -156,8 +157,26 @@ def list_accounts(_: User = Depends(require_admin)) -> list[dict]:
         db.close()
 
 
+@router.get("/accounts/{account_id}/logs")
+def account_op_logs(
+    account_id: int,
+    q: str = Query(default=""),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=100),
+    _: User = Depends(require_admin),
+) -> dict:
+    db = get_session()
+    try:
+        acc = db.get(Account, account_id)
+        if acc is None:
+            raise HTTPException(status_code=404, detail="account not found")
+    finally:
+        db.close()
+    return list_channel_logs(account_id, keyword=q, page=page, page_size=page_size)
+
+
 @router.post("/accounts")
-def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dict:
+def upsert_account(body: AccountCreate, user: User = Depends(require_admin)) -> dict:
     db = get_session()
     try:
         owner = db.get(User, body.user_id)
@@ -184,6 +203,14 @@ def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
             db.refresh(existing)
             runtime.gw.register(account_to_dict(existing, include_secrets=True))
             runtime.gw.apply_auto_connect(existing.gateway_name, bool(existing.auto_connect))
+            record_for_user(
+                user,
+                account_id=existing.id,
+                gateway_name=existing.gateway_name,
+                action="编辑",
+                result="success",
+                message=f"已更新通道 {existing.account_name or existing.gateway_name}",
+            )
             return _channel_row(existing)
 
         setting = merge_connect_settings(body.connect_settings)
@@ -203,13 +230,21 @@ def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
         db.refresh(acc)
         runtime.gw.register(account_to_dict(acc, include_secrets=True))
         runtime.gw.apply_auto_connect(acc.gateway_name, bool(acc.auto_connect))
+        record_for_user(
+            user,
+            account_id=acc.id,
+            gateway_name=acc.gateway_name,
+            action="新增",
+            result="success",
+            message=f"已新增通道 {acc.account_name or acc.gateway_name}",
+        )
         return _channel_row(acc)
     finally:
         db.close()
 
 
 @router.post("/accounts/{account_id}/test-connect")
-def test_account_connect(account_id: int, _: User = Depends(require_admin)) -> dict:
+def test_account_connect(account_id: int, user: User = Depends(require_admin)) -> dict:
     db = get_session()
     try:
         acc = db.get(Account, account_id)
@@ -217,23 +252,57 @@ def test_account_connect(account_id: int, _: User = Depends(require_admin)) -> d
             raise HTTPException(status_code=404, detail="account not found")
         runtime.gw.register(account_to_dict(acc, include_secrets=True))
         try:
-            return runtime.gw.test_connect(acc.gateway_name)
+            payload = runtime.gw.test_connect(acc.gateway_name)
         except KeyError:
+            record_for_user(
+                user,
+                account_id=acc.id,
+                gateway_name=acc.gateway_name,
+                action="测试联通",
+                result="fail",
+                message="gateway not registered",
+            )
             raise HTTPException(status_code=404, detail="gateway not registered") from None
         except Exception as exc:
+            record_for_user(
+                user,
+                account_id=acc.id,
+                gateway_name=acc.gateway_name,
+                action="测试联通",
+                result="fail",
+                message=f"联通测试异常：{exc}",
+            )
             raise HTTPException(status_code=500, detail=f"联通测试异常：{exc}") from exc
+        result, message = test_result_label(payload)
+        record_for_user(
+            user,
+            account_id=acc.id,
+            gateway_name=acc.gateway_name,
+            action="测试联通",
+            result=result,
+            message=message,
+        )
+        return payload
     finally:
         db.close()
 
 
 @router.delete("/accounts/{account_id}")
-def delete_account(account_id: int, _: User = Depends(require_admin)) -> dict:
+def delete_account(account_id: int, user: User = Depends(require_admin)) -> dict:
     db = get_session()
     try:
         acc = db.get(Account, account_id)
         if acc is None:
             raise HTTPException(status_code=404, detail="account not found")
         name = acc.gateway_name
+        record_for_user(
+            user,
+            account_id=acc.id,
+            gateway_name=name,
+            action="删除",
+            result="success",
+            message=f"已删除通道 {acc.account_name or name}",
+        )
         db.delete(acc)
         db.commit()
         runtime.gw.remove(name)

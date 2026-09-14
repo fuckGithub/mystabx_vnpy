@@ -284,6 +284,14 @@
   }
 }
 
+.page-drawer .page-list {
+  height: 100%;
+}
+
+.page-drawer .page-list > .el-table {
+  min-height: 240px;
+}
+
 .page-grid {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr);

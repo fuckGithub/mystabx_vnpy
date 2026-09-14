@@ -65,10 +65,11 @@
             <ChannelStatusPair :row="row" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" align="center" header-class-name="table-action-col" class-name="table-action-col">
+        <el-table-column label="操作" width="248" align="center" header-class-name="table-action-col" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
               <el-button type="primary" link @click="openEditAccount(row)">编辑</el-button>
+              <el-button type="primary" link @click="openAccountLogs(row)">日志</el-button>
               <el-button type="primary" link :loading="testingId === row.id" @click="testAccount(row.id)">测试</el-button>
               <el-button type="danger" link @click="removeAccount(row)">删除</el-button>
             </span>
@@ -226,6 +227,68 @@
           </div>
         </template>
       </el-dialog>
+
+      <el-drawer
+        v-model="logVisible"
+        :title="logTitle"
+        size="760px"
+        class="page-drawer"
+        destroy-on-close
+        @closed="resetLogPanel"
+      >
+        <div class="page-list">
+          <el-form class="page-query" :inline="true" @submit.prevent="applyLogQuery">
+            <el-form-item>
+              <el-input
+                v-model="logKeyword"
+                placeholder="动作 / 结果 / 信息 / 操作人"
+                clearable
+                style="width: 240px"
+                @keyup.enter="applyLogQuery"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :icon="Search" @click="applyLogQuery">查询</el-button>
+              <el-button :icon="Refresh" @click="resetLogQuery">重置</el-button>
+            </el-form-item>
+          </el-form>
+
+          <el-table
+            v-loading="logLoading"
+            :data="logRows"
+            border
+            size="small"
+            style="width: 100%"
+            empty-text="暂无操作日志"
+          >
+            <el-table-column prop="created_at" label="时间" width="180" />
+            <el-table-column prop="action" label="动作" width="100" />
+            <el-table-column label="结果" width="88" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="logResultType(row.result)">{{ logResultLabel(row.result) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="message" label="信息" min-width="220" show-overflow-tooltip />
+            <el-table-column label="操作人" width="110" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.operator_name || "—" }}</template>
+            </el-table-column>
+          </el-table>
+
+          <div class="page-pagination">
+            <el-pagination
+              v-model:current-page="logPage"
+              v-model:page-size="logPageSize"
+              :total="logTotal"
+              :page-sizes="[10, 20, 50]"
+              :background="true"
+              layout="total, sizes, prev, pager, next, jumper"
+              size="small"
+              @current-change="fetchAccountLogs"
+              @size-change="fetchAccountLogs"
+            />
+          </div>
+        </div>
+      </el-drawer>
     </div>
 
     <div v-else class="page-list">
@@ -351,6 +414,15 @@ interface FrontProbe {
   error?: string;
 }
 
+interface ChannelOpLogRow {
+  id: number;
+  created_at: string;
+  action: string;
+  result: string;
+  message: string;
+  operator_name?: string;
+}
+
 interface ConnectTestResult {
   ok: boolean;
   reachable?: boolean;
@@ -411,6 +483,22 @@ const testResult = ref<ConnectTestResult | null>(null);
 const autoHint = reactive({ ...FALLBACK_AUTO });
 const interfaceNote = ref("本机仅打包实盘 CTP API，SimNow 走生产前置。");
 const formDefaults = reactive({ ...FALLBACK_DEFAULTS });
+const logVisible = ref(false);
+const logLoading = ref(false);
+const logAccount = ref<AdminAccount | null>(null);
+const logRows = ref<ChannelOpLogRow[]>([]);
+const logTotal = ref(0);
+const logKeyword = ref("");
+const logApplied = ref("");
+const logPage = ref(1);
+const logPageSize = ref(10);
+
+const logTitle = computed(() => {
+  const row = logAccount.value;
+  if (!row) return "通道操作日志";
+  return `操作日志 · ${row.gateway_name}${row.account_name ? `（${row.account_name}）` : ""}`;
+});
+
 const accForm = reactive({
   id: null as number | null,
   user_id: 1,
@@ -503,6 +591,66 @@ function resetAccQuery() {
   accKeyword.value = "";
   accApplied.value = "";
   accPage.value = 1;
+}
+
+function logResultLabel(result: string) {
+  if (result === "success") return "成功";
+  if (result === "warning") return "警告";
+  return "失败";
+}
+
+function logResultType(result: string) {
+  if (result === "success") return "success";
+  if (result === "warning") return "warning";
+  return "danger";
+}
+
+function resetLogPanel() {
+  logAccount.value = null;
+  logRows.value = [];
+  logTotal.value = 0;
+  logKeyword.value = "";
+  logApplied.value = "";
+  logPage.value = 1;
+}
+
+async function fetchAccountLogs() {
+  const row = logAccount.value;
+  if (!row) return;
+  logLoading.value = true;
+  try {
+    const { data } = await http.get(`/api/admin/accounts/${row.id}/logs`, {
+      params: { q: logApplied.value, page: logPage.value, page_size: logPageSize.value },
+    });
+    logRows.value = data?.items || [];
+    logTotal.value = Number(data?.total || 0);
+  } catch (error: unknown) {
+    ElMessage.error(apiError(error, "加载操作日志失败"));
+  } finally {
+    logLoading.value = false;
+  }
+}
+
+function applyLogQuery() {
+  logApplied.value = logKeyword.value;
+  logPage.value = 1;
+  void fetchAccountLogs();
+}
+
+function resetLogQuery() {
+  logKeyword.value = "";
+  logApplied.value = "";
+  logPage.value = 1;
+  void fetchAccountLogs();
+}
+
+function openAccountLogs(row: AdminAccount) {
+  logAccount.value = row;
+  logKeyword.value = "";
+  logApplied.value = "";
+  logPage.value = 1;
+  logVisible.value = true;
+  void fetchAccountLogs();
 }
 
 function resetUserForm() {

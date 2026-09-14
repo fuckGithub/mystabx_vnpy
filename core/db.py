@@ -100,6 +100,20 @@ class BacktestMeta(Base):
     created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
 
 
+class ChannelOpLog(Base):
+    __tablename__ = "channel_op_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    account_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    gateway_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    action: Mapped[str] = mapped_column(String, nullable=False)
+    result: Mapped[str] = mapped_column(String, nullable=False, default="success")
+    message: Mapped[str] = mapped_column(String, nullable=False, default="")
+    operator_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    operator_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+
+
 _engine: Engine | None = None
 SessionLocal: sessionmaker[SASession] | None = None
 

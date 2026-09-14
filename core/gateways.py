@@ -12,6 +12,7 @@ from vnpy.event import Event
 from vnpy.trader.engine import MainEngine
 from vnpy_ctp import CtpGateway
 
+from core.channel_log import record_channel_op
 from core.crypto import decrypt
 from core.serialize import account_payload, envelope
 from core.ws import publish_threadsafe
@@ -142,6 +143,16 @@ class AccountGatewayManager:
             self.start_account_sync(gateway_name)
             if self._auto_connect_enabled(gateway_name):
                 self.start_keepalive(gateway_name)
+            if not from_user:
+                acc_id = acc.get("id")
+                record_channel_op(
+                    account_id=int(acc_id) if acc_id is not None else None,
+                    gateway_name=gateway_name,
+                    action="连接",
+                    result="success",
+                    message="启动自动连接" if self._auto_connect_enabled(gateway_name) else "自动重连",
+                    operator_name="系统",
+                )
         finally:
             def _clear() -> None:
                 time.sleep(2.0)
@@ -705,17 +716,24 @@ class AccountGatewayManager:
         publish: bool = True,
     ) -> bool:
         with self._status_lock:
-            return self._set_leg_unlocked(gateway_name, td=td, md=md, publish=publish)
+            changed, prev_td, prev_md = self._apply_leg_unlocked(
+                gateway_name, td=td, md=md, publish=publish
+            )
+        if changed:
+            self._log_leg_change(gateway_name, prev_td=prev_td, prev_md=prev_md)
+        return changed
 
-    def _set_leg_unlocked(
+    def _apply_leg_unlocked(
         self,
         gateway_name: str,
         *,
         td: str | None = None,
         md: str | None = None,
         publish: bool = True,
-    ) -> bool:
+    ) -> tuple[bool, str | None, str | None]:
         changed = False
+        prev_td = self.td_status.get(gateway_name)
+        prev_md = self.md_status.get(gateway_name)
         if td is not None and self.td_status.get(gateway_name) != td:
             self.td_status[gateway_name] = td
             changed = True
@@ -735,7 +753,34 @@ class AccountGatewayManager:
             changed = True
         if changed and publish:
             self._publish_status(gateway_name)
-        return changed
+        return changed, prev_td, prev_md
+
+    def _log_leg_change(self, gateway_name: str, *, prev_td: str | None, prev_md: str | None) -> None:
+        if gateway_name in self._forced_off:
+            return
+        acc = self.index.get(gateway_name) or {}
+        acc_id = acc.get("id")
+        account_id = int(acc_id) if acc_id is not None else None
+        td = self.td_status.get(gateway_name)
+        md = self.md_status.get(gateway_name)
+        if td is not None and td != prev_td and td in (CONNECTED, DISCONNECTED):
+            record_channel_op(
+                account_id=account_id,
+                gateway_name=gateway_name,
+                action="交易连接",
+                result="success" if td == CONNECTED else "fail",
+                message="交易服务器登录成功" if td == CONNECTED else "交易服务器连接断开或登录失败",
+                operator_name="系统",
+            )
+        if md is not None and md != prev_md and md in (CONNECTED, DISCONNECTED):
+            record_channel_op(
+                account_id=account_id,
+                gateway_name=gateway_name,
+                action="行情连接",
+                result="success" if md == CONNECTED else "fail",
+                message="行情服务器登录成功" if md == CONNECTED else "行情服务器连接断开或登录失败",
+                operator_name="系统",
+            )
 
     def _publish_status(self, gateway_name: str) -> None:
         publish_threadsafe(envelope("gateway", self.status_payload(gateway_name)))

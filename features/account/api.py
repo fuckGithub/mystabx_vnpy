@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from core.channel_log import record_for_user, test_result_label
 from core.db import Account, User, account_channel_dict, account_to_dict, get_session
 from core.deps import current_user, visible_gateways
 from core.runtime import runtime
@@ -66,7 +67,26 @@ def connect_gateway(account_id: int, user: User = Depends(current_user)) -> dict
             runtime.gw.register(account_to_dict(fresh, include_secrets=True))
         finally:
             db.close()
-    meta = runtime.gw.connect(gateway_name)
+    try:
+        meta = runtime.gw.connect(gateway_name)
+    except Exception as exc:
+        record_for_user(
+            user,
+            account_id=row_id,
+            gateway_name=gateway_name,
+            action="连接",
+            result="fail",
+            message=str(exc),
+        )
+        raise
+    record_for_user(
+        user,
+        account_id=row_id,
+        gateway_name=gateway_name,
+        action="连接",
+        result="success",
+        message="已发起连接",
+    )
     return {"ok": True, "gateway_name": gateway_name, **runtime.gw.channel_statuses(gateway_name, live=False), **meta}
 
 
@@ -83,17 +103,62 @@ def test_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
         finally:
             db.close()
     try:
-        return runtime.gw.test_connect(gateway_name)
+        payload = runtime.gw.test_connect(gateway_name)
     except KeyError:
+        record_for_user(
+            user,
+            account_id=row_id,
+            gateway_name=gateway_name,
+            action="测试联通",
+            result="fail",
+            message="gateway not registered",
+        )
         raise HTTPException(status_code=404, detail="gateway not registered") from None
     except Exception as exc:
+        record_for_user(
+            user,
+            account_id=row_id,
+            gateway_name=gateway_name,
+            action="测试联通",
+            result="fail",
+            message=f"联通测试异常：{exc}",
+        )
         raise HTTPException(status_code=500, detail=f"联通测试异常：{exc}") from exc
+    result, message = test_result_label(payload)
+    record_for_user(
+        user,
+        account_id=row_id,
+        gateway_name=gateway_name,
+        action="测试联通",
+        result=result,
+        message=message,
+    )
+    return payload
 
 
 @router.post("/api/gateways/{account_id}/disconnect")
 def disconnect_gateway(account_id: int, user: User = Depends(current_user)) -> dict:
     _row_id, gateway_name = _owned_account(user, account_id)
-    runtime.gw.disconnect(gateway_name)
+    try:
+        runtime.gw.disconnect(gateway_name)
+    except Exception as exc:
+        record_for_user(
+            user,
+            account_id=_row_id,
+            gateway_name=gateway_name,
+            action="断开",
+            result="fail",
+            message=str(exc),
+        )
+        raise
+    record_for_user(
+        user,
+        account_id=_row_id,
+        gateway_name=gateway_name,
+        action="断开",
+        result="success",
+        message="已断开连接",
+    )
     return {"ok": True, "gateway_name": gateway_name, **runtime.gw.channel_statuses(gateway_name, live=False)}
 
 
@@ -110,6 +175,14 @@ def set_auto_connect(account_id: int, body: AutoConnectBody, user: User = Depend
         db.refresh(acc)
         runtime.gw.register(account_to_dict(acc, include_secrets=True))
         runtime.gw.apply_auto_connect(gateway_name, bool(body.auto_connect))
+        record_for_user(
+            user,
+            account_id=row_id,
+            gateway_name=gateway_name,
+            action="自动连接",
+            result="success",
+            message="已开启启动自动连接" if body.auto_connect else "已关闭自动连接",
+        )
         return {
             "ok": True,
             "gateway_name": gateway_name,
