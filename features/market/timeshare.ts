@@ -121,15 +121,6 @@ function formatHm(totalMin: number): string {
   return `${pad(Math.floor(wrapped / 60))}:${pad(wrapped % 60)}`;
 }
 
-function formatHms(date: Date): string {
-  const wall = shanghaiWall(date);
-  return `${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}`;
-}
-
-function clockHm(label: string): string {
-  return label.length >= 5 ? label.slice(0, 5) : label;
-}
-
 type Window = { start: number; end: number; session: Exclude<SessionKind, "break"> };
 
 function sessionWindows(exchange: string): Window[] {
@@ -152,11 +143,6 @@ function inWindows(mins: number, windows: Window[]): boolean {
   return windows.some((w) => mins >= w.start && mins < w.end);
 }
 
-function sessionOfMinute(mins: number, windows: Window[]): Exclude<SessionKind, "break"> | null {
-  const hit = windows.find((w) => mins >= w.start && mins < w.end);
-  return hit ? hit.session : null;
-}
-
 /** Map an out-of-session clock (e.g. SimNow 17:30 after CFFEX close) onto the axis. */
 function snapToSessionMinute(mins: number, windows: Window[]): number {
   if (!windows.length) return mins;
@@ -177,6 +163,46 @@ function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; next
   else if (Number.isFinite(cum) && cum >= prevCum) delta = cum - prevCum;
   if (Number.isFinite(cum) && cum > 0) nextCum = cum;
   return { delta: Math.max(0, delta), nextCum };
+}
+
+function putBucket(
+  buckets: Map<number, { price: number; volume: number; notional: number }>,
+  mins: number,
+  price: number,
+  volume: number,
+) {
+  const prev = buckets.get(mins);
+  buckets.set(mins, {
+    price,
+    volume: (prev?.volume || 0) + volume,
+    notional: (prev?.notional || 0) + price * volume,
+  });
+}
+
+function isPastSlot(mins: number, nowMins: number): boolean {
+  const nightLate = mins >= 21 * 60;
+  const nightEarly = mins < 3 * 60;
+  if (nowMins >= 20 * 60 + 50) return nightLate && mins <= nowMins;
+  if (nowMins < 3 * 60) return nightLate || (nightEarly && mins <= nowMins);
+  if (nightLate || nightEarly) return true;
+  return mins <= nowMins;
+}
+
+/** Elapsed axis minutes only — 夜盘 must not paint unused 日盘 slots. */
+function slotElapsed(mins: number, nowMins: number, windows: Window[]): boolean {
+  if (inWindows(nowMins, windows)) return isPastSlot(mins, nowMins);
+  const hasNight = windows.some((w) => w.session === "night");
+  if (!hasNight) {
+    const lastEnd = windows[windows.length - 1]?.end ?? 0;
+    const firstStart = windows[0]?.start ?? 0;
+    if (nowMins >= lastEnd || nowMins < firstStart) return true;
+    const next = windows.find((w) => nowMins < w.start);
+    if (next) return mins < next.start;
+    return true;
+  }
+  if (nowMins >= 15 * 60 && nowMins < 20 * 60 + 50) return true;
+  if (nowMins >= 2 * 60 + 30 && nowMins < 9 * 60) return mins >= 21 * 60 || mins < 3 * 60;
+  return isPastSlot(mins, nowMins);
 }
 
 function finitePrice(v: unknown): number | null {
@@ -237,25 +263,6 @@ export function isSessionTick(tick: TickLike, exchange: string, tradeDate?: stri
   return ms >= start && ms < end;
 }
 
-type Vertex = {
-  ts: number;
-  label: string;
-  price: number;
-  volume: number;
-  notional: number;
-  session: Exclude<SessionKind, "break">;
-};
-
-function pushVertex(vertices: Vertex[], next: Vertex): void {
-  const last = vertices[vertices.length - 1];
-  if (last && last.label === next.label && last.price === next.price && last.session === next.session) {
-    last.volume += next.volume;
-    last.notional += next.notional;
-    return;
-  }
-  vertices.push(next);
-}
-
 function avgOf(price: number, cumVol: number, cumNotional: number): number {
   if (cumVol <= 0) return price;
   const raw = cumNotional / cumVol;
@@ -264,9 +271,10 @@ function avgOf(price: number, cumVol: number, cumNotional: number): number {
 }
 
 /**
- * Polyline through session ticks in time order. Same-second quotes still keep
- * last_price changes; identical price+second is merged. Empty session minutes
- * are not invented — that was a flat fake curve.
+ * Full 交易日 minute axis from 开盘 to 收盘. Ticks map onto HH:mm slots;
+ * minutes before the first real last_price stay empty. After that, last
+ * price carries only through elapsed minutes (live “now”), never across
+ * unused 日盘 while still in 夜盘.
  */
 export function aggregateTimeshare(
   ticks: TickLike[],
@@ -274,12 +282,13 @@ export function aggregateTimeshare(
   opts: TimeshareOptions = {},
 ): TimesharePoint[] {
   const tradeDate = opts.tradeDate || currentTradeDate(exchange);
+  const live = opts.live !== false && tradeDate === currentTradeDate(exchange);
   const windows = sessionWindows(exchange);
   const startMs = sessionStartMs(exchange, tradeDate);
   const endMs = sessionEndMs(exchange, tradeDate);
+  const buckets = new Map<number, { price: number; volume: number; notional: number }>();
   let prevCum = 0;
-  const orphans: { price: number; volume: number; dt: Date | null; idx: number }[] = [];
-  const vertices: Vertex[] = [];
+  const orphans: { price: number; volume: number; dt: Date | null }[] = [];
 
   const sorted = ticks.map((tick, idx) => ({ tick, idx })).sort((a, b) => {
     const da = parseTickDate(a.tick.datetime)?.getTime() ?? 0;
@@ -288,7 +297,7 @@ export function aggregateTimeshare(
     return a.idx - b.idx;
   });
 
-  for (const { tick, idx } of sorted) {
+  for (const { tick } of sorted) {
     const price = tickLastPrice(tick);
     if (price === null) continue;
     const { delta, nextCum } = tickVolumeDelta(tick, prevCum);
@@ -299,46 +308,31 @@ export function aggregateTimeshare(
       const inSession = inWindows(mins, windows);
       const inRange = dt.getTime() >= startMs && dt.getTime() < endMs;
       if (inSession || inRange) {
-        const clock = inSession ? mins : snapToSessionMinute(mins, windows);
-        const session = sessionOfMinute(clock, windows) || "day";
-        pushVertex(vertices, {
-          ts: clock,
-          label: formatHms(dt),
-          price,
-          volume: delta,
-          notional: price * delta,
-          session,
-        });
+        putBucket(buckets, inSession ? mins : snapToSessionMinute(mins, windows), price, delta);
         continue;
       }
     }
-    orphans.push({ price, volume: delta, dt, idx });
+    orphans.push({ price, volume: delta, dt });
   }
 
-  if (vertices.length === 0 && orphans.length) {
-    for (const row of orphans) {
-      const clock = row.dt
-        ? snapToSessionMinute(clockMinutes(row.dt), windows)
-        : windows[0]?.start ?? 21 * 60;
-      const session = sessionOfMinute(clock, windows) || "night";
-      const label = row.dt ? formatHms(row.dt) : `${formatHm(clock)}:${pad(row.idx % 60)}`;
-      pushVertex(vertices, {
-        ts: clock,
-        label,
-        price: row.price,
-        volume: row.volume,
-        notional: row.price * row.volume,
-        session,
-      });
-    }
+  if (buckets.size === 0 && orphans.length) {
+    const last = orphans[orphans.length - 1];
+    const clock = last.dt
+      ? snapToSessionMinute(clockMinutes(last.dt), windows)
+      : snapToSessionMinute(clockMinutes(new Date()), windows);
+    putBucket(buckets, clock, last.price, last.volume);
   }
 
+  const nowMins = clockMinutes(new Date());
   const points: TimesharePoint[] = [];
+  let lastPrice: number | null = null;
+  let seenTick = false;
   let cumVol = 0;
   let cumNotional = 0;
   let prevSession: SessionKind | null = null;
-  for (const v of vertices) {
-    if (prevSession === "night" && v.session === "day") {
+
+  for (const win of windows) {
+    if (prevSession === "night" && win.session === "day") {
       points.push({
         ts: -1,
         label: "\u2003",
@@ -348,17 +342,26 @@ export function aggregateTimeshare(
         session: "break",
       });
     }
-    cumVol += v.volume;
-    cumNotional += v.notional;
-    points.push({
-      ts: v.ts,
-      label: v.label,
-      price: v.price,
-      volume: v.volume,
-      avg: avgOf(v.price, cumVol, cumNotional),
-      session: v.session,
-    });
-    prevSession = v.session;
+    for (let m = win.start; m < win.end; m += 1) {
+      const hit = buckets.get(m);
+      if (hit) {
+        lastPrice = hit.price;
+        seenTick = true;
+        cumVol += hit.volume;
+        cumNotional += hit.notional;
+      }
+      const elapsed = !live || slotElapsed(m, nowMins, windows);
+      const price = hit ? lastPrice : seenTick && elapsed ? lastPrice : null;
+      points.push({
+        ts: m,
+        label: formatHm(m),
+        price,
+        volume: hit?.volume || 0,
+        avg: price === null ? null : avgOf(price, cumVol, cumNotional),
+        session: win.session,
+      });
+    }
+    prevSession = win.session;
   }
   return points;
 }
@@ -421,30 +424,30 @@ export const AXIS_LABELS = new Set([
 export function timeshareAxisLabelText(points: TimesharePoint[], index: number): string {
   const pt = points[index];
   if (!pt || pt.session === "break") return "";
-  if (pt.session === "night" && points[index + 1]?.session === "break") {
-    return formatHm((pt.ts ?? 0) + 1);
+  const next = points[index + 1];
+  if (pt.session === "night" && next?.session === "break") return formatHm((pt.ts ?? 0) + 1);
+  if (!next) return formatHm((pt.ts ?? 0) + 1);
+  if (next.session !== "break") {
+    const sequential = next.ts === pt.ts + 1 || (pt.ts === 24 * 60 - 1 && next.ts === 0);
+    if (!sequential) {
+      const endLabel = formatHm((pt.ts ?? 0) + 1);
+      if (AXIS_LABELS.has(endLabel)) return endLabel;
+    }
   }
-  return clockHm(pt.label);
+  return pt.label;
 }
 
 /**
- * Show sparse clock labels only. Skip the night/day join (「日盘」/09:00 glued to 01:00)
- * so the divider is a single vertical line.
+ * Sparse session clocks only (21:00, 22:00… 09:00, 10:30, 11:30, 13:30, 15:00).
+ * Do not label the first/last tick time — that caused overlapping 11:06 / 11:06:32.
  */
 export function timeshareAxisLabelVisible(points: TimesharePoint[], index: number): boolean {
   const pt = points[index];
   if (!pt || pt.session === "break") return false;
   const text = timeshareAxisLabelText(points, index);
-  if (!text) return false;
-  const last = points.length - 1;
-  const isEdge = index === 0 || index === last || (index === last - 1 && points[last]?.session === "break");
-  if (!isEdge && !AXIS_LABELS.has(text)) return false;
+  if (!AXIS_LABELS.has(text)) return false;
   for (let i = 0; i < index; i += 1) {
     if (timeshareAxisLabelText(points, i) === text) return false;
   }
-  const breakIdx = points.findIndex((p) => p.session === "break");
-  if (breakIdx < 0) return true;
-  if (index === breakIdx + 1) return false;
-  if (index < breakIdx && text === "01:00") return false;
   return true;
 }

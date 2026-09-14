@@ -128,7 +128,8 @@ function chartAxisKey(): string {
   }
   const ts = props.timeshare;
   const breakIdx = ts.findIndex((p) => p.session === "break");
-  return `t:${props.tradeDate || ""}:${ts.length}:${ts[0]?.label || ""}:${ts[ts.length - 1]?.label || ""}:${breakIdx}`;
+  // Full session categories are stable per 交易日; live ticks only refresh series.
+  return `t:${props.tradeDate || ""}:${ts.length}:${breakIdx}:${ts[0]?.label || ""}`;
 }
 
 function render() {
@@ -145,8 +146,7 @@ function render() {
 }
 
 function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
-  // Unique categories: duplicate HH:mm:ss would collapse a whole path onto one x.
-  const labels = props.timeshare.map((p, i) => `${p.label}#${i}`);
+  const labels = props.timeshare.map((p) => p.label);
   const prices = props.timeshare.map((p) => (p.session === "break" ? null : p.price));
   const avgs = props.timeshare.map((p) => (p.session === "break" ? null : p.avg));
   const vols = props.timeshare.map((p) => (p.session === "break" ? 0 : p.volume));
