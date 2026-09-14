@@ -161,7 +161,7 @@ const emptyHint = computed(() => {
     return barsLoading.value ? "正在加载模拟 K 线…" : bars.value.length ? "" : "暂无 K 线数据。";
   }
   if (sessionLoading.value && !hasTimesharePrice.value) {
-    return viewingCurrent.value ? "正在订阅并等待 SimNow 分时 Tick…" : "正在从 ClickHouse 加载该交易日…";
+    return viewingCurrent.value ? "正在加载分时 Tick…" : "正在从 ClickHouse 加载该交易日…";
   }
   if (!hasTimesharePrice.value) {
     if (!viewingCurrent.value) {
@@ -208,7 +208,6 @@ async function onPick(row: ContractRow) {
   historyKey.value = "";
   const next = currentTradeDate(String(row.exchange || ""));
   tradeDate.value = next;
-  await ensureSubscribed(row);
   await refreshTradeDates(row);
   await refreshSession(row, next);
   if (pricedTickCount(loadedTicks.value) < 2) {
