@@ -43,18 +43,45 @@
       </el-table>
     </div>
 
-    <div v-else class="page-section">
+    <div v-else class="page-list">
       <h3 class="page-section-title">账户连接</h3>
-      <el-table :data="trade.gateways" height="560">
-        <el-table-column prop="gateway_name" label="网关" />
-        <el-table-column prop="account_name" label="名称" />
-        <el-table-column label="环境" width="100">
-          <template #default="{ row }">{{ row.front_label || "—" }}</template>
+      <el-form class="page-query" :inline="true" @submit.prevent="applyQuery">
+        <el-form-item>
+          <el-input
+            v-model="keyword"
+            placeholder="网关 / 名称 / 环境 / 前置"
+            clearable
+            style="width: 240px"
+            @keyup.enter="applyQuery"
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Search" @click="applyQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table
+        :data="pagedGateways"
+        border
+        size="small"
+        highlight-current-row
+        style="width: 100%"
+        empty-text="暂无账户连接"
+      >
+        <el-table-column prop="gateway_name" label="网关" width="110" show-overflow-tooltip />
+        <el-table-column prop="account_name" label="名称" min-width="120" show-overflow-tooltip />
+        <el-table-column label="环境" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.auto_front === false ? 'warning' : 'info'">
+              {{ row.front_label || "—" }}
+            </el-tag>
+          </template>
         </el-table-column>
-        <el-table-column label="交易前置" min-width="160" show-overflow-tooltip>
+        <el-table-column label="交易前置" min-width="170" show-overflow-tooltip>
           <template #default="{ row }">{{ row["交易服务器"] || "—" }}</template>
         </el-table-column>
-        <el-table-column label="状态" min-width="168" align="center">
+        <el-table-column label="状态" width="188" align="center">
           <template #default="{ row }">
             <ChannelStatusPair :row="row" />
           </template>
@@ -68,7 +95,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" align="center" header-class-name="table-action-col" class-name="table-action-col">
+        <el-table-column label="操作" width="220" align="center" header-class-name="table-action-col" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
               <el-button type="primary" link @click="connect(row)">连接</el-button>
@@ -78,14 +105,27 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="page-pagination">
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="filteredGateways.length"
+          :page-sizes="[10, 20, 50]"
+          :background="true"
+          layout="total, sizes, prev, pager, next, jumper"
+          size="small"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
+import { Refresh, Search } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import { useMarketStore, useTradeStore } from "@/stores";
 import { contractNameOf } from "../workbench/liveMap";
@@ -96,6 +136,46 @@ const route = useRoute();
 const trade = useTradeStore();
 const market = useMarketStore();
 const section = computed(() => String(route.params.section || "gateways"));
+
+const keyword = ref("");
+const appliedKeyword = ref("");
+const page = ref(1);
+const pageSize = ref(10);
+
+const filteredGateways = computed(() => {
+  const q = appliedKeyword.value.trim().toLowerCase();
+  const rows = trade.gateways;
+  if (!q) return rows;
+  return rows.filter((row) =>
+    [row.gateway_name, row.account_name, row.front_label, row["交易服务器"]]
+      .join(" ")
+      .toLowerCase()
+      .includes(q),
+  );
+});
+
+const pagedGateways = computed(() => {
+  const start = (page.value - 1) * pageSize.value;
+  return filteredGateways.value.slice(start, start + pageSize.value);
+});
+
+function clampPage() {
+  const maxPage = Math.max(1, Math.ceil(filteredGateways.value.length / pageSize.value) || 1);
+  if (page.value > maxPage) page.value = maxPage;
+}
+
+function applyQuery() {
+  appliedKeyword.value = keyword.value;
+  page.value = 1;
+}
+
+function resetQuery() {
+  keyword.value = "";
+  appliedKeyword.value = "";
+  page.value = 1;
+}
+
+watch([filteredGateways, pageSize], clampPage);
 
 function nameOf(row: Record<string, unknown>) {
   return contractNameOf(market.contracts, String(row.symbol || ""), row.exchange);
