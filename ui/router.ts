@@ -20,7 +20,7 @@ const router = createRouter({
       children: [
         { path: "", redirect: "/workbench" },
         { path: "workbench", component: WorkbenchView },
-        { path: "market", redirect: "/market/quotes" },
+        { path: "market", redirect: "/market/ticks" },
         { path: "market/:section", component: MarketView },
         { path: "trade", redirect: "/trade/order" },
         { path: "trade/:section", component: TradeView },

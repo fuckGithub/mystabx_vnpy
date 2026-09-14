@@ -26,7 +26,7 @@ export type NavItem = {
 
 export const topMenus: NavItem[] = [
   { path: "/workbench", title: "工作台", icon: HomeFilled, home: true },
-  { path: "/market/quotes", title: "市场行情", icon: DataLine },
+  { path: "/market/ticks", title: "市场行情", icon: DataLine },
   { path: "/trade/order", title: "交易下单", icon: Tickets },
   { path: "/account/gateways", title: "资金持仓", icon: Wallet },
   { path: "/admin/users", title: "系统管理", icon: Setting, admin: true },
@@ -34,8 +34,8 @@ export const topMenus: NavItem[] = [
 
 export const sidebars: Record<string, NavItem[]> = {
   market: [
-    { path: "/market/quotes", title: "行情中心", icon: List },
     { path: "/market/ticks", title: "实时行情", icon: TrendCharts },
+    { path: "/market/quotes", title: "行情中心", icon: List },
   ],
   trade: [
     { path: "/trade/order", title: "下单面板", icon: EditPen },

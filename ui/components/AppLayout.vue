@@ -100,8 +100,10 @@ const market = useMarketStore();
 const visibleMenus = computed(() => topMenus.filter((item) => !item.admin || auth.isAdmin));
 const userInitial = computed(() => String(auth.user?.username || "U").slice(0, 1).toUpperCase());
 const isWorkbench = computed(() => route.path === "/workbench" || route.path.startsWith("/workbench/"));
-const isMarketQuotes = computed(() => route.path === "/market/quotes" || route.path === "/market");
-const isFullBleed = computed(() => isWorkbench.value || isMarketQuotes.value);
+const isMarketTerminal = computed(
+  () => route.path === "/market" || route.path.startsWith("/market/"),
+);
+const isFullBleed = computed(() => isWorkbench.value || isMarketTerminal.value);
 const currentModule = computed(() => moduleKeyFromPath(route.path));
 const showSidebar = computed(() => Boolean(currentModule.value));
 const sidebarItems = computed(() => sidebars[currentModule.value] ?? []);

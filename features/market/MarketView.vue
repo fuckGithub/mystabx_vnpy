@@ -1,35 +1,29 @@
 <template>
-  <div v-if="section === 'ticks'" class="page-shell">
-    <div class="page-section">
-      <h3 class="page-section-title">实时行情</h3>
-      <p v-if="chStatusText" class="ch-status" :class="{ down: !market.clickhouse.ok }">{{ chStatusText }}</p>
-      <el-table :data="tickRows" height="560">
-        <el-table-column label="合约" min-width="140">
-          <template #default="{ row }">
-            <InstrumentCell :code="String(row.symbol || '')" :name="contractNameOf(market.contracts, String(row.symbol || ''), row.exchange) || row.name" />
-          </template>
-        </el-table-column>
-        <el-table-column prop="last_price" label="最新" width="100" />
-        <el-table-column prop="bid_price_1" label="买一" width="100" />
-        <el-table-column prop="bid_volume_1" label="买量" width="80" />
-        <el-table-column prop="ask_price_1" label="卖一" width="100" />
-        <el-table-column prop="ask_volume_1" label="卖量" width="80" />
-        <el-table-column prop="volume" label="成交量" />
-        <el-table-column prop="gateway_name" label="账户" width="120" />
-      </el-table>
-    </div>
-  </div>
-  <div v-else class="equilibrix-dashboard market-terminal">
+  <div class="equilibrix-dashboard market-terminal">
     <p v-if="chStatusText" class="ch-status" :class="{ down: !market.clickhouse.ok }">{{ chStatusText }}</p>
-    <div class="market-grid">
+
+    <div v-if="isLiveQuotes && !listContracts.length" class="market-empty">
+      <h3 class="market-empty__title">暂无已订阅合约</h3>
+      <p class="market-empty__desc">
+        实时行情只展示已订阅合约的盘口与分时。请先到行情中心浏览全部合约并订阅。
+      </p>
+      <el-button type="primary" @click="goQuotesCenter">去行情中心订阅</el-button>
+    </div>
+
+    <div v-else class="market-grid">
       <ContractListPanel
-        :contracts="market.contracts"
+        :contracts="listContracts"
         :ticks="market.ticks"
         :selected-key="selectedKey"
         :subscribed-keys="market.subscribedKeys"
+        :variant="isLiveQuotes ? 'live' : 'center'"
+        :allow-subscribe="!isLiveQuotes"
+        :allow-unsubscribe="!isLiveQuotes && canUnsubscribe"
+        :empty-text="listEmptyText"
         @select="onPick"
         @search="onSearch"
         @subscribe="onSubscribe"
+        @unsubscribe="onUnsubscribe"
       />
       <QuoteChart
         v-model:period="period"
@@ -50,11 +44,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { useMarketStore, useTradeStore } from "@/stores";
-import { contractNameOf, finitePrice, instrumentLabel } from "../workbench/liveMap";
-import InstrumentCell from "@/components/InstrumentCell.vue";
+import { finitePrice, instrumentLabel } from "../workbench/liveMap";
 import ContractListPanel from "./components/ContractListPanel.vue";
 import QuoteChart from "./components/QuoteChart.vue";
 import QuoteTape from "./components/QuoteTape.vue";
@@ -70,6 +63,7 @@ import {
 import type { TradeDateOption } from "./components/QuoteChart.vue";
 
 const route = useRoute();
+const router = useRouter();
 const market = useMarketStore();
 const trade = useTradeStore();
 
@@ -83,8 +77,24 @@ const tradeDates = ref<TradeDateOption[]>([]);
 const loadedTicks = ref<Record<string, unknown>[]>([]);
 const historyKey = ref("");
 
-const section = computed(() => String(route.params.section || "quotes"));
-const tickRows = computed(() => Object.values(market.ticks));
+const section = computed(() => String(route.params.section || "ticks"));
+/** 实时行情：仅已订阅；行情中心：全市场 */
+const isLiveQuotes = computed(() => section.value === "ticks");
+/** 另一 agent 可能补退订；有 store 方法时行情中心启用退订按钮 */
+const canUnsubscribe = computed(() => typeof (market as { unsubscribeContract?: unknown }).unsubscribeContract === "function");
+
+const allContracts = computed(() => market.contracts as ContractRow[]);
+const listContracts = computed(() => {
+  if (!isLiveQuotes.value) return allContracts.value;
+  return allContracts.value.filter((row) => market.subscribedKeys[contractKey(row)]);
+});
+
+const listEmptyText = computed(() =>
+  isLiveQuotes.value
+    ? "暂无已订阅合约。请到行情中心订阅后再回来查看。"
+    : "暂无合约。请先连接行情通道，合约查询成功后将按交易所 / 品种列出。",
+);
+
 const selectedKey = computed(() => contractKey(selected.value));
 
 const selectedTick = computed(() => {
@@ -190,11 +200,27 @@ onMounted(async () => {
   healthTimer = setInterval(() => {
     void market.loadHealth();
   }, 15_000);
+  ensureSelectionInList();
 });
 
 onUnmounted(() => {
   if (healthTimer) clearInterval(healthTimer);
 });
+
+function goQuotesCenter() {
+  void router.push("/market/quotes");
+}
+
+function ensureSelectionInList() {
+  const list = listContracts.value;
+  if (!list.length) {
+    selected.value = null;
+    return;
+  }
+  const key = selectedKey.value;
+  if (key && list.some((row) => contractKey(row) === key)) return;
+  void onPick(list[0]);
+}
 
 async function onSearch(keyword: string) {
   await market.loadContracts(keyword);
@@ -226,6 +252,30 @@ async function onSubscribe(row?: ContractRow) {
     return;
   }
   await ensureSubscribed(target, true);
+}
+
+async function onUnsubscribe(row: ContractRow) {
+  const unsub = (market as { unsubscribeContract?: (g: string, s: string, e: string) => Promise<void> })
+    .unsubscribeContract;
+  if (!unsub) {
+    ElMessage.info("退订能力即将接入");
+    return;
+  }
+  const live = market.latestTick(String(row.symbol || ""), String(row.exchange || ""));
+  const gateway = String(
+    row.gateway_name || live?.gateway_name || trade.activeGatewayName || trade.gateways[0]?.gateway_name || "",
+  );
+  if (!gateway) {
+    ElMessage.warning("没有可用账户，无法退订行情");
+    return;
+  }
+  try {
+    await unsub(gateway, String(row.symbol || ""), String(row.exchange || ""));
+    ElMessage.success(`已退订 ${row.symbol}`);
+    if (selectedKey.value === contractKey(row)) ensureSelectionInList();
+  } catch {
+    ElMessage.error(`退订 ${row.symbol} 失败`);
+  }
 }
 
 async function ensureSubscribed(row: ContractRow, notify = false) {
@@ -318,6 +368,17 @@ watch(tradeDate, (next, prev) => {
   if (!selected.value || !next || next === prev) return;
   void refreshSession(selected.value, next);
 });
+
+watch(section, () => {
+  ensureSelectionInList();
+});
+
+watch(
+  () => Object.keys(market.subscribedKeys).sort().join("|"),
+  () => {
+    if (isLiveQuotes.value) ensureSelectionInList();
+  },
+);
 </script>
 
 <style src="@/styles/equilibrix-dashboard.css"></style>
@@ -346,6 +407,32 @@ watch(tradeDate, (next, prev) => {
   gap: 8px;
   flex: 1;
   min-height: 0;
+}
+.market-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--dash-surface, #fff);
+  border: 1px solid var(--dash-border, #ebeef5);
+  border-radius: var(--dash-card-radius, 8px);
+}
+.market-empty__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--dash-text, #303133);
+}
+.market-empty__desc {
+  margin: 0;
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--dash-text-muted, #909399);
 }
 @media (max-width: 1100px) {
   .market-grid {

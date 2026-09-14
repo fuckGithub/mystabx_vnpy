@@ -17,7 +17,14 @@
         <el-radio-button value="index">指数</el-radio-button>
         <el-radio-button value="product">品种</el-radio-button>
       </el-radio-group>
-      <el-button size="small" type="primary" plain class="board-sub" @click="emit('subscribe', undefined)">
+      <el-button
+        v-if="allowSubscribe"
+        size="small"
+        type="primary"
+        plain
+        class="board-sub"
+        @click="emit('subscribe', undefined)"
+      >
         订阅合约
       </el-button>
     </div>
@@ -29,7 +36,11 @@
           :key="rowKey(row)"
           type="button"
           class="board-row"
-          :class="{ active: rowKey(row) === selectedKey, subscribed: isSubscribed(row) }"
+          :class="{
+            active: rowKey(row) === selectedKey,
+            subscribed: isSubscribed(row),
+            'board-row--no-sub': !allowSubscribe,
+          }"
           @click="emit('select', row)"
         >
           <span class="board-row__id">
@@ -42,16 +53,17 @@
             {{ fmtPct(changeOf(row)) }}
           </span>
           <span
+            v-if="allowSubscribe"
             class="board-row__sub"
             :class="{ on: isSubscribed(row) }"
-            @click.stop="emit('subscribe', row)"
+            @click.stop="onSubClick(row)"
           >
-            {{ isSubscribed(row) ? "已订" : "订阅" }}
+            {{ isSubscribed(row) ? (allowUnsubscribe ? "退订" : "已订") : "订阅" }}
           </span>
         </button>
       </section>
       <div v-if="!groups.some((g) => g.rows.length)" class="board-empty">
-        暂无合约。请先连接行情通道，合约查询成功后将按交易所 / 品种列出。
+        {{ emptyText }}
       </div>
     </div>
   </aside>
@@ -63,18 +75,32 @@ import InstrumentCell from "@/components/InstrumentCell.vue";
 import { contractKey, groupContracts, productName, type BoardTab, type ContractRow } from "../contracts";
 import { finitePrice, fmtPct, fmtPriceOrDash, pnlClass, quoteChangePct } from "../../workbench/liveMap";
 
-const props = defineProps<{
-  contracts: ContractRow[];
-  ticks: Record<string, Record<string, unknown>>;
-  selectedKey: string;
-  subscribedKeys?: Record<string, true>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    contracts: ContractRow[];
+    ticks: Record<string, Record<string, unknown>>;
+    selectedKey: string;
+    subscribedKeys?: Record<string, true>;
+    /** center = 行情中心（全市场）；live = 实时行情（已订阅） */
+    variant?: "center" | "live";
+    allowSubscribe?: boolean;
+    allowUnsubscribe?: boolean;
+    emptyText?: string;
+  }>(),
+  {
+    variant: "center",
+    allowSubscribe: true,
+    allowUnsubscribe: false,
+    emptyText: "暂无合约。请先连接行情通道，合约查询成功后将按交易所 / 品种列出。",
+  },
+);
 
 const emit = defineEmits<{
   select: [row: ContractRow];
   search: [keyword: string];
   tab: [tab: BoardTab];
   subscribe: [row: ContractRow | undefined];
+  unsubscribe: [row: ContractRow];
 }>();
 
 const keyword = ref("");
@@ -89,6 +115,14 @@ function rowKey(row: ContractRow) {
 
 function isSubscribed(row: ContractRow) {
   return Boolean(props.subscribedKeys?.[rowKey(row)]);
+}
+
+function onSubClick(row: ContractRow) {
+  if (isSubscribed(row) && props.allowUnsubscribe) {
+    emit("unsubscribe", row);
+    return;
+  }
+  emit("subscribe", row);
 }
 
 function displayName(row: ContractRow) {
@@ -185,6 +219,9 @@ function changeOf(row: ContractRow) {
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+.board-row--no-sub {
+  grid-template-columns: minmax(0, 1.2fr) 64px 52px;
 }
 .board-row:hover { background: var(--dash-surface-soft); }
 .board-row.active { background: var(--dash-primary-soft); }
