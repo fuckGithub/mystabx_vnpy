@@ -302,12 +302,6 @@ async function onSubscribe(row?: ContractRow) {
 }
 
 async function onUnsubscribe(row: ContractRow) {
-  const unsub = (market as { unsubscribeContract?: (g: string, s: string, e: string) => Promise<void> })
-    .unsubscribeContract;
-  if (!unsub) {
-    ElMessage.info("退订能力即将接入");
-    return;
-  }
   const live = market.latestTick(String(row.symbol || ""), String(row.exchange || ""));
   const gateway = String(
     row.gateway_name || live?.gateway_name || trade.activeGatewayName || trade.gateways[0]?.gateway_name || "",
@@ -317,10 +311,10 @@ async function onUnsubscribe(row: ContractRow) {
     return;
   }
   try {
-    await unsub(gateway, String(row.symbol || ""), String(row.exchange || ""));
-    market.unmarkSubscribed(String(row.symbol || ""), String(row.exchange || ""));
+    await market.unsubscribeContract(gateway, String(row.symbol || ""), String(row.exchange || ""));
     ElMessage.success(`已退订 ${row.symbol}`);
-    if (selectedKey.value === contractKey(row)) ensureSelectionInList();
+    // 行情中心仍保留选中行；实时行情列表会丢掉该合约时再重选
+    if (isLiveQuotes.value && selectedKey.value === contractKey(row)) ensureSelectionInList();
   } catch {
     ElMessage.error(`退订 ${row.symbol} 失败`);
   }
