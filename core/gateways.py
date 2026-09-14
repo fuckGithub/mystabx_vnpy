@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import threading
 import time
@@ -27,6 +28,20 @@ EVENT_ENSURE_ACCOUNT = "eEnsureAccount"
 DISCONNECTED = "DISCONNECTED"
 CONNECTING = "CONNECTING"
 CONNECTED = "CONNECTED"
+
+# Auto-reconnect backoff after a real drop (not user 断开).
+_RECONNECT_STEPS = (3.0, 8.0, 15.0)
+_RECONNECT_CAP = 60.0
+
+logger = logging.getLogger("stabx.gateways")
+
+
+def reconnect_delay(attempt: int) -> float:
+    if attempt < 0:
+        attempt = 0
+    if attempt < len(_RECONNECT_STEPS):
+        return _RECONNECT_STEPS[attempt]
+    return _RECONNECT_CAP
 
 _TD_LOGIN_OK = ("交易服务器登录成功",)
 _TD_FRONT_OK = ("交易服务器连接成功",)
@@ -76,6 +91,10 @@ class AccountGatewayManager:
         self._forced_off: set[str] = set()
         self._sync_lock = threading.Lock()
         self._status_lock = threading.Lock()
+        self._keepalive_gen: dict[str, int] = {}
+        self._connect_lock = threading.Lock()
+        self._connect_in_flight: set[str] = set()
+        self._reconnect_attempt: dict[str, int] = {}
 
     def load_all(self, rows: list[dict[str, Any]]) -> None:
         for acc in rows:
@@ -91,16 +110,45 @@ class AccountGatewayManager:
         self.td_status.setdefault(name, DISCONNECTED)
         self.md_status.setdefault(name, DISCONNECTED)
 
-    def connect(self, gateway_name: str) -> dict[str, Any]:
+    def connect(self, gateway_name: str, *, from_user: bool = True) -> dict[str, Any]:
         acc = self.index[gateway_name]
         setting = merge_connect_settings(decrypt(acc["connect_settings"]))
         setting, meta = apply_simnow_auto_fronts(setting)
         self.front_info[gateway_name] = meta
-        self._forced_off.discard(gateway_name)
-        self._set_leg(gateway_name, td=CONNECTING, md=CONNECTING, publish=True)
-        self.me.connect(ctp_connect_payload(setting), gateway_name)
-        self.start_status_watch(gateway_name)
-        self.start_account_sync(gateway_name)
+        if from_user:
+            self._forced_off.discard(gateway_name)
+        elif gateway_name in self._forced_off:
+            return meta
+        if not str(setting.get("密码") or "").strip():
+            logger.info("skip connect %s: no password", gateway_name)
+            return meta
+        if not from_user and not self._native_session_dropped(gateway_name):
+            logger.info(
+                "skip reconnect %s: native MdApi/TdApi login_status still true "
+                "(Darwin/SimNow session can stay sticky after a disconnect flag; "
+                "do not call exit()/close())",
+                gateway_name,
+            )
+            return meta
+        with self._connect_lock:
+            if gateway_name in self._connect_in_flight:
+                return meta
+            self._connect_in_flight.add(gateway_name)
+        try:
+            self._set_leg(gateway_name, td=CONNECTING, md=CONNECTING, publish=True)
+            # Darwin: never TdApi/MdApi.exit()/close(); vnpy reconnect is me.connect() only.
+            self.me.connect(ctp_connect_payload(setting), gateway_name)
+            self.start_status_watch(gateway_name)
+            self.start_account_sync(gateway_name)
+            if self._auto_connect_enabled(gateway_name):
+                self.start_keepalive(gateway_name)
+        finally:
+            def _clear() -> None:
+                time.sleep(2.0)
+                with self._connect_lock:
+                    self._connect_in_flight.discard(gateway_name)
+
+            threading.Thread(target=_clear, daemon=True, name=f"connect-gate-{gateway_name}").start()
         return meta
 
     def disconnect(self, gateway_name: str) -> None:
@@ -111,7 +159,9 @@ class AccountGatewayManager:
             except Exception:
                 pass
         # macOS + SimNow CTP 6.7.13: TdApi/MdApi.exit() segfaults the process.
+        # User 断开 must not auto-reconnect until 连接 / 启动自动连接 / process restart.
         self._forced_off.add(gateway_name)
+        self.stop_keepalive(gateway_name)
         self.account_cache.pop(gateway_name, None)
         with self._sync_lock:
             self._account_sync.discard(gateway_name)
@@ -215,6 +265,145 @@ class AccountGatewayManager:
         self.front_info.pop(gateway_name, None)
         self.account_cache.pop(gateway_name, None)
         self._forced_off.discard(gateway_name)
+        self.stop_keepalive(gateway_name)
+        self._reconnect_attempt.pop(gateway_name, None)
+
+    def _auto_connect_enabled(self, gateway_name: str) -> bool:
+        acc = self.index.get(gateway_name) or {}
+        return bool(acc.get("auto_connect"))
+
+    def _has_password(self, gateway_name: str) -> bool:
+        acc = self.index.get(gateway_name)
+        if not acc:
+            return False
+        try:
+            setting = merge_connect_settings(decrypt(acc["connect_settings"]))
+        except Exception:
+            return False
+        return bool(str(setting.get("密码") or "").strip())
+
+    def _native_session_dropped(self, gateway_name: str) -> bool:
+        """True when at least one CTP leg is really down (or APIs not built yet).
+
+        On Darwin, a disconnect *flag* can leave MdApi/TdApi.login_status True.
+        Do not call exit()/close(); only me.connect() when a login_status is gone.
+        """
+        td_api = self._td_api(gateway_name)
+        md_api = self._md_api(gateway_name)
+        if td_api is None and md_api is None:
+            return True
+        td_down = td_api is not None and not bool(getattr(td_api, "login_status", False))
+        md_down = md_api is not None and not bool(getattr(md_api, "login_status", False))
+        return td_down or md_down
+
+    def apply_auto_connect(self, gateway_name: str, enabled: bool) -> None:
+        if gateway_name in self.index:
+            self.index[gateway_name]["auto_connect"] = bool(enabled)
+        if not enabled:
+            self.stop_keepalive(gateway_name)
+            return
+        self._forced_off.discard(gateway_name)
+        self.start_keepalive(gateway_name)
+        if self._has_password(gateway_name) and self._native_session_dropped(gateway_name):
+            threading.Thread(
+                target=self._safe_connect,
+                args=(gateway_name, True),
+                daemon=True,
+                name=f"auto-connect-{gateway_name}",
+            ).start()
+
+    def kickoff_auto_connects(self) -> None:
+        """Non-blocking startup: connect every auto_connect account that has a password."""
+        for name, acc in list(self.index.items()):
+            if not acc.get("auto_connect"):
+                continue
+            self.start_keepalive(name)
+            if not self._has_password(name):
+                logger.info("startup skip %s: auto_connect on but no password", name)
+                continue
+            threading.Thread(
+                target=self._safe_connect,
+                args=(name, False),
+                daemon=True,
+                name=f"startup-connect-{name}",
+            ).start()
+
+    def _safe_connect(self, gateway_name: str, from_user: bool) -> None:
+        try:
+            self.connect(gateway_name, from_user=from_user)
+        except Exception:
+            logger.exception("auto connect failed %s", gateway_name)
+
+    def start_keepalive(self, gateway_name: str) -> None:
+        if not gateway_name:
+            return
+        with self._sync_lock:
+            gen = self._keepalive_gen.get(gateway_name, 0) + 1
+            self._keepalive_gen[gateway_name] = gen
+        threading.Thread(
+            target=self._keepalive_loop,
+            args=(gateway_name, gen),
+            daemon=True,
+            name=f"ctp-keepalive-{gateway_name}",
+        ).start()
+
+    def stop_keepalive(self, gateway_name: str) -> None:
+        with self._sync_lock:
+            self._keepalive_gen[gateway_name] = self._keepalive_gen.get(gateway_name, 0) + 1
+
+    def _keepalive_alive(self, gateway_name: str, gen: int) -> bool:
+        return self._keepalive_gen.get(gateway_name) == gen
+
+    def _sleep_interruptible(self, gateway_name: str, gen: int, seconds: float) -> bool:
+        deadline = time.time() + max(0.0, seconds)
+        while time.time() < deadline:
+            if not self._keepalive_alive(gateway_name, gen) or gateway_name in self._forced_off:
+                return False
+            time.sleep(0.2)
+        return self._keepalive_alive(gateway_name, gen) and gateway_name not in self._forced_off
+
+    def _keepalive_loop(self, gateway_name: str, gen: int) -> None:
+        connecting_since: float | None = None
+        while self._keepalive_alive(gateway_name, gen):
+            if gateway_name in self._forced_off or not self._auto_connect_enabled(gateway_name):
+                return
+            self.refresh_live_status(gateway_name, publish=True)
+            td = self.td_status.get(gateway_name, DISCONNECTED)
+            md = self.md_status.get(gateway_name, DISCONNECTED)
+            if td == CONNECTED and md == CONNECTED:
+                self._reconnect_attempt[gateway_name] = 0
+                connecting_since = None
+                if not self._sleep_interruptible(gateway_name, gen, 2.0):
+                    return
+                continue
+            if td == CONNECTING or md == CONNECTING:
+                if connecting_since is None:
+                    connecting_since = time.time()
+                if time.time() - connecting_since < 45.0:
+                    if not self._sleep_interruptible(gateway_name, gen, 1.0):
+                        return
+                    continue
+            connecting_since = None
+            if not self._has_password(gateway_name):
+                if not self._sleep_interruptible(gateway_name, gen, 5.0):
+                    return
+                continue
+            if not self._native_session_dropped(gateway_name):
+                if not self._sleep_interruptible(gateway_name, gen, 2.0):
+                    return
+                continue
+            attempt = self._reconnect_attempt.get(gateway_name, 0)
+            delay = reconnect_delay(attempt)
+            logger.info("auto reconnect %s in %.0fs (attempt %s)", gateway_name, delay, attempt + 1)
+            if not self._sleep_interruptible(gateway_name, gen, delay):
+                return
+            if gateway_name in self._forced_off or not self._auto_connect_enabled(gateway_name):
+                return
+            if not self._native_session_dropped(gateway_name):
+                continue
+            self._reconnect_attempt[gateway_name] = attempt + 1
+            self._safe_connect(gateway_name, False)
+            connecting_since = time.time()
 
     def gateway_for_user(self, user_id: int) -> list[str]:
         return [gw for gw, acc in self.index.items() if acc["user_id"] == user_id]
@@ -489,6 +678,7 @@ class AccountGatewayManager:
             "gateway_name": gateway_name,
             "account_name": acc.get("account_name") or "",
             "id": acc.get("id"),
+            "auto_connect": bool(acc.get("auto_connect")),
             **statuses,
         }
 

@@ -59,6 +59,15 @@
             <ChannelStatusPair :row="row" />
           </template>
         </el-table-column>
+        <el-table-column label="自动连接" width="148" align="center">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="Boolean(row.auto_connect)"
+              active-text="启动自动连接"
+              @change="(value) => setAutoConnect(row, value)"
+            />
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="280" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
@@ -120,5 +129,18 @@ async function disconnect(row: Record<string, unknown>) {
   await http.post(`/api/gateways/${row.id}/disconnect`);
   ElMessage.success(`已断开 ${row.gateway_name}`);
   await trade.refresh();
+}
+
+async function setAutoConnect(row: Record<string, unknown>, value: string | number | boolean) {
+  const enabled = Boolean(value);
+  try {
+    await http.post(`/api/gateways/${row.id}/auto-connect`, { auto_connect: enabled });
+    row.auto_connect = enabled;
+    ElMessage.success(enabled ? "已开启启动自动连接" : "已关闭自动连接");
+    await trade.refresh();
+  } catch (error: unknown) {
+    const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    ElMessage.error(detail || "自动连接设置失败");
+  }
 }
 </script>

@@ -79,7 +79,7 @@ const sessionLoading = ref(false);
 const subscribedKeys = new Set<string>();
 const tradeDate = ref("");
 const tradeDates = ref<TradeDateOption[]>([]);
-const historyTicks = ref<Record<string, unknown>[]>([]);
+const loadedTicks = ref<Record<string, unknown>[]>([]);
 const historyKey = ref("");
 
 const section = computed(() => String(route.params.section || "quotes"));
@@ -107,30 +107,37 @@ function tickBookKey(tick: Record<string, unknown>): string {
   return `${String(tick.exchange || "").toUpperCase()}.${String(tick.symbol || "").toUpperCase()}`;
 }
 
-/** Same WS book the left list reads (`market.ticks`), merged with the session buffer. */
+function tickSeriesId(row: Record<string, unknown>): string {
+  return `${row.datetime ?? ""}|${row.last_price ?? ""}|${row.volume ?? ""}|${row.last_volume ?? ""}`;
+}
+
+function mergeTickRows(...groups: Record<string, unknown>[][]): Record<string, unknown>[] {
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const group of groups) {
+    for (const row of group) {
+      merged.set(tickSeriesId(row), row);
+    }
+  }
+  return [...merged.values()];
+}
+
+function pricedTickCount(rows: Record<string, unknown>[]): number {
+  return rows.filter((row) => finitePrice(row.last_price) != null).length;
+}
+
+/** Session API (memory + ClickHouse) plus live WS — 今日 used to ignore CH and keep one snapshot. */
 const liveTicks = computed(() => {
   const key = sessionKey.value;
   if (!key) return [];
-  const merged = new Map<string, Record<string, unknown>>();
-  for (const row of sessionRows.value) {
-    merged.set(String(row.datetime || `${row.last_price}:${row.volume}`), row);
-  }
-  for (const row of Object.values(market.ticks)) {
-    if (tickBookKey(row) !== key) continue;
-    merged.set(String(row.datetime || `${row.last_price}:${row.volume}`), row);
-  }
-  return [...merged.values()];
+  const book = Object.values(market.ticks).filter((row) => tickBookKey(row) === key);
+  return mergeTickRows(loadedTicks.value, sessionRows.value, book);
 });
 
 const timesharePoints = computed<TimesharePoint[]>(() => {
   if (!selected.value) return [];
-  const ticks = viewingCurrent.value ? [...liveTicks.value] : [...historyTicks.value];
-  if (viewingCurrent.value && selectedTick.value) {
-    const dt = String(selectedTick.value.datetime || "");
-    if (!ticks.some((row) => String(row.datetime || "") === dt && row.last_price === selectedTick.value?.last_price)) {
-      ticks.push(selectedTick.value);
-    }
-  }
+  const ticks = viewingCurrent.value
+    ? mergeTickRows(liveTicks.value, selectedTick.value ? [selectedTick.value] : [])
+    : [...loadedTicks.value];
   return aggregateTimeshare(ticks, selectedExchange.value, {
     tradeDate: tradeDate.value || currentTradeDate(selectedExchange.value),
     live: viewingCurrent.value,
@@ -196,12 +203,20 @@ async function onPick(row: ContractRow) {
   void market.loadHealth();
   selected.value = row;
   period.value = "timeshare";
-  historyTicks.value = [];
+  loadedTicks.value = [];
   historyKey.value = "";
   const next = currentTradeDate(String(row.exchange || ""));
   tradeDate.value = next;
   await ensureSubscribed(row);
-  await Promise.all([refreshTradeDates(row), refreshSession(row, next)]);
+  await refreshTradeDates(row);
+  await refreshSession(row, next);
+  if (pricedTickCount(loadedTicks.value) < 2) {
+    const fallback = tradeDates.value.find((d) => d.has_data && d.date !== next);
+    if (fallback) {
+      tradeDate.value = fallback.date;
+      await refreshSession(row, fallback.date);
+    }
+  }
 }
 
 async function ensureSubscribed(row: ContractRow) {
@@ -249,13 +264,10 @@ async function refreshSession(row: ContractRow, date = tradeDate.value) {
   sessionLoading.value = true;
   try {
     const result = await market.loadSessionTicks(String(row.symbol || ""), String(row.exchange || ""), date);
-    if (result.is_current) {
-      historyTicks.value = [];
-      historyKey.value = "";
-    } else {
-      historyTicks.value = result.ticks;
-      historyKey.value = `${String(row.exchange || "").toUpperCase()}.${String(row.symbol || "").toUpperCase()}.${result.trade_date}`;
-    }
+    loadedTicks.value = result.ticks || [];
+    historyKey.value = result.is_current
+      ? ""
+      : `${String(row.exchange || "").toUpperCase()}.${String(row.symbol || "").toUpperCase()}.${result.trade_date}`;
   } catch {
     /* keep WS ticks already in store */
   } finally {

@@ -30,7 +30,7 @@ function ymdText(ymd: Ymd): string {
   return `${ymd.y}-${pad(ymd.m)}-${pad(ymd.d)}`;
 }
 
-function shanghaiWall(date = new Date()): Ymd & { hour: number; minute: number } {
+function shanghaiWall(date = new Date()): Ymd & { hour: number; minute: number; second: number } {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: SH_TZ,
     year: "numeric",
@@ -38,10 +38,18 @@ function shanghaiWall(date = new Date()): Ymd & { hour: number; minute: number }
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     hourCycle: "h23",
   }).formatToParts(date);
   const num = (type: string) => Number(parts.find((p) => p.type === type)?.value || 0);
-  return { y: num("year"), m: num("month"), d: num("day"), hour: num("hour"), minute: num("minute") };
+  return {
+    y: num("year"),
+    m: num("month"),
+    d: num("day"),
+    hour: num("hour"),
+    minute: num("minute"),
+    second: num("second"),
+  };
 }
 
 function shanghaiMs(y: number, m: number, d: number, hour: number, minute: number): number {
@@ -113,6 +121,15 @@ function formatHm(totalMin: number): string {
   return `${pad(Math.floor(wrapped / 60))}:${pad(wrapped % 60)}`;
 }
 
+function formatHms(date: Date): string {
+  const wall = shanghaiWall(date);
+  return `${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}`;
+}
+
+function clockHm(label: string): string {
+  return label.length >= 5 ? label.slice(0, 5) : label;
+}
+
 type Window = { start: number; end: number; session: Exclude<SessionKind, "break"> };
 
 function sessionWindows(exchange: string): Window[] {
@@ -135,6 +152,11 @@ function inWindows(mins: number, windows: Window[]): boolean {
   return windows.some((w) => mins >= w.start && mins < w.end);
 }
 
+function sessionOfMinute(mins: number, windows: Window[]): Exclude<SessionKind, "break"> | null {
+  const hit = windows.find((w) => mins >= w.start && mins < w.end);
+  return hit ? hit.session : null;
+}
+
 /** Map an out-of-session clock (e.g. SimNow 17:30 after CFFEX close) onto the axis. */
 function snapToSessionMinute(mins: number, windows: Window[]): number {
   if (!windows.length) return mins;
@@ -155,20 +177,6 @@ function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; next
   else if (Number.isFinite(cum) && cum >= prevCum) delta = cum - prevCum;
   if (Number.isFinite(cum) && cum > 0) nextCum = cum;
   return { delta: Math.max(0, delta), nextCum };
-}
-
-function putBucket(
-  buckets: Map<number, { price: number; volume: number; notional: number }>,
-  mins: number,
-  price: number,
-  volume: number,
-) {
-  const prev = buckets.get(mins);
-  buckets.set(mins, {
-    price,
-    volume: (prev?.volume || 0) + volume,
-    notional: (prev?.notional || 0) + price * volume,
-  });
 }
 
 function finitePrice(v: unknown): number | null {
@@ -229,66 +237,108 @@ export function isSessionTick(tick: TickLike, exchange: string, tradeDate?: stri
   return ms >= start && ms < end;
 }
 
+type Vertex = {
+  ts: number;
+  label: string;
+  price: number;
+  volume: number;
+  notional: number;
+  session: Exclude<SessionKind, "break">;
+};
+
+function pushVertex(vertices: Vertex[], next: Vertex): void {
+  const last = vertices[vertices.length - 1];
+  if (last && last.label === next.label && last.price === next.price && last.session === next.session) {
+    last.volume += next.volume;
+    last.notional += next.notional;
+    return;
+  }
+  vertices.push(next);
+}
+
+function avgOf(price: number, cumVol: number, cumNotional: number): number {
+  if (cumVol <= 0) return price;
+  const raw = cumNotional / cumVol;
+  if (raw > price * 5 || raw < price * 0.2) return price;
+  return raw;
+}
+
+/**
+ * Polyline through session ticks in time order. Same-second quotes still keep
+ * last_price changes; identical price+second is merged. Empty session minutes
+ * are not invented — that was a flat fake curve.
+ */
 export function aggregateTimeshare(
   ticks: TickLike[],
   exchange: string,
   opts: TimeshareOptions = {},
 ): TimesharePoint[] {
   const tradeDate = opts.tradeDate || currentTradeDate(exchange);
-  const live = opts.live !== false && tradeDate === currentTradeDate(exchange);
   const windows = sessionWindows(exchange);
   const startMs = sessionStartMs(exchange, tradeDate);
   const endMs = sessionEndMs(exchange, tradeDate);
-  const buckets = new Map<number, { price: number; volume: number; notional: number }>();
   let prevCum = 0;
-  const orphans: { price: number; volume: number }[] = [];
+  const orphans: { price: number; volume: number; dt: Date | null; idx: number }[] = [];
+  const vertices: Vertex[] = [];
 
-  const sorted = [...ticks].sort((a, b) => {
-    const da = parseTickDate(a.datetime)?.getTime() ?? 0;
-    const db = parseTickDate(b.datetime)?.getTime() ?? 0;
-    return da - db;
+  const sorted = ticks.map((tick, idx) => ({ tick, idx })).sort((a, b) => {
+    const da = parseTickDate(a.tick.datetime)?.getTime() ?? 0;
+    const db = parseTickDate(b.tick.datetime)?.getTime() ?? 0;
+    if (da !== db) return da - db;
+    return a.idx - b.idx;
   });
 
-  for (const tick of sorted) {
+  for (const { tick, idx } of sorted) {
     const price = tickLastPrice(tick);
     if (price === null) continue;
     const { delta, nextCum } = tickVolumeDelta(tick, prevCum);
     prevCum = nextCum;
     const dt = parseTickDate(tick.datetime);
     if (dt) {
-      const ms = dt.getTime();
       const mins = clockMinutes(dt);
-      if (ms >= startMs && ms < endMs && inWindows(mins, windows)) {
-        putBucket(buckets, mins, price, delta);
+      const inSession = inWindows(mins, windows);
+      const inRange = dt.getTime() >= startMs && dt.getTime() < endMs;
+      if (inSession || inRange) {
+        const clock = inSession ? mins : snapToSessionMinute(mins, windows);
+        const session = sessionOfMinute(clock, windows) || "day";
+        pushVertex(vertices, {
+          ts: clock,
+          label: formatHms(dt),
+          price,
+          volume: delta,
+          notional: price * delta,
+          session,
+        });
         continue;
       }
     }
-    orphans.push({ price, volume: delta });
+    orphans.push({ price, volume: delta, dt, idx });
   }
 
-  // SimNow often stamps CFFEX ticks at 17:xx / 21:xx or a previous calendar day
-  // while last_price still updates. Seed the axis so 分时 is never blank.
-  if (buckets.size === 0 && orphans.length) {
-    const last = orphans[orphans.length - 1];
-    const clock = live
-      ? clockMinutes(new Date())
-      : clockMinutes(parseTickDate(sorted[sorted.length - 1]?.datetime) || new Date());
-    const snapped = snapToSessionMinute(clock, windows);
-    const open = windows[0]?.start;
-    if (open != null) putBucket(buckets, open, last.price, last.volume);
-    if (snapped !== open) putBucket(buckets, snapped, last.price, last.volume);
+  if (vertices.length === 0 && orphans.length) {
+    for (const row of orphans) {
+      const clock = row.dt
+        ? snapToSessionMinute(clockMinutes(row.dt), windows)
+        : windows[0]?.start ?? 21 * 60;
+      const session = sessionOfMinute(clock, windows) || "night";
+      const label = row.dt ? formatHms(row.dt) : `${formatHm(clock)}:${pad(row.idx % 60)}`;
+      pushVertex(vertices, {
+        ts: clock,
+        label,
+        price: row.price,
+        volume: row.volume,
+        notional: row.price * row.volume,
+        session,
+      });
+    }
   }
 
-  const lastTickDt = parseTickDate(sorted[sorted.length - 1]?.datetime);
-  const lastTickMins = lastTickDt ? snapToSessionMinute(clockMinutes(lastTickDt), windows) : null;
   const points: TimesharePoint[] = [];
-  let lastPrice: number | null = null;
   let cumVol = 0;
   let cumNotional = 0;
   let prevSession: SessionKind | null = null;
-
-  for (const win of windows) {
-    if (prevSession === "night" && win.session === "day") {
+  for (const v of vertices) {
+    if (prevSession === "night" && v.session === "day") {
       points.push({
         ts: -1,
         label: "\u2003",
@@ -298,92 +348,19 @@ export function aggregateTimeshare(
         session: "break",
       });
     }
-    for (let m = win.start; m < win.end; m += 1) {
-      const hit = buckets.get(m);
-      if (hit) {
-        lastPrice = hit.price;
-        cumVol += hit.volume;
-        cumNotional += hit.notional;
-      }
-      const rawAvg = cumVol > 0 ? cumNotional / cumVol : lastPrice;
-      points.push({
-        ts: m,
-        label: formatHm(m),
-        price: hit ? lastPrice : null,
-        volume: hit?.volume || 0,
-        avg: hit && rawAvg != null && lastPrice != null && (rawAvg > lastPrice * 5 || rawAvg < lastPrice * 0.2)
-          ? lastPrice
-          : hit
-            ? rawAvg
-            : null,
-        session: win.session,
-      });
-    }
-    prevSession = win.session;
+    cumVol += v.volume;
+    cumNotional += v.notional;
+    points.push({
+      ts: v.ts,
+      label: v.label,
+      price: v.price,
+      volume: v.volume,
+      avg: avgOf(v.price, cumVol, cumNotional),
+      session: v.session,
+    });
+    prevSession = v.session;
   }
-
-  extendCarriedLastPrice(points, { live, lastTickMins });
   return points;
-}
-
-/**
- * Standard 分时: carry last_price through empty minutes. One SimNow snapshot
- * otherwise becomes a single category point and ECharts draws a 2px stub.
- * 今日 continues the step line to session end so it reads as a 分时, not a dot.
- */
-function extendCarriedLastPrice(
-  points: TimesharePoint[],
-  opts: { live: boolean; lastTickMins: number | null },
-): void {
-  let first = -1;
-  let lastHit = -1;
-  for (let i = 0; i < points.length; i += 1) {
-    if (points[i].session === "break") continue;
-    if (points[i].price != null) {
-      if (first < 0) first = i;
-      lastHit = i;
-    }
-  }
-  if (first < 0 || lastHit < 0) return;
-
-  let fillTo = lastHit;
-  if (opts.lastTickMins != null) {
-    for (let i = 0; i < points.length; i += 1) {
-      const p = points[i];
-      if (p.session === "break") continue;
-      if (p.ts === opts.lastTickMins) fillTo = Math.max(fillTo, i);
-    }
-  }
-  if (opts.live) {
-    for (let i = points.length - 1; i >= 0; i -= 1) {
-      if (points[i].session !== "break") {
-        fillTo = i;
-        break;
-      }
-    }
-  }
-
-  const seed = points[first].price as number;
-  const seedAvg = points[first].avg ?? seed;
-  for (let i = 0; i < first; i += 1) {
-    if (points[i].session === "break") continue;
-    points[i].price = seed;
-    points[i].avg = seedAvg;
-  }
-
-  let price = seed;
-  let avg = seedAvg;
-  for (let i = first; i <= fillTo; i += 1) {
-    const p = points[i];
-    if (p.session === "break") continue;
-    if (p.price != null) {
-      price = p.price;
-      avg = p.avg ?? price;
-    } else {
-      p.price = price;
-      p.avg = avg;
-    }
-  }
 }
 
 /** Y-axis from plotted prices only: 4% of span, or 0.25% of level when the series is flat. */
@@ -447,7 +424,7 @@ export function timeshareAxisLabelText(points: TimesharePoint[], index: number):
   if (pt.session === "night" && points[index + 1]?.session === "break") {
     return formatHm((pt.ts ?? 0) + 1);
   }
-  return pt.label;
+  return clockHm(pt.label);
 }
 
 /**
@@ -458,7 +435,13 @@ export function timeshareAxisLabelVisible(points: TimesharePoint[], index: numbe
   const pt = points[index];
   if (!pt || pt.session === "break") return false;
   const text = timeshareAxisLabelText(points, index);
-  if (!AXIS_LABELS.has(text)) return false;
+  if (!text) return false;
+  const last = points.length - 1;
+  const isEdge = index === 0 || index === last || (index === last - 1 && points[last]?.session === "break");
+  if (!isEdge && !AXIS_LABELS.has(text)) return false;
+  for (let i = 0; i < index; i += 1) {
+    if (timeshareAxisLabelText(points, i) === text) return false;
+  }
   const breakIdx = points.findIndex((p) => p.session === "break");
   if (breakIdx < 0) return true;
   if (index === breakIdx + 1) return false;

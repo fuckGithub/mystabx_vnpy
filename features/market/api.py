@@ -60,7 +60,10 @@ def _merge_ticks(*groups: list[dict]) -> list[dict]:
     merged: dict[str, dict] = {}
     for group in groups:
         for row in group:
-            key = str(row.get("datetime") or f"{row.get('last_price')}:{row.get('volume')}")
+            key = (
+                f"{row.get('datetime') or ''}|"
+                f"{row.get('last_price')}|{row.get('volume')}|{row.get('last_volume')}"
+            )
             merged[key] = row
     return sorted(merged.values(), key=lambda row: str(row.get("datetime") or ""))
 

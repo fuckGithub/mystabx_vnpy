@@ -64,6 +64,7 @@ async def lifespan(_app: FastAPI):
     runtime.event_engine = event_engine
     runtime.gateways = manager
     set_loop(asyncio.get_running_loop())
+    manager.kickoff_auto_connects()
     logger.info("headless engine ready, gateways=%s", list(manager.index))
     try:
         yield

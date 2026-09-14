@@ -43,6 +43,11 @@ function contractTickKey(tick: Record<string, unknown>): string {
   return `${String(tick.exchange || "").toUpperCase()}.${String(tick.symbol || "").toUpperCase()}`;
 }
 
+/** Keep distinct last_prices; datetime-only keys collapse a whole session to one snapshot. */
+function tickSeriesId(tick: Record<string, unknown>): string {
+  return `${tick.datetime ?? ""}|${tick.last_price ?? ""}|${tick.volume ?? ""}|${tick.last_volume ?? ""}`;
+}
+
 export type ClickHouseHealth = {
   ok: boolean;
   state: string;
@@ -102,32 +107,24 @@ export const useMarketStore = defineStore("market", () => {
   function appendSessionTick(tick: Record<string, unknown>) {
     const key = contractTickKey(tick);
     if (!key.startsWith(".") && key.includes(".")) {
-      const cutoff = Date.now() - 20 * 3600 * 1000;
       const prev = sessionTicks[key] ? [...sessionTicks[key]] : [];
-      const recent = prev.filter((row) => {
-        const raw = String(row.datetime || "");
-        const ms = Date.parse(raw);
-        return Number.isNaN(ms) || ms >= cutoff;
-      });
-      // Keep a tail of live quotes even when SimNow stamps a stale exchange datetime
-      // (e.g. CFFEX 17:30 two days ago) so the 分时 can re-aggregate on each WS tick.
-      const tail = prev.slice(-256);
       const seen = new Set<string>();
       const list: Record<string, unknown>[] = [];
-      for (const row of [...recent, ...tail]) {
-        const id = `${row.datetime}:${row.last_price}:${row.volume}`;
+      for (const row of prev) {
+        const id = tickSeriesId(row);
         if (seen.has(id)) continue;
         seen.add(id);
         list.push(row);
       }
-      const dt = String(tick.datetime || "");
+      const id = tickSeriesId(tick);
       const last = list[list.length - 1];
-      if (last && String(last.datetime || "") === dt && last.last_price === tick.last_price) {
+      if (last && tickSeriesId(last) === id) {
         list[list.length - 1] = tick;
-      } else {
+      } else if (!seen.has(id)) {
         list.push(tick);
+        seen.add(id);
       }
-      if (list.length > 24_000) list.splice(0, list.length - 24_000);
+      if (list.length > 80_000) list.splice(0, list.length - 80_000);
       sessionTicks[key] = list;
     }
   }
@@ -147,7 +144,7 @@ export const useMarketStore = defineStore("market", () => {
     const key = `${exchange.toUpperCase()}.${symbol.toUpperCase()}`;
     const merged = new Map<string, Record<string, unknown>>();
     for (const row of [...(sessionTicks[key] || []), ...rows]) {
-      merged.set(String(row.datetime || `${row.last_price}:${row.volume}`), row);
+      merged.set(tickSeriesId(row), row);
     }
     const sorted = [...merged.values()].sort((a, b) =>
       String(a.datetime || "").localeCompare(String(b.datetime || "")),

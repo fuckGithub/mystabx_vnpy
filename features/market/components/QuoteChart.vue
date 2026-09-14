@@ -119,18 +119,34 @@ function colors() {
   };
 }
 
+/** Rebuild when the category axis / period changes; refresh series on live tick updates. */
+let axisKey = "";
+
+function chartAxisKey(): string {
+  if (props.period !== "timeshare") {
+    return `k:${props.period}:${props.tradeDate || ""}:${props.bars.length}`;
+  }
+  const ts = props.timeshare;
+  const breakIdx = ts.findIndex((p) => p.session === "break");
+  return `t:${props.tradeDate || ""}:${ts.length}:${ts[0]?.label || ""}:${ts[ts.length - 1]?.label || ""}:${breakIdx}`;
+}
+
 function render() {
   if (!chart) return;
   const c = colors();
+  const nextKey = chartAxisKey();
+  const rebuild = nextKey !== axisKey;
+  axisKey = nextKey;
   if (props.period === "timeshare") {
-    chart.setOption(timeshareOption(c), true);
+    chart.setOption(timeshareOption(c), rebuild);
     return;
   }
   chart.setOption(klineOption(c), true);
 }
 
 function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
-  const labels = props.timeshare.map((p) => p.label);
+  // Unique categories: duplicate HH:mm:ss would collapse a whole path onto one x.
+  const labels = props.timeshare.map((p, i) => `${p.label}#${i}`);
   const prices = props.timeshare.map((p) => (p.session === "break" ? null : p.price));
   const avgs = props.timeshare.map((p) => (p.session === "break" ? null : p.avg));
   const vols = props.timeshare.map((p) => (p.session === "break" ? 0 : p.volume));
@@ -246,7 +262,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         showSymbol: lastIdx >= 0,
         symbolSize: (_v: unknown, params: { dataIndex?: number }) =>
           params.dataIndex === lastIdx ? 7 : 0,
-        connectNulls: true,
+        connectNulls: false,
         lineStyle: { width: 1.4, color: last >= ref ? c.rise : c.fall },
         itemStyle: { color: last >= ref ? c.rise : c.fall },
         markArea,
@@ -266,7 +282,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         type: "line",
         data: avgs,
         showSymbol: false,
-        connectNulls: true,
+        connectNulls: false,
         lineStyle: { width: 1, color: c.avg, opacity: 0.75 },
       },
       {
@@ -363,6 +379,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  axisKey = "";
   ro?.disconnect();
   chart?.dispose();
   chart = null;

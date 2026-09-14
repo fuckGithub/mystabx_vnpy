@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from core.db import Account, User, account_channel_dict, account_to_dict, get_session
@@ -10,6 +11,10 @@ from core.deps import current_user, visible_gateways
 from core.runtime import runtime
 
 router = APIRouter(tags=["account"])
+
+
+class AutoConnectBody(BaseModel):
+    auto_connect: bool
 
 
 def _owned_account(user: User, account_id: int) -> tuple[int, str]:
@@ -90,6 +95,29 @@ def disconnect_gateway(account_id: int, user: User = Depends(current_user)) -> d
     _row_id, gateway_name = _owned_account(user, account_id)
     runtime.gw.disconnect(gateway_name)
     return {"ok": True, "gateway_name": gateway_name, **runtime.gw.channel_statuses(gateway_name, live=False)}
+
+
+@router.post("/api/gateways/{account_id}/auto-connect")
+def set_auto_connect(account_id: int, body: AutoConnectBody, user: User = Depends(current_user)) -> dict:
+    row_id, gateway_name = _owned_account(user, account_id)
+    db = get_session()
+    try:
+        acc = db.get(Account, row_id)
+        if acc is None:
+            raise HTTPException(status_code=404, detail="account not found")
+        acc.auto_connect = 1 if body.auto_connect else 0
+        db.commit()
+        db.refresh(acc)
+        runtime.gw.register(account_to_dict(acc, include_secrets=True))
+        runtime.gw.apply_auto_connect(gateway_name, bool(body.auto_connect))
+        return {
+            "ok": True,
+            "gateway_name": gateway_name,
+            "auto_connect": bool(acc.auto_connect),
+            **runtime.gw.channel_statuses(gateway_name, live=False),
+        }
+    finally:
+        db.close()
 
 
 @router.post("/api/gateways/{account_id}/query")

@@ -45,6 +45,7 @@ class Account(Base):
     account_name: Mapped[str | None] = mapped_column(String, nullable=True)
     connect_settings: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    auto_connect: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
 
 
@@ -115,7 +116,20 @@ def init_db() -> None:
     SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
     Base.metadata.create_all(_engine)
     _ensure_account_name_unique()
+    _ensure_account_auto_connect()
     _bootstrap_admin()
+
+
+def _ensure_account_auto_connect() -> None:
+    """SQLite create_all will not add columns to an existing accounts table."""
+    if _engine is None:
+        return
+    with _engine.begin() as conn:
+        cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(accounts)").fetchall()]
+        if "auto_connect" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE accounts ADD COLUMN auto_connect INTEGER NOT NULL DEFAULT 0"
+            )
 
 
 def _ensure_account_name_unique() -> None:
@@ -200,6 +214,7 @@ def account_to_dict(account: Account, *, include_secrets: bool = False) -> dict[
         "gateway_type": account.gateway_type,
         "account_name": account.account_name,
         "status": account.status,
+        "auto_connect": bool(getattr(account, "auto_connect", 0)),
         "created_at": account.created_at,
     }
     if include_secrets:

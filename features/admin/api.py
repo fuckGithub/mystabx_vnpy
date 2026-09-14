@@ -45,6 +45,7 @@ class AccountCreate(BaseModel):
     account_name: str | None = None
     gateway_type: str = "CTP"
     connect_settings: dict = Field(default_factory=dict)
+    auto_connect: bool | None = None
 
 
 def _safe_decrypt(ciphertext: str) -> dict:
@@ -177,9 +178,12 @@ def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
             existing.account_name = account_name
             existing.gateway_type = body.gateway_type or existing.gateway_type
             existing.connect_settings = encrypt(setting)
+            if body.auto_connect is not None:
+                existing.auto_connect = 1 if body.auto_connect else 0
             db.commit()
             db.refresh(existing)
             runtime.gw.register(account_to_dict(existing, include_secrets=True))
+            runtime.gw.apply_auto_connect(existing.gateway_name, bool(existing.auto_connect))
             return _channel_row(existing)
 
         setting = merge_connect_settings(body.connect_settings)
@@ -190,6 +194,7 @@ def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
             account_name=account_name,
             connect_settings=encrypt(setting),
             status=1,
+            auto_connect=1 if body.auto_connect else 0,
         )
         db.add(acc)
         db.flush()
@@ -197,6 +202,7 @@ def upsert_account(body: AccountCreate, _: User = Depends(require_admin)) -> dic
         db.commit()
         db.refresh(acc)
         runtime.gw.register(account_to_dict(acc, include_secrets=True))
+        runtime.gw.apply_auto_connect(acc.gateway_name, bool(acc.auto_connect))
         return _channel_row(acc)
     finally:
         db.close()

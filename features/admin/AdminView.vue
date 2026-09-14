@@ -51,6 +51,15 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="自动连接" width="128" align="center">
+          <template #default="{ row }">
+            <el-switch
+              :model-value="Boolean(row.auto_connect)"
+              active-text="启动"
+              @change="(value) => setAutoConnect(row, value)"
+            />
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="188" align="center">
           <template #default="{ row }">
             <ChannelStatusPair :row="row" />
@@ -129,6 +138,9 @@
             </el-form-item>
             <el-form-item label="授权编码">
               <el-input v-model="accForm.授权编码" />
+            </el-form-item>
+            <el-form-item label="自动连接">
+              <el-switch v-model="accForm.auto_connect" active-text="启动自动连接" />
             </el-form-item>
             <el-form-item label="柜台环境">
               <div class="page-static-value">
@@ -326,6 +338,7 @@ interface AdminAccount {
   quote_status?: string;
   md_status?: string;
   auto_front?: boolean;
+  auto_connect?: boolean;
   front_label?: string;
   交易服务器?: string;
   connect?: Record<string, string>;
@@ -411,6 +424,7 @@ const accForm = reactive({
   交易服务器: FALLBACK_AUTO.交易服务器,
   行情服务器: FALLBACK_AUTO.行情服务器,
   manualFront: false,
+  auto_connect: true,
 });
 
 const filteredUsers = computed(() => {
@@ -517,6 +531,7 @@ function applyCreateDefaults() {
   accForm.交易服务器 = autoHint.交易服务器;
   accForm.行情服务器 = autoHint.行情服务器;
   accForm.manualFront = false;
+  accForm.auto_connect = true;
   testResult.value = null;
 }
 
@@ -573,6 +588,7 @@ async function openEditAccount(row: AdminAccount) {
   accForm.交易服务器 = row["交易服务器"] || connectField(row, "交易服务器") || autoHint.交易服务器;
   accForm.行情服务器 = connectField(row, "行情服务器") || autoHint.行情服务器;
   accForm.manualFront = row.auto_front === false;
+  accForm.auto_connect = Boolean(row.auto_connect);
   testResult.value = null;
   accVisible.value = true;
 }
@@ -721,6 +737,7 @@ async function saveAccount() {
       id: accForm.id || undefined,
       user_id: accForm.user_id,
       account_name: accForm.account_name.trim() || "SimNow",
+      auto_connect: accForm.auto_connect,
       connect_settings,
     });
     accForm.id = data.id;
@@ -737,6 +754,18 @@ async function saveAccount() {
     ElMessage.error(apiError(error, "保存失败"));
   } finally {
     accSaving.value = false;
+  }
+}
+
+async function setAutoConnect(row: AdminAccount, value: string | number | boolean) {
+  const enabled = Boolean(value);
+  try {
+    await http.post(`/api/gateways/${row.id}/auto-connect`, { auto_connect: enabled });
+    row.auto_connect = enabled;
+    ElMessage.success(enabled ? "已开启启动自动连接" : "已关闭自动连接");
+    await trade.refresh();
+  } catch (error: unknown) {
+    ElMessage.error(apiError(error, "自动连接设置失败"));
   }
 }
 
@@ -781,6 +810,8 @@ watch(
           quote_status: String(gw.quote_status || gw.md_status || ""),
           md_status: String(gw.md_status || gw.quote_status || ""),
         });
+        if (gw.auto_connect !== undefined) row.auto_connect = Boolean(gw.auto_connect);
+        if (gw.auto_connect !== undefined) row.auto_connect = Boolean(gw.auto_connect);
       }
     }
   },
