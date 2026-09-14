@@ -221,6 +221,15 @@ export const useMarketStore = defineStore("market", () => {
     markSubscribed(symbol, exchange);
   }
 
+  async function unsubscribeContract(gatewayName: string, symbol: string, exchange: string) {
+    await http.post("/api/market/unsubscribe", {
+      gateway_name: gatewayName,
+      symbol,
+      exchange,
+    });
+    unmarkSubscribed(symbol, exchange);
+  }
+
   return {
     ticks,
     sessionTicks,
@@ -238,6 +247,7 @@ export const useMarketStore = defineStore("market", () => {
     loadSessionTicks,
     loadTradeDates,
     subscribeContract,
+    unsubscribeContract,
   };
 });
 

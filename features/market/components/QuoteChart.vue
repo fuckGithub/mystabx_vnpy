@@ -1,16 +1,9 @@
 <template>
   <section class="chart-pane">
-    <header class="chart-head">
-      <div class="chart-title">
-        <strong>{{ heading }}</strong>
-        <span v-if="period === 'timeshare'" class="chart-src" :class="live ? 'live' : 'hist'">
-          分时 · {{ live ? "SimNow 实时" : "历史交易日" }} · {{ sessionHint }}
-        </span>
-        <span v-else class="chart-src mock">{{ intervalLabel }} · 模拟K线（待对接 RQData）</span>
-      </div>
-      <div class="period-tabs">
+    <header class="chart-toolbar">
+      <nav class="period-tabs" aria-label="周期">
         <button
-          v-for="item in periods"
+          v-for="item in mainPeriods"
           :key="item.key"
           type="button"
           class="period-tab"
@@ -19,21 +12,66 @@
         >
           {{ item.label }}
         </button>
+        <el-dropdown trigger="click" @command="onMorePeriod">
+          <button type="button" class="period-tab more" :class="{ active: moreActive }">
+            更多<span class="caret">▾</span>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="item in morePeriods" :key="item.key" :command="item.key">
+                {{ item.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <button type="button" class="period-tab ghost" title="叠加对比将在后续版本提供" disabled>同列</button>
+        <el-popover placement="bottom-end" :width="220" trigger="click">
+          <template #reference>
+            <button type="button" class="period-tab icon" title="图表设置">⚙</button>
+          </template>
+          <div class="chart-settings">
+            <p>MACD 参数</p>
+            <div class="setting-row">
+              <label>DIFF</label>
+              <el-input-number v-model="macdFast" size="small" :min="2" :max="40" />
+            </div>
+            <div class="setting-row">
+              <label>DEA</label>
+              <el-input-number v-model="macdSlow" size="small" :min="3" :max="60" />
+            </div>
+            <div class="setting-row">
+              <label>MACD</label>
+              <el-input-number v-model="macdSignal" size="small" :min="2" :max="30" />
+            </div>
+          </div>
+        </el-popover>
+      </nav>
+      <div class="chart-meta">
+        <strong>{{ heading }}</strong>
+        <span v-if="period === 'timeshare'" class="chart-src" :class="live ? 'live' : 'hist'">
+          {{ live ? "SimNow 实时" : "历史交易日" }} · {{ sessionHint }}
+        </span>
+        <span v-else class="chart-src mock">{{ intervalLabel }} · 模拟K线（待对接 RQData）</span>
       </div>
     </header>
-    <div v-if="period === 'timeshare' && tradeDates.length" class="day-row">
-      <button
-        v-for="item in tradeDates"
-        :key="item.date"
-        type="button"
-        class="day-tab"
-        :class="{ active: tradeDate === item.date, dim: !item.has_data && !item.is_current }"
-        @click="emit('update:tradeDate', item.date)"
-      >
-        {{ item.is_current ? "今日" : item.date.slice(5) }}
-      </button>
+    <div v-if="period === 'timeshare'" class="span-row">
+      <el-select :model-value="daySpan" size="small" class="span-select" @update:model-value="onSpan">
+        <el-option v-for="item in spanOptions" :key="item.key" :label="item.label" :value="item.key" />
+      </el-select>
     </div>
     <div class="chart-body">
+      <div class="pane-caption vol">
+        <el-select v-model="overlayKind" size="small" class="overlay-select">
+          <el-option label="持仓量" value="oi" />
+          <el-option label="成交量" value="volume" />
+        </el-select>
+        <span>持仓量 <b>{{ oiText }}</b></span>
+        <span>成交量 <b>{{ volText }}</b></span>
+      </div>
+      <div class="pane-caption macd">
+        MACD({{ macdFast }},{{ macdSlow }},{{ macdSignal }})
+        <small>{{ macdHint }}</small>
+      </div>
       <div ref="el" class="chart-canvas" />
       <div v-if="emptyHint" class="chart-empty">{{ emptyHint }}</div>
     </div>
@@ -44,28 +82,45 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as echarts from "echarts";
 import type { ChartPeriod, HistoryBar } from "../history";
+import { computeMacd, lastMacdLabel } from "../macd";
 import {
+  lastOpenInterest,
   paddedPriceRange,
+  sumVolume,
   timeshareAxisLabelText,
   timeshareAxisLabelVisible,
   timesharePriceRange,
+  type ChartTradeMark,
   type TimesharePoint,
+  type TimeshareSpan,
 } from "../timeshare";
 
 export type TradeDateOption = { date: string; is_current: boolean; has_data: boolean };
 
-export type { ChartPeriod };
+export type { ChartPeriod, TimeshareSpan };
 
-const periods: { key: ChartPeriod; label: string }[] = [
+const mainPeriods: { key: ChartPeriod; label: string }[] = [
   { key: "timeshare", label: "分时" },
+  { key: "1d", label: "日K" },
   { key: "1m", label: "1分" },
   { key: "5m", label: "5分" },
   { key: "15m", label: "15分" },
+];
+
+const morePeriods: { key: ChartPeriod; label: string }[] = [
   { key: "30m", label: "30分" },
   { key: "60m", label: "60分" },
-  { key: "1d", label: "日K" },
   { key: "1w", label: "周K" },
   { key: "1M", label: "月K" },
+];
+
+const spanOptions: { key: TimeshareSpan; label: string }[] = [
+  { key: "half", label: "半日" },
+  { key: "1", label: "当日" },
+  { key: "2", label: "二日" },
+  { key: "3", label: "三日" },
+  { key: "4", label: "四日" },
+  { key: "5", label: "五日" },
 ];
 
 const props = defineProps<{
@@ -79,22 +134,73 @@ const props = defineProps<{
   tradeDates?: TradeDateOption[];
   live?: boolean;
   sessionHint?: string;
+  daySpan?: TimeshareSpan;
+  marks?: ChartTradeMark[];
 }>();
 
 const emit = defineEmits<{
   "update:period": [value: ChartPeriod];
   "update:tradeDate": [value: string];
+  "update:daySpan": [value: TimeshareSpan];
 }>();
 
-const tradeDates = computed(() => props.tradeDates || []);
 const live = computed(() => props.live !== false);
 const sessionHint = computed(() => props.sessionHint || "");
+const daySpan = computed(() => props.daySpan || "1");
+const marks = computed(() => props.marks || []);
 
 const el = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
 let ro: ResizeObserver | null = null;
 
-const intervalLabel = computed(() => periods.find((p) => p.key === props.period)?.label || "");
+const overlayKind = ref<"oi" | "volume">("oi");
+const macdFast = ref(12);
+const macdSlow = ref(26);
+const macdSignal = ref(9);
+
+const moreActive = computed(() => morePeriods.some((p) => p.key === props.period));
+const intervalLabel = computed(() => {
+  const all = [...mainPeriods, ...morePeriods];
+  return all.find((p) => p.key === props.period)?.label || "";
+});
+
+const oiText = computed(() => formatQty(lastOpenInterest(props.timeshare) ?? lastBarOi()));
+const volText = computed(() => {
+  if (props.period === "timeshare") return formatQty(sumVolume(props.timeshare));
+  return formatQty(props.bars.reduce((acc, b) => acc + (Number(b.volume) || 0), 0));
+});
+
+const macdHint = computed(() => {
+  const closes =
+    props.period === "timeshare"
+      ? props.timeshare.map((p) => (p.session === "break" ? null : p.price))
+      : props.bars.map((b) => b.close);
+  return lastMacdLabel(computeMacd(closes, macdFast.value, macdSlow.value, macdSignal.value));
+});
+
+function lastBarOi(): number | null {
+  for (let i = props.bars.length - 1; i >= 0; i -= 1) {
+    const n = Number(props.bars[i].open_interest);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return null;
+}
+
+function formatQty(n: number | null): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e8) return `${(n / 1e8).toFixed(2)}亿`;
+  if (abs >= 1e4) return `${(n / 1e4).toFixed(2)}万`;
+  return String(Math.round(n));
+}
+
+function onMorePeriod(key: ChartPeriod) {
+  emit("update:period", key);
+}
+
+function onSpan(value: string | number) {
+  emit("update:daySpan", String(value) as TimeshareSpan);
+}
 
 function klinePriceRange(bars: HistoryBar[]) {
   const vals: number[] = [];
@@ -113,23 +219,24 @@ function colors() {
     rise: style.getPropertyValue("--market-rise").trim() || "#ef5350",
     fall: style.getPropertyValue("--market-fall").trim() || "#26a69a",
     text: style.getPropertyValue("--dash-text-muted").trim() || "#64748b",
-    line: style.getPropertyValue("--dash-border").trim() || "#e2e8f0",
+    line: style.getPropertyValue("--dash-border").trim() || "#e8edf2",
     heading: style.getPropertyValue("--dash-heading").trim() || "#0f172a",
-    avg: style.getPropertyValue("--primary").trim() || "#1677ff",
+    price: "#3b7ddd",
+    avg: "#e67e22",
+    oi: "#1f2937",
+    dif: "#e67e22",
+    dea: "#8b5cf6",
   };
 }
 
-/** Rebuild when the category axis / period changes; refresh series on live tick updates. */
 let axisKey = "";
 
 function chartAxisKey(): string {
   if (props.period !== "timeshare") {
-    return `k:${props.period}:${props.tradeDate || ""}:${props.bars.length}`;
+    return `k:${props.period}:${props.bars.length}:${macdFast.value}:${macdSlow.value}:${macdSignal.value}:${overlayKind.value}`;
   }
   const ts = props.timeshare;
-  const breakIdx = ts.findIndex((p) => p.session === "break");
-  // Full session categories are stable per 交易日; live ticks only refresh series.
-  return `t:${props.tradeDate || ""}:${ts.length}:${breakIdx}:${ts[0]?.label || ""}`;
+  return `t:${daySpan.value}:${props.tradeDate || ""}:${ts.length}:${ts[0]?.axisKey || ""}:${macdFast.value}:${overlayKind.value}`;
 }
 
 function render() {
@@ -145,53 +252,100 @@ function render() {
   chart.setOption(klineOption(c), true);
 }
 
+const grids = [
+  { left: 52, right: 48, top: 10, height: "50%" },
+  { left: 52, right: 48, top: "58%", height: "15%" },
+  { left: 52, right: 48, top: "78%", height: "16%" },
+];
+
+function stackedXAxis(labels: string[], formatter?: (value: string, i: number) => string, interval?: (i: number) => boolean) {
+  const base = {
+    type: "category" as const,
+    data: labels,
+    boundaryGap: false,
+    axisTick: { show: false },
+    axisLine: { lineStyle: { color: colors().line } },
+    splitLine: { show: true, lineStyle: { color: colors().line, type: "solid" as const, opacity: 0.7 } },
+  };
+  return [
+    { ...base, gridIndex: 0, axisLabel: { show: false } },
+    { ...base, gridIndex: 1, axisLabel: { show: false } },
+    {
+      ...base,
+      gridIndex: 2,
+      axisLabel: {
+        color: colors().text,
+        fontSize: 10,
+        hideOverlap: true,
+        interval: interval ?? "auto",
+        formatter: formatter || ((v: string) => v),
+      },
+    },
+  ];
+}
+
+function markSeries(labels: string[], c: ReturnType<typeof colors>): echarts.SeriesOption | null {
+  if (!marks.value.length) return null;
+  const colorOf = (label: string) => (label === "平" ? c.price : c.rise);
+  return {
+    name: "成交",
+    type: "scatter",
+    xAxisIndex: 0,
+    yAxisIndex: 0,
+    symbolSize: 1,
+    data: marks.value.map((m) => ({
+      value: [labels[m.index], m.price],
+      name: m.label,
+      itemStyle: { color: colorOf(m.label) },
+      label: {
+        show: true,
+        formatter: m.label,
+        color: "#fff",
+        fontSize: 10,
+        backgroundColor: colorOf(m.label),
+        padding: [1, 4],
+        borderRadius: 2,
+        offset: [0, -10],
+      },
+    })),
+    tooltip: { show: false },
+    z: 8,
+  };
+}
+
 function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
-  const labels = props.timeshare.map((p) => p.label);
+  const labels = props.timeshare.map((p) => p.axisKey);
   const prices = props.timeshare.map((p) => (p.session === "break" ? null : p.price));
   const avgs = props.timeshare.map((p) => (p.session === "break" ? null : p.avg));
-  const vols = props.timeshare.map((p) => (p.session === "break" ? 0 : p.volume));
+  const vols = props.timeshare.map((p, i) => {
+    const prev = [...prices].slice(0, i).reverse().find((v) => v != null);
+    const px = prices[i];
+    const up = px != null && prev != null ? px >= prev : true;
+    return {
+      value: p.session === "break" ? 0 : p.volume,
+      itemStyle: { color: up ? c.rise : c.fall },
+    };
+  });
+  const oi = props.timeshare.map((p) => (p.session === "break" ? null : p.openInterest));
+  const overlay = overlayKind.value === "oi" ? oi : props.timeshare.map((p) => (p.session === "break" ? null : p.volume));
   const last = [...prices].reverse().find((v) => v !== null) ?? props.preClose ?? 0;
   const lastIdx = (() => {
     let volIdx = -1;
     let priceIdx = -1;
     for (let i = 0; i < prices.length; i += 1) {
       if (prices[i] != null) priceIdx = i;
-      if (vols[i] > 0) volIdx = i;
+      if ((props.timeshare[i]?.volume || 0) > 0) volIdx = i;
     }
     return volIdx >= 0 ? volIdx : priceIdx;
   })();
   const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
   const yRange = timesharePriceRange(props.timeshare);
-  const breakIdx = props.timeshare.findIndex((p) => p.session === "break");
-  const nightEnd = breakIdx > 0 ? labels[breakIdx - 1] : "";
-  const dayStart = breakIdx >= 0 && breakIdx + 1 < labels.length ? labels[breakIdx + 1] : "";
-  const markArea =
-    nightEnd && dayStart
-      ? {
-          silent: true,
-          label: { show: false },
-          data: [
-            [
-              { xAxis: labels[0], itemStyle: { color: "rgba(99, 102, 241, 0.06)" } },
-              { xAxis: nightEnd },
-            ],
-            [
-              { xAxis: dayStart, itemStyle: { color: "rgba(14, 165, 233, 0.05)" } },
-              { xAxis: labels[labels.length - 1] },
-            ],
-          ],
-        }
-      : undefined;
-  const sessionLine =
-    breakIdx >= 0
-      ? {
-          silent: true,
-          symbol: "none",
-          lineStyle: { type: "solid", color: c.text, width: 1, opacity: 0.45 },
-          label: { show: false },
-          data: [{ xAxis: labels[breakIdx] }],
-        }
-      : undefined;
+  const minP = yRange.min ?? last * 0.99;
+  const maxP = yRange.max ?? last * 1.01;
+  const minPct = ref ? ((minP - ref) / ref) * 100 : -1;
+  const maxPct = ref ? ((maxP - ref) / ref) * 100 : 1;
+  const macd = computeMacd(prices, macdFast.value, macdSlow.value, macdSignal.value);
+  const scatter = markSeries(labels, c);
   return {
     animation: false,
     backgroundColor: "transparent",
@@ -200,57 +354,58 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
       axisPointer: { type: "cross" },
       formatter: (items: unknown) => {
         const list = Array.isArray(items) ? items : [];
-        const first = list[0] as { dataIndex?: number; axisValue?: string } | undefined;
+        const first = list[0] as { dataIndex?: number } | undefined;
         const idx = first?.dataIndex ?? 0;
         const pt = props.timeshare[idx];
-        if (!pt || pt.session === "break") return "夜盘 / 日盘";
-        const sess = pt.session === "night" ? "夜盘" : "日盘";
+        if (!pt || pt.session === "break") return "";
         const price = pt.price == null ? "—" : String(pt.price);
         const avg = pt.avg == null ? "—" : String(Number(pt.avg).toFixed(2));
-        return `${sess} ${pt.label}<br/>现价 ${price}<br/>均价 ${avg}<br/>量 ${pt.volume}`;
+        const pct =
+          pt.price != null && ref ? `${(((pt.price - ref) / ref) * 100).toFixed(2)}%` : "—";
+        const oiVal = pt.openInterest == null ? "—" : formatQty(pt.openInterest);
+        return `${pt.tradeDate} ${pt.label}<br/>现价 ${price}（${pct}）<br/>均价 ${avg}<br/>量 ${pt.volume}<br/>仓 ${oiVal}`;
       },
     },
     axisPointer: { link: [{ xAxisIndex: "all" }] },
-    grid: [
-      { left: 48, right: 16, top: 16, height: "62%" },
-      { left: 48, right: 16, top: "76%", height: "16%" },
-    ],
-    xAxis: [
-      {
-        type: "category",
-        data: labels,
-        boundaryGap: false,
-        axisLine: { lineStyle: { color: c.line } },
-        axisLabel: {
-          color: c.text,
-          fontSize: 10,
-          hideOverlap: true,
-          interval: (i: number) => timeshareAxisLabelVisible(props.timeshare, i),
-          formatter: (_value: string, i: number) => timeshareAxisLabelText(props.timeshare, i),
-        },
-        axisTick: { show: false },
-      },
-      {
-        type: "category",
-        gridIndex: 1,
-        data: labels,
-        boundaryGap: false,
-        axisLabel: { show: false },
-        axisTick: { show: false },
-        axisLine: { lineStyle: { color: c.line } },
-      },
-    ],
+    grid: grids,
+    xAxis: stackedXAxis(
+      labels,
+      (_value: string, i: number) => timeshareAxisLabelText(props.timeshare, i),
+      (i: number) => timeshareAxisLabelVisible(props.timeshare, i),
+    ),
     yAxis: [
       {
         scale: true,
-        min: yRange.min,
-        max: yRange.max,
-        splitLine: { lineStyle: { color: c.line, type: "dashed" } },
+        min: minP,
+        max: maxP,
+        splitLine: { lineStyle: { color: c.line } },
         axisLabel: { color: c.text, fontSize: 10 },
+      },
+      {
+        scale: true,
+        min: minPct,
+        max: maxPct,
+        splitLine: { show: false },
+        axisLabel: {
+          color: c.text,
+          fontSize: 10,
+          formatter: (v: number) => `${v >= 0 ? "" : ""}${v.toFixed(2)}%`,
+        },
       },
       {
         gridIndex: 1,
         splitLine: { show: false },
+        axisLabel: { color: c.text, fontSize: 10, show: false },
+      },
+      {
+        gridIndex: 1,
+        splitLine: { show: false },
+        axisLabel: { color: c.text, fontSize: 10 },
+      },
+      {
+        gridIndex: 2,
+        scale: true,
+        splitLine: { lineStyle: { color: c.line, type: "dashed" } },
         axisLabel: { color: c.text, fontSize: 10 },
       },
     ],
@@ -260,39 +415,88 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         type: "line",
         data: prices,
         showSymbol: lastIdx >= 0,
-        symbolSize: (_v: unknown, params: { dataIndex?: number }) =>
-          params.dataIndex === lastIdx ? 7 : 0,
+        symbolSize: (_v: unknown, params: { dataIndex?: number }) => (params.dataIndex === lastIdx ? 6 : 0),
         connectNulls: false,
-        lineStyle: { width: 1.4, color: last >= ref ? c.rise : c.fall },
-        itemStyle: { color: last >= ref ? c.rise : c.fall },
-        markArea,
-        markLine: {
-          silent: true,
-          symbol: "none",
-          data: [
-            ...(ref
-              ? [{ yAxis: ref, lineStyle: { type: "dashed", color: c.text, width: 1 }, label: { formatter: "昨收", color: c.text, fontSize: 10 } }]
-              : []),
-            ...(sessionLine ? sessionLine.data.map((d) => ({ ...d, lineStyle: sessionLine.lineStyle, label: sessionLine.label })) : []),
-          ],
-        },
+        lineStyle: { width: 1.4, color: c.price },
+        itemStyle: { color: c.price },
+        z: 3,
+        markLine: ref
+          ? {
+              silent: true,
+              symbol: "none",
+              data: [{ yAxis: ref, lineStyle: { type: "dashed", color: c.text, width: 1 } }],
+              label: { show: false },
+            }
+          : undefined,
       },
       {
         name: "均价",
         type: "line",
         data: avgs,
+        yAxisIndex: 0,
         showSymbol: false,
         connectNulls: false,
-        lineStyle: { width: 1, color: c.avg, opacity: 0.75 },
+        lineStyle: { width: 1.1, color: c.avg },
+        z: 2,
+      },
+      {
+        name: "涨跌幅",
+        type: "line",
+        yAxisIndex: 1,
+        data: prices.map((p) => (p == null || !ref ? null : ((p - ref) / ref) * 100)),
+        showSymbol: false,
+        lineStyle: { width: 0, opacity: 0 },
+        tooltip: { show: false },
+        silent: true,
       },
       {
         name: "成交量",
         type: "bar",
         xAxisIndex: 1,
-        yAxisIndex: 1,
+        yAxisIndex: 2,
         data: vols,
-        itemStyle: { color: c.avg },
+        barWidth: "60%",
       },
+      {
+        name: overlayKind.value === "oi" ? "持仓量" : "成交量线",
+        type: "line",
+        xAxisIndex: 1,
+        yAxisIndex: 3,
+        data: overlay,
+        showSymbol: false,
+        connectNulls: true,
+        lineStyle: { width: 1.1, color: c.oi },
+      },
+      {
+        name: "MACD",
+        type: "bar",
+        xAxisIndex: 2,
+        yAxisIndex: 4,
+        data: macd.map((p) => ({
+          value: p.hist,
+          itemStyle: { color: (p.hist || 0) >= 0 ? c.rise : c.fall },
+        })),
+        barWidth: "50%",
+      },
+      {
+        name: "DIFF",
+        type: "line",
+        xAxisIndex: 2,
+        yAxisIndex: 4,
+        data: macd.map((p) => p.dif),
+        showSymbol: false,
+        lineStyle: { width: 1, color: c.dif },
+      },
+      {
+        name: "DEA",
+        type: "line",
+        xAxisIndex: 2,
+        yAxisIndex: 4,
+        data: macd.map((p) => p.dea),
+        showSymbol: false,
+        lineStyle: { width: 1, color: c.dea },
+      },
+      ...(scatter ? [scatter] : []),
     ],
   };
 }
@@ -307,44 +511,45 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     value: b.volume,
     itemStyle: { color: b.close >= (props.bars[i - 1]?.close ?? b.open) ? c.rise : c.fall },
   }));
+  const oi = props.bars.map((b) => b.open_interest ?? null);
+  const overlay = overlayKind.value === "oi" ? oi : props.bars.map((b) => b.volume);
   const yRange = klinePriceRange(props.bars);
+  const closes = props.bars.map((b) => b.close);
+  const macd = computeMacd(closes, macdFast.value, macdSlow.value, macdSignal.value);
+  const last = closes[closes.length - 1] || 0;
+  const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
+  const minP = yRange.min ?? last * 0.99;
+  const maxP = yRange.max ?? last * 1.01;
+  const minPct = ref ? ((minP - ref) / ref) * 100 : -1;
+  const maxPct = ref ? ((maxP - ref) / ref) * 100 : 1;
   return {
     animation: false,
     backgroundColor: "transparent",
     tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
     axisPointer: { link: [{ xAxisIndex: "all" }] },
-    grid: [
-      { left: 48, right: 16, top: 16, height: "62%" },
-      { left: 48, right: 16, top: "76%", height: "16%" },
-    ],
-    xAxis: [
-      {
-        type: "category",
-        data: labels,
-        axisLine: { lineStyle: { color: c.line } },
-        axisLabel: { color: c.text, fontSize: 10 },
-        axisTick: { show: false },
-      },
-      {
-        type: "category",
-        gridIndex: 1,
-        data: labels,
-        axisLabel: { show: false },
-        axisTick: { show: false },
-        axisLine: { lineStyle: { color: c.line } },
-      },
-    ],
+    grid: grids,
+    xAxis: stackedXAxis(labels),
     yAxis: [
       {
         scale: true,
-        min: yRange.min,
-        max: yRange.max,
-        splitLine: { lineStyle: { color: c.line, type: "dashed" } },
+        min: minP,
+        max: maxP,
+        splitLine: { lineStyle: { color: c.line } },
         axisLabel: { color: c.text, fontSize: 10 },
       },
       {
-        gridIndex: 1,
+        scale: true,
+        min: minPct,
+        max: maxPct,
         splitLine: { show: false },
+        axisLabel: { color: c.text, fontSize: 10, formatter: (v: number) => `${v.toFixed(2)}%` },
+      },
+      { gridIndex: 1, splitLine: { show: false }, axisLabel: { show: false } },
+      { gridIndex: 1, splitLine: { show: false }, axisLabel: { color: c.text, fontSize: 10 } },
+      {
+        gridIndex: 2,
+        scale: true,
+        splitLine: { lineStyle: { color: c.line, type: "dashed" } },
         axisLabel: { color: c.text, fontSize: 10 },
       },
     ],
@@ -360,10 +565,58 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         },
       },
       {
+        name: "涨跌幅",
+        type: "line",
+        yAxisIndex: 1,
+        data: closes.map((p) => (!ref ? null : ((p - ref) / ref) * 100)),
+        showSymbol: false,
+        lineStyle: { width: 0, opacity: 0 },
+        tooltip: { show: false },
+        silent: true,
+      },
+      {
+        name: "成交量",
         type: "bar",
         xAxisIndex: 1,
-        yAxisIndex: 1,
+        yAxisIndex: 2,
         data: vols,
+      },
+      {
+        name: overlayKind.value === "oi" ? "持仓量" : "成交量线",
+        type: "line",
+        xAxisIndex: 1,
+        yAxisIndex: 3,
+        data: overlay,
+        showSymbol: false,
+        lineStyle: { width: 1.1, color: c.oi },
+      },
+      {
+        name: "MACD",
+        type: "bar",
+        xAxisIndex: 2,
+        yAxisIndex: 4,
+        data: macd.map((p) => ({
+          value: p.hist,
+          itemStyle: { color: (p.hist || 0) >= 0 ? c.rise : c.fall },
+        })),
+      },
+      {
+        name: "DIFF",
+        type: "line",
+        xAxisIndex: 2,
+        yAxisIndex: 4,
+        data: macd.map((p) => p.dif),
+        showSymbol: false,
+        lineStyle: { width: 1, color: c.dif },
+      },
+      {
+        name: "DEA",
+        type: "line",
+        xAxisIndex: 2,
+        yAxisIndex: 4,
+        data: macd.map((p) => p.dea),
+        showSymbol: false,
+        lineStyle: { width: 1, color: c.dea },
       },
     ],
   };
@@ -386,7 +639,19 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => [props.period, props.timeshare, props.bars, props.preClose, props.tradeDate],
+  () => [
+    props.period,
+    props.timeshare,
+    props.bars,
+    props.preClose,
+    props.tradeDate,
+    props.daySpan,
+    props.marks,
+    overlayKind.value,
+    macdFast.value,
+    macdSlow.value,
+    macdSignal.value,
+  ],
   () => render(),
   { deep: true },
 );
@@ -404,69 +669,84 @@ watch(
   border-radius: var(--dash-card-radius, 8px);
   box-shadow: var(--dash-shadow);
 }
-.chart-head {
+.chart-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 8px 10px 0;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--dash-border);
 }
-.chart-title { min-width: 0; }
-.chart-title strong {
-  display: block;
-  font-size: 14px;
-  color: var(--dash-heading);
-}
-.chart-src {
-  font-size: 10px;
-  color: var(--dash-text-muted);
-}
-.chart-src.live { color: var(--success); }
-.chart-src.hist { color: var(--dash-text-muted); }
-.chart-src.mock { color: var(--warning); }
-.period-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
-.day-row {
+.period-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 10px 0;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
 }
-.day-tab {
-  padding: 2px 7px;
-  border: 1px solid var(--dash-border);
-  border-radius: 999px;
-  background: var(--dash-pill-bg);
-  color: var(--dash-text-secondary);
-  font-size: 11px;
-  cursor: pointer;
-}
-.day-tab.active {
-  border-color: var(--dash-border-accent);
-  background: var(--dash-primary-soft);
-  color: var(--primary);
-}
-.day-tab.dim { opacity: 0.55; }
 .period-tab {
-  padding: 3px 8px;
-  border: 1px solid var(--dash-border);
-  border-radius: 999px;
-  background: var(--dash-pill-bg);
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
   color: var(--dash-text-secondary);
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
+  line-height: 1.2;
 }
 .period-tab.active {
-  border-color: var(--dash-border-accent);
-  background: var(--dash-primary-soft);
   color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
 }
+.period-tab.more { display: inline-flex; align-items: center; gap: 2px; }
+.period-tab.ghost { opacity: 0.55; cursor: not-allowed; }
+.period-tab.icon { padding: 7px 8px; font-size: 14px; }
+.caret { font-size: 10px; }
+.chart-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+  padding: 4px 4px 6px;
+}
+.chart-meta strong {
+  font-size: 13px;
+  color: var(--dash-heading);
+}
+.chart-src { font-size: 10px; color: var(--dash-text-muted); }
+.chart-src.live { color: var(--success); }
+.chart-src.mock { color: var(--warning); }
+.span-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 0;
+}
+.span-select { width: 92px; }
 .chart-body {
   position: relative;
   flex: 1;
   min-height: 0;
 }
 .chart-canvas { width: 100%; height: 100%; }
+.pane-caption {
+  position: absolute;
+  left: 58px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--dash-text-secondary);
+  pointer-events: none;
+}
+.pane-caption :deep(.el-select) { pointer-events: auto; }
+.pane-caption.vol { top: 56%; }
+.pane-caption.macd { top: 76%; }
+.pane-caption b { color: var(--dash-heading); font-weight: 600; }
+.pane-caption small { color: var(--dash-text-muted); }
+.overlay-select { width: 88px; }
 .chart-empty {
   position: absolute;
   inset: 0;
@@ -479,5 +759,18 @@ watch(
   line-height: 1.6;
   color: var(--dash-text-muted);
   pointer-events: none;
+}
+.chart-settings p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--dash-text-secondary);
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
 }
 </style>

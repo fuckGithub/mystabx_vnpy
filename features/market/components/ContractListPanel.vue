@@ -56,7 +56,10 @@
             v-if="allowSubscribe"
             type="button"
             class="board-row__sub"
-            :class="{ on: isSubscribed(row) }"
+            :class="{
+              on: isSubscribed(row) && !allowUnsubscribe,
+              unsub: isSubscribed(row) && allowUnsubscribe,
+            }"
             @click.stop="onSubClick(row)"
           >
             {{ isSubscribed(row) ? (allowUnsubscribe ? "退订" : "已订") : "订阅" }}
@@ -251,6 +254,8 @@ function changeOf(row: ContractRow) {
 }
 .board-row__sub:hover { color: var(--primary, #409eff); }
 .board-row__sub.on { color: var(--primary, #409eff); font-weight: 600; }
+.board-row__sub.unsub { color: var(--el-color-warning, #e6a23c); font-weight: 600; }
+.board-row__sub.unsub:hover { color: var(--el-color-danger, #f56c6c); }
 .board-row__id { min-width: 0; }
 .board-row__px,
 .board-row__chg {

@@ -7,10 +7,22 @@ export type SessionKind = "night" | "day" | "break";
 export type TimesharePoint = {
   ts: number;
   label: string;
+  axisKey: string;
+  tradeDate: string;
   price: number | null;
   volume: number;
   avg: number | null;
+  openInterest: number | null;
   session: SessionKind;
+  dayStart?: boolean;
+};
+
+export type TimeshareSpan = "half" | "1" | "2" | "3" | "4" | "5";
+
+export type ChartTradeMark = {
+  index: number;
+  label: "买" | "平" | "卖";
+  price: number;
 };
 
 export type TimeshareOptions = {
@@ -165,17 +177,26 @@ function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; next
   return { delta: Math.max(0, delta), nextCum };
 }
 
+type MinuteBucket = { price: number; volume: number; notional: number; oi: number | null };
+
+function tickOpenInterest(tick: TickLike): number | null {
+  const n = Number(tick.open_interest ?? tick.openInterest);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 function putBucket(
-  buckets: Map<number, { price: number; volume: number; notional: number }>,
+  buckets: Map<number, MinuteBucket>,
   mins: number,
   price: number,
   volume: number,
+  oi: number | null,
 ) {
   const prev = buckets.get(mins);
   buckets.set(mins, {
     price,
     volume: (prev?.volume || 0) + volume,
     notional: (prev?.notional || 0) + price * volume,
+    oi: oi ?? prev?.oi ?? null,
   });
 }
 
@@ -286,9 +307,9 @@ export function aggregateTimeshare(
   const windows = sessionWindows(exchange);
   const startMs = sessionStartMs(exchange, tradeDate);
   const endMs = sessionEndMs(exchange, tradeDate);
-  const buckets = new Map<number, { price: number; volume: number; notional: number }>();
+  const buckets = new Map<number, MinuteBucket>();
   let prevCum = 0;
-  const orphans: { price: number; volume: number; dt: Date | null }[] = [];
+  const orphans: { price: number; volume: number; oi: number | null; dt: Date | null }[] = [];
 
   const sorted = ticks.map((tick, idx) => ({ tick, idx })).sort((a, b) => {
     const da = parseTickDate(a.tick.datetime)?.getTime() ?? 0;
@@ -302,17 +323,24 @@ export function aggregateTimeshare(
     if (price === null) continue;
     const { delta, nextCum } = tickVolumeDelta(tick, prevCum);
     prevCum = nextCum;
+    const oi = tickOpenInterest(tick);
     const dt = parseTickDate(tick.datetime);
     if (dt) {
       const mins = clockMinutes(dt);
       const inSession = inWindows(mins, windows);
       const inRange = dt.getTime() >= startMs && dt.getTime() < endMs;
       if (inSession || inRange) {
-        putBucket(buckets, inSession ? mins : snapToSessionMinute(mins, windows), price, delta);
+        putBucket(
+          buckets,
+          inSession ? mins : snapToSessionMinute(mins, windows),
+          price,
+          delta,
+          oi,
+        );
         continue;
       }
     }
-    orphans.push({ price, volume: delta, dt });
+    orphans.push({ price, volume: delta, oi, dt });
   }
 
   if (buckets.size === 0 && orphans.length) {
@@ -320,25 +348,30 @@ export function aggregateTimeshare(
     const clock = last.dt
       ? snapToSessionMinute(clockMinutes(last.dt), windows)
       : snapToSessionMinute(clockMinutes(new Date()), windows);
-    putBucket(buckets, clock, last.price, last.volume);
+    putBucket(buckets, clock, last.price, last.volume, last.oi);
   }
 
   const nowMins = clockMinutes(new Date());
   const points: TimesharePoint[] = [];
   let lastPrice: number | null = null;
+  let lastOi: number | null = null;
   let seenTick = false;
   let cumVol = 0;
   let cumNotional = 0;
   let prevSession: SessionKind | null = null;
+  let markedStart = false;
 
   for (const win of windows) {
     if (prevSession === "night" && win.session === "day") {
       points.push({
         ts: -1,
         label: "\u2003",
+        axisKey: `${tradeDate}|break`,
+        tradeDate,
         price: null,
         volume: 0,
         avg: null,
+        openInterest: null,
         session: "break",
       });
     }
@@ -346,24 +379,125 @@ export function aggregateTimeshare(
       const hit = buckets.get(m);
       if (hit) {
         lastPrice = hit.price;
+        if (hit.oi != null) lastOi = hit.oi;
         seenTick = true;
         cumVol += hit.volume;
         cumNotional += hit.notional;
       }
       const elapsed = !live || slotElapsed(m, nowMins, windows);
       const price = hit ? lastPrice : seenTick && elapsed ? lastPrice : null;
+      const dayStart = !markedStart;
+      if (dayStart) markedStart = true;
       points.push({
         ts: m,
         label: formatHm(m),
+        axisKey: `${tradeDate}|${m}`,
+        tradeDate,
         price,
         volume: hit?.volume || 0,
         avg: price === null ? null : avgOf(price, cumVol, cumNotional),
+        openInterest: price === null ? null : lastOi,
         session: win.session,
+        dayStart,
       });
     }
     prevSession = win.session;
   }
   return points;
+}
+
+/** 半日: before 13:00 keep night + morning; after 13:00 keep afternoon only. */
+export function sliceHalfDay(points: TimesharePoint[], now = new Date()): TimesharePoint[] {
+  const wall = shanghaiWall(now);
+  const afternoon = wall.hour * 60 + wall.minute >= 13 * 60;
+  return points.filter((p) => {
+    if (p.session === "break") return !afternoon;
+    if (afternoon) return p.session === "day" && p.ts >= 13 * 60;
+    return p.session === "night" || (p.session === "day" && p.ts < 13 * 60);
+  });
+}
+
+export function stitchTimeshareDays(
+  days: { date: string; points: TimesharePoint[] }[],
+): TimesharePoint[] {
+  const out: TimesharePoint[] = [];
+  days.forEach((day, i) => {
+    if (i > 0 && day.points.length) {
+      out.push({
+        ts: -1,
+        label: "\u2003",
+        axisKey: `${day.date}|join`,
+        tradeDate: day.date,
+        price: null,
+        volume: 0,
+        avg: null,
+        openInterest: null,
+        session: "break",
+      });
+    }
+    const pts = day.points.map((p, idx) => ({
+      ...p,
+      tradeDate: p.tradeDate || day.date,
+      dayStart: idx === 0 || Boolean(p.dayStart),
+      axisKey: p.axisKey || `${day.date}|${p.ts}|${idx}`,
+    }));
+    if (pts.length) pts[0] = { ...pts[0], dayStart: true };
+    out.push(...pts);
+  });
+  return out;
+}
+
+export function timeshareTradeMarks(
+  points: TimesharePoint[],
+  trades: Record<string, unknown>[],
+  symbol: string,
+  exchange: string,
+): ChartTradeMark[] {
+  const wantSym = symbol.toUpperCase();
+  const wantEx = exchange.toUpperCase();
+  const indexByKey = new Map<string, number>();
+  points.forEach((p, i) => {
+    if (p.session === "break") return;
+    indexByKey.set(`${p.tradeDate}|${p.ts}`, i);
+  });
+  const out: ChartTradeMark[] = [];
+  for (const trade of trades) {
+    if (String(trade.symbol || "").toUpperCase() !== wantSym) continue;
+    const ex = String(trade.exchange || "").toUpperCase();
+    if (ex && wantEx && ex !== wantEx) continue;
+    const dt = parseTickDate(trade.datetime);
+    if (!dt) continue;
+    const mins = clockMinutes(dt);
+    const td = currentTradeDate(exchange, dt);
+    const snapped = snapToSessionMinute(mins, sessionWindows(exchange));
+    const idx = indexByKey.get(`${td}|${mins}`) ?? indexByKey.get(`${td}|${snapped}`);
+    if (idx == null) continue;
+    const px = Number(trade.price);
+    const price = Number.isFinite(px) && px > 0 ? px : points[idx]?.price;
+    if (price == null) continue;
+    out.push({ index: idx, label: tradeMarkLabel(trade), price });
+  }
+  return out;
+}
+
+function tradeMarkLabel(trade: Record<string, unknown>): "买" | "平" | "卖" {
+  const o = String(trade.offset ?? "").toUpperCase();
+  if (o.includes("CLOSE")) return "平";
+  const d = String(trade.direction ?? "").toUpperCase();
+  if (d === "SHORT" || d === "SELL" || d === "2") return "卖";
+  return "买";
+}
+
+export function lastOpenInterest(points: TimesharePoint[]): number | null {
+  for (let i = points.length - 1; i >= 0; i -= 1) {
+    const oi = points[i].openInterest;
+    if (oi != null && Number.isFinite(oi)) return oi;
+  }
+  return null;
+}
+
+export function sumVolume(points: TimesharePoint[]): number {
+  return points.reduce((acc, p) => acc + (p.session === "break" ? 0 : p.volume || 0), 0);
 }
 
 /** Y-axis from plotted prices only: 4% of span, or 0.25% of level when the series is flat. */
@@ -420,10 +554,16 @@ export const AXIS_LABELS = new Set([
   "15:00",
 ]);
 
+function isMultiDay(points: TimesharePoint[]): boolean {
+  const dates = new Set(points.map((p) => p.tradeDate).filter(Boolean));
+  return dates.size > 1;
+}
+
 /** Clock text for the x-axis. Session names stay in the chart header, not on ticks. */
 export function timeshareAxisLabelText(points: TimesharePoint[], index: number): string {
   const pt = points[index];
   if (!pt || pt.session === "break") return "";
+  if (pt.dayStart && isMultiDay(points) && pt.tradeDate.length >= 10) return pt.tradeDate.slice(5);
   const next = points[index + 1];
   if (pt.session === "night" && next?.session === "break") return formatHm((pt.ts ?? 0) + 1);
   if (!next) return formatHm((pt.ts ?? 0) + 1);
@@ -439,14 +579,16 @@ export function timeshareAxisLabelText(points: TimesharePoint[], index: number):
 
 /**
  * Sparse session clocks only (21:00, 22:00… 09:00, 10:30, 11:30, 13:30, 15:00).
- * Do not label the first/last tick time — that caused overlapping 11:06 / 11:06:32.
+ * Multi-day charts also label each 交易日 start (MM-DD).
  */
 export function timeshareAxisLabelVisible(points: TimesharePoint[], index: number): boolean {
   const pt = points[index];
   if (!pt || pt.session === "break") return false;
+  if (pt.dayStart && isMultiDay(points)) return true;
   const text = timeshareAxisLabelText(points, index);
   if (!AXIS_LABELS.has(text)) return false;
   for (let i = 0; i < index; i += 1) {
+    if (points[i].tradeDate !== pt.tradeDate) continue;
     if (timeshareAxisLabelText(points, i) === text) return false;
   }
   return true;

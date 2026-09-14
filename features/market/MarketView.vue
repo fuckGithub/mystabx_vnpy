@@ -18,7 +18,7 @@
         :subscribed-keys="market.subscribedKeys"
         :variant="isLiveQuotes ? 'live' : 'center'"
         :allow-subscribe="!isLiveQuotes"
-        :allow-unsubscribe="!isLiveQuotes && canUnsubscribe"
+        :allow-unsubscribe="!isLiveQuotes"
         :empty-text="listEmptyText"
         @select="onPick"
         @search="onSearch"
@@ -88,8 +88,6 @@ const historyKey = ref("");
 const section = computed(() => String(route.params.section || "ticks"));
 /** 实时行情：仅已订阅；行情中心：全市场 */
 const isLiveQuotes = computed(() => section.value === "ticks");
-/** 另一 agent 可能补退订；有 store 方法时行情中心启用退订按钮 */
-const canUnsubscribe = computed(() => typeof (market as { unsubscribeContract?: unknown }).unsubscribeContract === "function");
 
 const allContracts = computed(() => market.contracts as ContractRow[]);
 const listContracts = computed(() => {
@@ -152,15 +150,54 @@ const liveTicks = computed(() => {
   return mergeTickRows(loadedTicks.value, sessionRows.value, book);
 });
 
+function spanCount(span: TimeshareSpan): number {
+  return span === "half" ? 1 : Number(span) || 1;
+}
+
+const spanDates = computed(() => {
+  const n = spanCount(daySpan.value);
+  const dates = tradeDates.value.map((d) => d.date);
+  const start = dates.indexOf(tradeDate.value);
+  const window = (start >= 0 ? dates.slice(start, start + n) : dates.slice(0, n)).filter(Boolean);
+  return [...window].reverse();
+});
+
+function ticksForDate(date: string): Record<string, unknown>[] {
+  const current = currentTradeDate(selectedExchange.value);
+  if (date === current) {
+    return mergeTickRows(
+      ticksByDate.value[date] || [],
+      liveTicks.value,
+      selectedTick.value ? [selectedTick.value] : [],
+    );
+  }
+  if (date === tradeDate.value) return mergeTickRows(ticksByDate.value[date] || [], loadedTicks.value);
+  return ticksByDate.value[date] || [];
+}
+
 const timesharePoints = computed<TimesharePoint[]>(() => {
   if (!selected.value) return [];
-  const ticks = viewingCurrent.value
-    ? mergeTickRows(liveTicks.value, selectedTick.value ? [selectedTick.value] : [])
-    : [...loadedTicks.value];
-  return aggregateTimeshare(ticks, selectedExchange.value, {
-    tradeDate: tradeDate.value || currentTradeDate(selectedExchange.value),
-    live: viewingCurrent.value,
-  });
+  const ex = selectedExchange.value;
+  const days = spanDates.value.map((date) => ({
+    date,
+    points: aggregateTimeshare(ticksForDate(date), ex, {
+      tradeDate: date,
+      live: date === currentTradeDate(ex),
+    }),
+  }));
+  const priced = days.filter((d) => d.points.some((p) => p.price != null));
+  const stitched = stitchTimeshareDays(priced.length ? priced : days.slice(-1));
+  return daySpan.value === "half" ? sliceHalfDay(stitched) : stitched;
+});
+
+const chartMarks = computed(() => {
+  if (!selected.value) return [];
+  return timeshareTradeMarks(
+    timesharePoints.value,
+    trade.trades,
+    String(selected.value.symbol || ""),
+    selectedExchange.value,
+  );
 });
 
 const hasTimesharePrice = computed(() => timesharePoints.value.some((p) => p.price !== null));
@@ -239,6 +276,7 @@ async function onPick(row: ContractRow) {
   selected.value = row;
   period.value = "timeshare";
   loadedTicks.value = [];
+  ticksByDate.value = {};
   historyKey.value = "";
   const next = currentTradeDate(String(row.exchange || ""));
   tradeDate.value = next;
@@ -251,6 +289,7 @@ async function onPick(row: ContractRow) {
       await refreshSession(row, fallback.date);
     }
   }
+  await ensureSpanTicks(row);
 }
 
 async function onSubscribe(row?: ContractRow) {
@@ -334,11 +373,35 @@ async function refreshSession(row: ContractRow, date = tradeDate.value) {
   try {
     const result = await market.loadSessionTicks(String(row.symbol || ""), String(row.exchange || ""), date);
     loadedTicks.value = result.ticks || [];
+    const storedDate = result.trade_date || date;
+    ticksByDate.value = { ...ticksByDate.value, [storedDate]: result.ticks || [] };
     historyKey.value = result.is_current
       ? ""
       : `${String(row.exchange || "").toUpperCase()}.${String(row.symbol || "").toUpperCase()}.${result.trade_date}`;
   } catch {
     /* keep WS ticks already in store */
+  } finally {
+    sessionLoading.value = false;
+  }
+}
+
+async function ensureSpanTicks(row: ContractRow) {
+  const extra = spanDates.value.filter((date) => date && date !== tradeDate.value);
+  if (!extra.length) return;
+  sessionLoading.value = true;
+  try {
+    const updates: Record<string, Record<string, unknown>[]> = { ...ticksByDate.value };
+    await Promise.all(
+      extra.map(async (date) => {
+        try {
+          const result = await market.loadSessionTicks(String(row.symbol || ""), String(row.exchange || ""), date);
+          updates[result.trade_date || date] = result.ticks || [];
+        } catch {
+          updates[date] = updates[date] || [];
+        }
+      }),
+    );
+    ticksByDate.value = updates;
   } finally {
     sessionLoading.value = false;
   }
@@ -375,7 +438,13 @@ watch(selectedKey, () => {
 
 watch(tradeDate, (next, prev) => {
   if (!selected.value || !next || next === prev) return;
-  void refreshSession(selected.value, next);
+  void refreshSession(selected.value, next).then(() => {
+    if (selected.value) void ensureSpanTicks(selected.value);
+  });
+});
+
+watch(daySpan, () => {
+  if (selected.value) void ensureSpanTicks(selected.value);
 });
 
 watch(section, () => {

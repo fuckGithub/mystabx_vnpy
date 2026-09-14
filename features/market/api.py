@@ -178,3 +178,30 @@ def subscribe(body: SubscribeBody, user: User = Depends(current_user)) -> dict:
         raise HTTPException(status_code=400, detail=f"invalid exchange: {body.exchange}") from exc
     runtime.me.subscribe(SubscribeRequest(symbol=body.symbol, exchange=exchange), body.gateway_name)
     return {"ok": True}
+
+
+@router.post("/api/market/unsubscribe")
+def unsubscribe(body: SubscribeBody, user: User = Depends(current_user)) -> dict:
+    """Stop CTP market-data for one contract (vnpy BaseGateway has no unsubscribe)."""
+    if body.gateway_name not in visible_gateways(user):
+        raise HTTPException(status_code=403, detail="无权限退订该账户")
+    try:
+        Exchange[body.exchange.upper()]
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid exchange: {body.exchange}") from exc
+
+    gateway = runtime.me.get_gateway(body.gateway_name)
+    if gateway is None:
+        raise HTTPException(status_code=404, detail="账户不存在")
+
+    symbol = body.symbol
+    md_api = getattr(gateway, "md_api", None)
+    if md_api is not None:
+        subscribed = getattr(md_api, "subscribed", None)
+        if isinstance(subscribed, set):
+            subscribed.discard(symbol)
+        if bool(getattr(md_api, "login_status", False)):
+            unsub = getattr(md_api, "unSubscribeMarketData", None)
+            if callable(unsub):
+                unsub(symbol)
+    return {"ok": True}
