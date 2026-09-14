@@ -31,36 +31,37 @@
     <div class="board-list">
       <section v-for="group in groups" :key="group.key" class="board-group">
         <header class="board-group__title">{{ group.title }}</header>
-        <button
+        <div
           v-for="row in group.rows"
           :key="rowKey(row)"
-          type="button"
           class="board-row"
           :class="{
             active: rowKey(row) === selectedKey,
             subscribed: isSubscribed(row),
             'board-row--no-sub': !allowSubscribe,
           }"
-          @click="emit('select', row)"
         >
-          <span class="board-row__id">
-            <InstrumentCell :code="String(row.symbol || '')" :name="displayName(row)" />
-          </span>
-          <span class="board-row__px" :class="pnlClass(changeOf(row))">
-            {{ fmtPriceOrDash(lastOf(row)) }}
-          </span>
-          <span class="board-row__chg" :class="pnlClass(changeOf(row))">
-            {{ fmtPct(changeOf(row)) }}
-          </span>
-          <span
+          <button type="button" class="board-row__main" @click="emit('select', row)">
+            <span class="board-row__id">
+              <InstrumentCell :code="String(row.symbol || '')" :name="displayName(row)" />
+            </span>
+            <span class="board-row__px" :class="pnlClass(changeOf(row))">
+              {{ fmtPriceOrDash(lastOf(row)) }}
+            </span>
+            <span class="board-row__chg" :class="pnlClass(changeOf(row))">
+              {{ fmtPct(changeOf(row)) }}
+            </span>
+          </button>
+          <button
             v-if="allowSubscribe"
+            type="button"
             class="board-row__sub"
             :class="{ on: isSubscribed(row) }"
             @click.stop="onSubClick(row)"
           >
             {{ isSubscribed(row) ? (allowUnsubscribe ? "退订" : "已订") : "订阅" }}
-          </span>
-        </button>
+          </button>
+        </div>
       </section>
       <div v-if="!groups.some((g) => g.rows.length)" class="board-empty">
         {{ emptyText }}
@@ -209,30 +210,46 @@ function changeOf(row: ContractRow) {
 }
 .board-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) 64px 52px 32px;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: stretch;
+  width: 100%;
+  border-bottom: 1px solid var(--dash-border);
+  background: transparent;
+  color: inherit;
+}
+.board-row--no-sub {
+  grid-template-columns: minmax(0, 1fr);
+}
+.board-row:hover { background: var(--dash-surface-soft); }
+.board-row.active { background: var(--dash-primary-soft); }
+.board-row.subscribed { box-shadow: inset 3px 0 0 var(--primary, #409eff); }
+.board-row__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 64px 52px;
   gap: 6px;
   width: 100%;
-  padding: 5px 10px;
+  min-width: 0;
+  padding: 5px 6px 5px 10px;
   border: 0;
-  border-bottom: 1px solid var(--dash-border);
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
-.board-row--no-sub {
-  grid-template-columns: minmax(0, 1.2fr) 64px 52px;
-}
-.board-row:hover { background: var(--dash-surface-soft); }
-.board-row.active { background: var(--dash-primary-soft); }
-.board-row.subscribed { box-shadow: inset 3px 0 0 var(--primary, #409eff); }
 .board-row__sub {
+  margin: 0;
+  padding: 0 8px 0 0;
+  border: 0;
+  background: transparent;
   align-self: center;
   font-size: 10px;
+  line-height: 1.2;
   color: var(--dash-text-muted);
   text-align: right;
   white-space: nowrap;
+  cursor: pointer;
 }
+.board-row__sub:hover { color: var(--primary, #409eff); }
 .board-row__sub.on { color: var(--primary, #409eff); font-weight: 600; }
 .board-row__id { min-width: 0; }
 .board-row__px,

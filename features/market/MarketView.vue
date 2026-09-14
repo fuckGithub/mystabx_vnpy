@@ -28,6 +28,7 @@
       <QuoteChart
         v-model:period="period"
         v-model:trade-date="tradeDate"
+        v-model:day-span="daySpan"
         :heading="chartHeading"
         :timeshare="timesharePoints"
         :bars="bars"
@@ -36,6 +37,7 @@
         :trade-dates="tradeDates"
         :live="viewingCurrent"
         :session-hint="sessionCaption"
+        :marks="chartMarks"
       />
       <QuoteTape :contract="selected" :tick="selectedTick" />
     </div>
@@ -58,7 +60,11 @@ import {
   currentTradeDate,
   recentTradeDates,
   sessionHint,
+  sliceHalfDay,
+  stitchTimeshareDays,
+  timeshareTradeMarks,
   type TimesharePoint,
+  type TimeshareSpan,
 } from "./timeshare";
 import type { TradeDateOption } from "./components/QuoteChart.vue";
 
@@ -69,12 +75,14 @@ const trade = useTradeStore();
 
 const selected = ref<ContractRow | null>(null);
 const period = ref<ChartPeriod>("timeshare");
+const daySpan = ref<TimeshareSpan>("1");
 const bars = ref<HistoryBar[]>([]);
 const barsLoading = ref(false);
 const sessionLoading = ref(false);
 const tradeDate = ref("");
 const tradeDates = ref<TradeDateOption[]>([]);
 const loadedTicks = ref<Record<string, unknown>[]>([]);
+const ticksByDate = ref<Record<string, Record<string, unknown>[]>>({});
 const historyKey = ref("");
 
 const section = computed(() => String(route.params.section || "ticks"));
@@ -271,6 +279,7 @@ async function onUnsubscribe(row: ContractRow) {
   }
   try {
     await unsub(gateway, String(row.symbol || ""), String(row.exchange || ""));
+    market.unmarkSubscribed(String(row.symbol || ""), String(row.exchange || ""));
     ElMessage.success(`已退订 ${row.symbol}`);
     if (selectedKey.value === contractKey(row)) ensureSelectionInList();
   } catch {

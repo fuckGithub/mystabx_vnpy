@@ -137,11 +137,19 @@ export const useMarketStore = defineStore("market", () => {
     subscribedKeys.value = { ...subscribedKeys.value, [key]: true };
   }
 
+  function unmarkSubscribed(symbol: string, exchange: string) {
+    const key = `${String(exchange || "").toUpperCase()}.${String(symbol || "").toUpperCase()}`;
+    if (!subscribedKeys.value[key]) return;
+    const next = { ...subscribedKeys.value };
+    delete next[key];
+    subscribedKeys.value = next;
+  }
+
+  /** Tick 入账不得视为订阅：仅显式 subscribeContract（或退订对称清理）改 subscribedKeys。 */
   function upsertTick(tick: Record<string, unknown>) {
     const key = `${tick.exchange}.${tick.symbol}.${tick.gateway_name}`;
     ticks[key] = tick;
     appendSessionTick(tick);
-    markSubscribed(String(tick.symbol || ""), String(tick.exchange || ""));
   }
 
   function latestTick(symbol: string, exchange: string): Record<string, unknown> | undefined {
@@ -222,6 +230,7 @@ export const useMarketStore = defineStore("market", () => {
     applyClickhouse,
     upsertTick,
     markSubscribed,
+    unmarkSubscribed,
     latestTick,
     loadHealth,
     loadContracts,
