@@ -65,12 +65,12 @@
             <ChannelStatusPair :row="row" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" class-name="table-action-col">
+        <el-table-column label="操作" width="200" align="center" header-class-name="table-action-col" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
-              <el-button size="small" text @click="openEditAccount(row)">编辑</el-button>
-              <el-button size="small" text :loading="testingId === row.id" @click="testAccount(row.id)">测试</el-button>
-              <el-button size="small" type="danger" text @click="removeAccount(row)">删除</el-button>
+              <el-button type="primary" link @click="openEditAccount(row)">编辑</el-button>
+              <el-button type="primary" link :loading="testingId === row.id" @click="testAccount(row.id)">测试</el-button>
+              <el-button type="danger" link @click="removeAccount(row)">删除</el-button>
             </span>
           </template>
         </el-table-column>

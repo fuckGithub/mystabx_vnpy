@@ -26,8 +26,10 @@
         :contracts="market.contracts"
         :ticks="market.ticks"
         :selected-key="selectedKey"
+        :subscribed-keys="market.subscribedKeys"
         @select="onPick"
         @search="onSearch"
+        @subscribe="onSubscribe"
       />
       <QuoteChart
         v-model:period="period"
@@ -76,7 +78,6 @@ const period = ref<ChartPeriod>("timeshare");
 const bars = ref<HistoryBar[]>([]);
 const barsLoading = ref(false);
 const sessionLoading = ref(false);
-const subscribedKeys = new Set<string>();
 const tradeDate = ref("");
 const tradeDates = ref<TradeDateOption[]>([]);
 const loadedTicks = ref<Record<string, unknown>[]>([]);
@@ -219,7 +220,16 @@ async function onPick(row: ContractRow) {
   }
 }
 
-async function ensureSubscribed(row: ContractRow) {
+async function onSubscribe(row?: ContractRow) {
+  const target = row || selected.value;
+  if (!target) {
+    ElMessage.warning("请先在列表中选择要订阅的合约");
+    return;
+  }
+  await ensureSubscribed(target, true);
+}
+
+async function ensureSubscribed(row: ContractRow, notify = false) {
   const key = contractKey(row);
   const live = market.latestTick(String(row.symbol || ""), String(row.exchange || ""));
   const gateway = String(
@@ -229,12 +239,13 @@ async function ensureSubscribed(row: ContractRow) {
     ElMessage.warning("没有可用账户，无法订阅行情");
     return;
   }
-  const subKey = `${gateway}:${key}`;
+  if (market.subscribedKeys[key]) {
+    if (notify) ElMessage.info("该合约已订阅");
+    return;
+  }
   try {
-    if (!subscribedKeys.has(subKey)) {
-      await market.subscribeContract(gateway, String(row.symbol || ""), String(row.exchange || ""));
-      subscribedKeys.add(subKey);
-    }
+    await market.subscribeContract(gateway, String(row.symbol || ""), String(row.exchange || ""));
+    if (notify) ElMessage.success(`已订阅 ${row.symbol}`);
   } catch {
     ElMessage.error(`订阅 ${row.symbol} 失败，请确认行情通道已连接`);
   }
@@ -332,7 +343,7 @@ watch(tradeDate, (next, prev) => {
 }
 .market-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(180px, 220px);
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(196px, 236px);
   gap: 8px;
   flex: 1;
   min-height: 0;

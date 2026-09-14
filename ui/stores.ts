@@ -61,6 +61,7 @@ export const useMarketStore = defineStore("market", () => {
   const ticks = reactive<Record<string, Record<string, unknown>>>({});
   const sessionTicks = reactive<Record<string, Record<string, unknown>[]>>({});
   const contracts = ref<Record<string, unknown>[]>([]);
+  const subscribedKeys = ref<Record<string, true>>({});
   const clickhouse = reactive<ClickHouseHealth>({
     ok: false,
     state: "",
@@ -129,10 +130,18 @@ export const useMarketStore = defineStore("market", () => {
     }
   }
 
+  function markSubscribed(symbol: string, exchange: string) {
+    const key = `${String(exchange || "").toUpperCase()}.${String(symbol || "").toUpperCase()}`;
+    if (!key.includes(".") || key.startsWith(".") || key.endsWith(".")) return;
+    if (subscribedKeys.value[key]) return;
+    subscribedKeys.value = { ...subscribedKeys.value, [key]: true };
+  }
+
   function upsertTick(tick: Record<string, unknown>) {
     const key = `${tick.exchange}.${tick.symbol}.${tick.gateway_name}`;
     ticks[key] = tick;
     appendSessionTick(tick);
+    markSubscribed(String(tick.symbol || ""), String(tick.exchange || ""));
   }
 
   function latestTick(symbol: string, exchange: string): Record<string, unknown> | undefined {
@@ -201,15 +210,18 @@ export const useMarketStore = defineStore("market", () => {
       symbol,
       exchange,
     });
+    markSubscribed(symbol, exchange);
   }
 
   return {
     ticks,
     sessionTicks,
     contracts,
+    subscribedKeys,
     clickhouse,
     applyClickhouse,
     upsertTick,
+    markSubscribed,
     latestTick,
     loadHealth,
     loadContracts,

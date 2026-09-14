@@ -10,12 +10,17 @@
         @keyup.enter="emit('search', keyword)"
       />
     </div>
-    <el-radio-group v-model="tab" size="small" class="board-tabs" @change="emit('tab', tab)">
-      <el-radio-button value="all">全部</el-radio-button>
-      <el-radio-button value="main">主力</el-radio-button>
-      <el-radio-button value="index">指数</el-radio-button>
-      <el-radio-button value="product">品种</el-radio-button>
-    </el-radio-group>
+    <div class="board-toolbar">
+      <el-radio-group v-model="tab" size="small" class="board-tabs" @change="emit('tab', tab)">
+        <el-radio-button value="all">全部</el-radio-button>
+        <el-radio-button value="main">主力</el-radio-button>
+        <el-radio-button value="index">指数</el-radio-button>
+        <el-radio-button value="product">品种</el-radio-button>
+      </el-radio-group>
+      <el-button size="small" type="primary" plain class="board-sub" @click="emit('subscribe', undefined)">
+        订阅合约
+      </el-button>
+    </div>
     <div class="board-list">
       <section v-for="group in groups" :key="group.key" class="board-group">
         <header class="board-group__title">{{ group.title }}</header>
@@ -24,17 +29,24 @@
           :key="rowKey(row)"
           type="button"
           class="board-row"
-          :class="{ active: rowKey(row) === selectedKey }"
+          :class="{ active: rowKey(row) === selectedKey, subscribed: isSubscribed(row) }"
           @click="emit('select', row)"
         >
           <span class="board-row__id">
-            <InstrumentCell :code="String(row.symbol || '')" :name="row.name" />
+            <InstrumentCell :code="String(row.symbol || '')" :name="displayName(row)" />
           </span>
           <span class="board-row__px" :class="pnlClass(changeOf(row))">
             {{ fmtPriceOrDash(lastOf(row)) }}
           </span>
           <span class="board-row__chg" :class="pnlClass(changeOf(row))">
             {{ fmtPct(changeOf(row)) }}
+          </span>
+          <span
+            class="board-row__sub"
+            :class="{ on: isSubscribed(row) }"
+            @click.stop="emit('subscribe', row)"
+          >
+            {{ isSubscribed(row) ? "已订" : "订阅" }}
           </span>
         </button>
       </section>
@@ -48,28 +60,41 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import InstrumentCell from "@/components/InstrumentCell.vue";
-import { contractKey, groupContracts, type BoardTab, type ContractRow } from "../contracts";
+import { contractKey, groupContracts, productName, type BoardTab, type ContractRow } from "../contracts";
 import { finitePrice, fmtPct, fmtPriceOrDash, pnlClass, quoteChangePct } from "../../workbench/liveMap";
 
 const props = defineProps<{
   contracts: ContractRow[];
   ticks: Record<string, Record<string, unknown>>;
   selectedKey: string;
+  subscribedKeys?: Record<string, true>;
 }>();
 
 const emit = defineEmits<{
   select: [row: ContractRow];
   search: [keyword: string];
   tab: [tab: BoardTab];
+  subscribe: [row: ContractRow | undefined];
 }>();
 
 const keyword = ref("");
 const tab = ref<BoardTab>("all");
 
-const groups = computed(() => groupContracts(props.contracts, tab.value, props.ticks));
+const subscribedSet = computed(() => new Set(Object.keys(props.subscribedKeys || {})));
+const groups = computed(() => groupContracts(props.contracts, tab.value, props.ticks, subscribedSet.value));
 
 function rowKey(row: ContractRow) {
   return contractKey(row);
+}
+
+function isSubscribed(row: ContractRow) {
+  return Boolean(props.subscribedKeys?.[rowKey(row)]);
+}
+
+function displayName(row: ContractRow) {
+  const raw = String(row.name || "").trim();
+  if (raw && raw.toUpperCase() !== String(row.symbol || "").toUpperCase()) return raw;
+  return productName(row);
 }
 
 function tickOf(row: ContractRow) {
@@ -101,10 +126,24 @@ function changeOf(row: ContractRow) {
   box-shadow: var(--dash-shadow);
 }
 .board-search { padding: 8px 8px 0; }
+.board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px;
+}
 .board-tabs {
   display: flex;
   flex-wrap: nowrap;
-  margin: 8px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.board-sub {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  font-size: 11px;
 }
 .board-tabs :deep(.el-radio-button__inner) {
   padding: 5px 8px;
@@ -136,7 +175,7 @@ function changeOf(row: ContractRow) {
 }
 .board-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) 72px 58px;
+  grid-template-columns: minmax(0, 1.2fr) 64px 52px 32px;
   gap: 6px;
   width: 100%;
   padding: 5px 10px;
@@ -149,6 +188,15 @@ function changeOf(row: ContractRow) {
 }
 .board-row:hover { background: var(--dash-surface-soft); }
 .board-row.active { background: var(--dash-primary-soft); }
+.board-row.subscribed { box-shadow: inset 3px 0 0 var(--primary, #409eff); }
+.board-row__sub {
+  align-self: center;
+  font-size: 10px;
+  color: var(--dash-text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.board-row__sub.on { color: var(--primary, #409eff); font-weight: 600; }
 .board-row__id { min-width: 0; }
 .board-row__px,
 .board-row__chg {

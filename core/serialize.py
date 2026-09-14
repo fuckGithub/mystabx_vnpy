@@ -63,6 +63,18 @@ def tick_payload(tick) -> dict:
         "bid_volume_2": tick.bid_volume_2,
         "ask_price_2": tick.ask_price_2,
         "ask_volume_2": tick.ask_volume_2,
+        "bid_price_3": tick.bid_price_3,
+        "bid_volume_3": tick.bid_volume_3,
+        "ask_price_3": tick.ask_price_3,
+        "ask_volume_3": tick.ask_volume_3,
+        "bid_price_4": tick.bid_price_4,
+        "bid_volume_4": tick.bid_volume_4,
+        "ask_price_4": tick.ask_price_4,
+        "ask_volume_4": tick.ask_volume_4,
+        "bid_price_5": tick.bid_price_5,
+        "bid_volume_5": tick.bid_volume_5,
+        "ask_price_5": tick.ask_price_5,
+        "ask_volume_5": tick.ask_volume_5,
         "gateway_name": tick.gateway_name,
     }
 

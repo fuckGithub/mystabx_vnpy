@@ -1,3 +1,5 @@
+import { productNameFromCode } from "../workbench/liveMap";
+
 export type ContractRow = Record<string, unknown>;
 
 export const EXCHANGE_LABELS: Record<string, string> = {
@@ -26,8 +28,12 @@ export function productCode(symbol: unknown): string {
 }
 
 export function productName(row: ContractRow): string {
-  const name = String(row.name || "").replace(/\d+/g, "").trim();
-  return name || productCode(row.symbol);
+  const raw = String(row.name || "").replace(/\d+/g, "").trim();
+  const code = productCode(row.symbol);
+  if (raw && raw.toUpperCase() !== code && raw.toUpperCase() !== String(row.symbol || "").toUpperCase()) {
+    return raw;
+  }
+  return productNameFromCode(String(row.symbol || "")) || code;
 }
 
 export function exchangeLabel(exchange: unknown): string {
@@ -83,21 +89,55 @@ export function pickMainContracts(rows: ContractRow[], ticks: Record<string, Rec
   return picked;
 }
 
+const EXCHANGE_ORDER = ["CFFEX", "SHFE", "INE", "DCE", "CZCE", "GFEX"];
+
+function exchangeRank(exchange: unknown): number {
+  const i = EXCHANGE_ORDER.indexOf(String(exchange || "").toUpperCase());
+  return i < 0 ? 99 : i;
+}
+
+export function compareContractRows(
+  a: ContractRow,
+  b: ContractRow,
+  subscribed: ReadonlySet<string> = new Set(),
+): number {
+  const sa = subscribed.has(contractKey(a)) ? 0 : 1;
+  const sb = subscribed.has(contractKey(b)) ? 0 : 1;
+  if (sa !== sb) return sa - sb;
+  const ex = exchangeRank(a.exchange) - exchangeRank(b.exchange);
+  if (ex) return ex;
+  const pa = productCode(a.symbol).localeCompare(productCode(b.symbol));
+  if (pa) return pa;
+  return String(a.symbol || "").localeCompare(String(b.symbol || ""), "en");
+}
+
 export function groupContracts(
   rows: ContractRow[],
   tab: BoardTab,
   ticks: Record<string, Record<string, unknown>>,
+  subscribed: ReadonlySet<string> = new Set(),
 ): ContractGroup[] {
   if (tab === "main") {
-    return [{ key: "main", title: "主力合约", rows: pickMainContracts(rows, ticks) }];
+    return [{
+      key: "main",
+      title: "主力合约",
+      rows: [...pickMainContracts(rows, ticks)].sort((a, b) => compareContractRows(a, b, subscribed)),
+    }];
   }
   if (tab === "index") {
-    return [{ key: "index", title: "股指 / 国债", rows: rows.filter(isIndexContract) }];
+    return [{
+      key: "index",
+      title: "股指 / 国债",
+      rows: rows.filter(isIndexContract).sort((a, b) => compareContractRows(a, b, subscribed)),
+    }];
   }
 
-  const source = tab === "product" ? rows : rows;
+  const subscribedRows = rows.filter((row) => subscribed.has(contractKey(row))).sort((a, b) =>
+    compareContractRows(a, b),
+  );
+  const rest = rows.filter((row) => !subscribed.has(contractKey(row)));
   const buckets = new Map<string, ContractGroup>();
-  for (const row of source) {
+  for (const row of rest) {
     const ex = String(row.exchange || "").toUpperCase();
     const product = productCode(row.symbol);
     const key = tab === "all" ? `ex:${ex}` : `ex:${ex}:${product}`;
@@ -107,13 +147,19 @@ export function groupContracts(
     buckets.set(key, group);
   }
 
-  const order = ["CFFEX", "SHFE", "INE", "DCE", "CZCE", "GFEX"];
-  return [...buckets.values()].sort((a, b) => {
+  const groups = [...buckets.values()].sort((a, b) => {
     const ea = String(a.rows[0]?.exchange || "").toUpperCase();
     const eb = String(b.rows[0]?.exchange || "").toUpperCase();
-    const ia = order.indexOf(ea);
-    const ib = order.indexOf(eb);
-    if (ia !== ib) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    const ia = exchangeRank(ea);
+    const ib = exchangeRank(eb);
+    if (ia !== ib) return ia - ib;
     return a.title.localeCompare(b.title, "zh-CN");
   });
+  for (const group of groups) {
+    group.rows.sort((a, b) => compareContractRows(a, b));
+  }
+  if (subscribedRows.length) {
+    groups.unshift({ key: "subscribed", title: "已订阅", rows: subscribedRows });
+  }
+  return groups;
 }

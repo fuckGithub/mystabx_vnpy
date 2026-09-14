@@ -58,6 +58,23 @@
         <dd class="down">{{ fmtPriceOrDash(limitDown) }}</dd>
       </div>
     </dl>
+    <div class="book">
+      <div class="book-head">盘口</div>
+      <ul class="book-side asks">
+        <li v-for="row in askRows" :key="row.label" class="book-row ask">
+          <span class="book-label">{{ row.label }}</span>
+          <span class="book-price">{{ fmtPriceOrDash(row.price) }}</span>
+          <span class="book-vol">{{ fmtVolume(row.volume) }}</span>
+        </li>
+      </ul>
+      <ul class="book-side bids">
+        <li v-for="row in bidRows" :key="row.label" class="book-row bid">
+          <span class="book-label">{{ row.label }}</span>
+          <span class="book-price">{{ fmtPriceOrDash(row.price) }}</span>
+          <span class="book-vol">{{ fmtVolume(row.volume) }}</span>
+        </li>
+      </ul>
+    </div>
     <p v-if="!tick" class="tape-hint">选中合约后展示盘口；数据来自 SimNow 实时 Tick。</p>
   </aside>
 </template>
@@ -96,6 +113,26 @@ const bid = computed(() => finitePrice(props.tick?.bid_price_1));
 const ask = computed(() => finitePrice(props.tick?.ask_price_1));
 const bidVol = computed(() => finiteNumber(props.tick?.bid_volume_1));
 const askVol = computed(() => finiteNumber(props.tick?.ask_volume_1));
+
+const ASK_LABELS = ["卖五", "卖四", "卖三", "卖二", "卖一"] as const;
+const BID_LABELS = ["买一", "买二", "买三", "买四", "买五"] as const;
+
+function bookLevel(side: "bid" | "ask", level: number) {
+  const tick = props.tick;
+  const price = finitePrice(tick?.[`${side}_price_${level}`]);
+  const volume = finiteNumber(tick?.[`${side}_volume_${level}`]);
+  return {
+    price,
+    volume: price === null || volume === 0 ? null : volume,
+  };
+}
+
+const askRows = computed(() =>
+  ASK_LABELS.map((label, i) => ({ label, ...bookLevel("ask", 5 - i) })),
+);
+const bidRows = computed(() =>
+  BID_LABELS.map((label, i) => ({ label, ...bookLevel("bid", i + 1) })),
+);
 const vol = computed(() => finiteNumber(props.tick?.volume));
 const oi = computed(() => finiteNumber(props.tick?.open_interest));
 const open = computed(() => finitePrice(props.tick?.open_price));
@@ -131,6 +168,7 @@ const limitDown = computed(() => finitePrice(props.tick?.limit_down));
   grid-template-columns: 1fr 1fr;
   gap: 8px 10px;
   margin: 0;
+  flex-shrink: 0;
 }
 .tape-cell { margin: 0; min-width: 0; }
 .tape-cell.wide { grid-column: 1 / -1; }
@@ -155,6 +193,61 @@ const limitDown = computed(() => finitePrice(props.tick?.limit_down));
   margin: 12px 0 0;
   font-size: 11px;
   line-height: 1.5;
+  color: var(--dash-text-muted);
+}
+.book {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--dash-border);
+}
+.book-head {
+  flex-shrink: 0;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  color: var(--dash-text-muted);
+}
+.book-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.book-side.asks {
+  border-bottom: 1px dashed var(--dash-border);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.book-row {
+  display: grid;
+  grid-template-columns: 2.2em 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
+.book-label {
+  font-size: 10px;
+  color: var(--dash-text-muted);
+}
+.book-price {
+  font-size: 12px;
+  font-weight: 650;
+}
+.book-row.ask .book-price { color: var(--danger, #c0392b); }
+.book-row.bid .book-price { color: var(--success, #1a9f6b); }
+.book-vol {
+  font-size: 11px;
+  font-weight: 500;
   color: var(--dash-text-muted);
 }
 </style>

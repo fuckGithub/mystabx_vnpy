@@ -68,12 +68,12 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" class-name="table-action-col">
+        <el-table-column label="操作" width="280" align="center" header-class-name="table-action-col" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
-              <el-button size="small" type="primary" @click="connect(row)">连接</el-button>
-              <el-button size="small" :loading="testingId === row.id" @click="testConnect(row)">测试联通</el-button>
-              <el-button size="small" @click="disconnect(row)">断开</el-button>
+              <el-button type="primary" link @click="connect(row)">连接</el-button>
+              <el-button type="primary" link :loading="testingId === row.id" @click="testConnect(row)">测试联通</el-button>
+              <el-button link @click="disconnect(row)">断开</el-button>
             </span>
           </template>
         </el-table-column>
