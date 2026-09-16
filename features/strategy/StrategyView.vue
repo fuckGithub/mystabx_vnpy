@@ -72,6 +72,14 @@
 
     <div v-else class="page-list">
       <h3 class="page-section-title">CTA 实例</h3>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="试用：管理员 → 添加策略选 DoubleMaStrategy → 填 vt_symbol（如 rb2501.SHFE）→ 初始化 → 启动。"
+        description="首次接入或装依赖后需重启后端，前端硬刷新。"
+        style="margin-bottom: 12px"
+      />
       <div class="page-toolbar">
         <el-button type="primary" :icon="Plus" :disabled="!auth.isAdmin" @click="openAdd">添加策略</el-button>
         <el-button :disabled="!auth.isAdmin" @click="batch('init-all')">全部初始化</el-button>
@@ -143,6 +151,7 @@
           </el-form-item>
           <el-form-item v-if="!editingName" label="合约 vt_symbol">
             <el-input v-model="form.vt_symbol" placeholder="rb2501.SHFE" />
+            <p class="page-form-hint">格式：合约代码.交易所，如 rb2501.SHFE。添加后需「初始化」再「启动」。</p>
           </el-form-item>
           <el-form-item label="账户 gateway">
             <el-select v-model="form.setting.gateway_name" clearable filterable placeholder="可选" style="width: 100%">
