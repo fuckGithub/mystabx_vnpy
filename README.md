@@ -2,6 +2,15 @@
 
 浏览器里用的期货交易台：Vue 网页 + FastAPI（REST / WebSocket / SSE）+ 进程内 vnpy `MainEngine`。产品入口是 Web，不是桌面 Qt。
 
+## 仓库地址
+
+| 平台 | 地址 | 说明 |
+|---|---|---|
+| Gitee | https://gitee.com/xjc621105/mystabx_vnpy | 主远程（`origin` fetch） |
+| GitHub | https://github.com/fuckGithub/mystabx_vnpy | 私有镜像 |
+
+本机 `origin` 配置了 **双 push URL**（Gitee + GitHub）：`git push origin` 会同时推送到两个平台。另有独立 remote 名 `github` 指向同一 GitHub 仓库。
+
 > 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）。启动任选其一：`python main.py`、`uv run start` 或 `./start.sh`（三者等价，均落到 `./start.sh`）。遗留 Qt 桌面仅 `python main.py --qt`。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
 规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/07](docs/07-用户服务协议与免责声明.md)）。
