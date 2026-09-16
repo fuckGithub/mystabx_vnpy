@@ -335,3 +335,52 @@ export const useTradeStore = defineStore("trade", () => {
     refresh,
   };
 });
+
+export const useStrategyStore = defineStore("strategy", () => {
+  const instances = ref<Record<string, unknown>[]>([]);
+  const stopOrders = ref<Record<string, unknown>[]>([]);
+  const logs = ref<Record<string, unknown>[]>([]);
+  const backtestLogs = ref<Record<string, unknown>[]>([]);
+
+  function upsertStrategy(item: Record<string, unknown>) {
+    const name = String(item.strategy_name || "");
+    if (!name) return;
+    const index = instances.value.findIndex((row) => String(row.strategy_name) === name);
+    if (index >= 0) instances.value[index] = { ...instances.value[index], ...item };
+    else instances.value = [item, ...instances.value];
+  }
+
+  function upsertStopOrder(item: Record<string, unknown>) {
+    const id = String(item.stop_orderid || "");
+    if (!id) return;
+    const index = stopOrders.value.findIndex((row) => String(row.stop_orderid) === id);
+    if (index >= 0) stopOrders.value[index] = item;
+    else stopOrders.value = [item, ...stopOrders.value];
+  }
+
+  function upsertLog(item: Record<string, unknown>) {
+    logs.value = [item, ...logs.value].slice(0, 500);
+  }
+
+  function upsertBacktestLog(item: Record<string, unknown>) {
+    backtestLogs.value = [item, ...backtestLogs.value].slice(0, 500);
+  }
+
+  async function refresh() {
+    const [i, s] = await Promise.all([http.get("/api/cta/instances"), http.get("/api/cta/stop-orders")]);
+    instances.value = Array.isArray(i.data) ? i.data : [];
+    stopOrders.value = Array.isArray(s.data) ? s.data : [];
+  }
+
+  return {
+    instances,
+    stopOrders,
+    logs,
+    backtestLogs,
+    upsertStrategy,
+    upsertStopOrder,
+    upsertLog,
+    upsertBacktestLog,
+    refresh,
+  };
+});

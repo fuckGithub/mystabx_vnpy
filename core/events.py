@@ -17,7 +17,11 @@ from vnpy.trader.event import (
 from core.gateways import EVENT_ENSURE_ACCOUNT, AccountGatewayManager
 from core.serialize import (
     account_payload,
+    backtester_finished_payload,
+    backtester_log_payload,
     contract_payload,
+    cta_stop_order_payload,
+    cta_strategy_payload,
     envelope,
     log_payload,
     order_payload,
@@ -28,6 +32,24 @@ from core.serialize import (
 from core.ws import publish_threadsafe
 from features.market.tick_buffer import record_tick
 from features.market.tick_writer import enqueue_tick
+
+try:
+    from vnpy_ctastrategy.base import (
+        EVENT_CTA_LOG,
+        EVENT_CTA_STOPORDER,
+        EVENT_CTA_STRATEGY,
+    )
+except ImportError:
+    EVENT_CTA_LOG = EVENT_CTA_STOPORDER = EVENT_CTA_STRATEGY = None
+
+try:
+    from vnpy_ctabacktester.engine import (
+        EVENT_BACKTESTER_BACKTESTING_FINISHED,
+        EVENT_BACKTESTER_LOG,
+        EVENT_BACKTESTER_OPTIMIZATION_FINISHED,
+    )
+except ImportError:
+    EVENT_BACKTESTER_BACKTESTING_FINISHED = EVENT_BACKTESTER_LOG = EVENT_BACKTESTER_OPTIMIZATION_FINISHED = None
 
 
 def _gateway_name(data) -> str | None:
@@ -104,6 +126,37 @@ def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> No
             )
         )
 
+    def on_cta_strategy(event: Event) -> None:
+        publish_threadsafe(envelope("cta_strategy", cta_strategy_payload(event.data)))
+
+    def on_cta_log(event: Event) -> None:
+        payload = log_payload(event.data)
+        msg = str(payload.get("msg") or "")
+        # CtaEngine.write_log prefixes "[strategy_name]  msg"
+        if msg.startswith("[") and "]" in msg:
+            head, _, rest = msg[1:].partition("]")
+            payload["strategy_name"] = head.strip()
+            payload["msg"] = rest.strip()
+        publish_threadsafe(envelope("cta_log", payload))
+
+    def on_cta_stop_order(event: Event) -> None:
+        publish_threadsafe(envelope("cta_stop_order", cta_stop_order_payload(event.data)))
+
+    def on_backtester_log(event: Event) -> None:
+        data = event.data
+        if isinstance(data, str):
+            publish_threadsafe(envelope("backtester_log", {"level": "info", "msg": data, "time": None}))
+        else:
+            publish_threadsafe(envelope("backtester_log", backtester_log_payload(data)))
+
+    def on_backtester_finished(event: Event) -> None:
+        publish_threadsafe(envelope("backtester_finished", backtester_finished_payload(event.data)))
+
+    def on_backtester_optimization_finished(event: Event) -> None:
+        publish_threadsafe(
+            envelope("backtester_optimization_finished", backtester_finished_payload(event.data))
+        )
+
     event_engine.register(EVENT_TICK, on_tick)
     event_engine.register(EVENT_ORDER, on_order)
     event_engine.register(EVENT_TRADE, on_trade)
@@ -113,3 +166,16 @@ def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> No
     event_engine.register(EVENT_LOG, on_log)
     event_engine.register(EVENT_QUOTE, on_quote)
     event_engine.register(EVENT_ENSURE_ACCOUNT, on_ensure_account)
+
+    if EVENT_CTA_STRATEGY:
+        event_engine.register(EVENT_CTA_STRATEGY, on_cta_strategy)
+    if EVENT_CTA_LOG:
+        event_engine.register(EVENT_CTA_LOG, on_cta_log)
+    if EVENT_CTA_STOPORDER:
+        event_engine.register(EVENT_CTA_STOPORDER, on_cta_stop_order)
+    if EVENT_BACKTESTER_LOG:
+        event_engine.register(EVENT_BACKTESTER_LOG, on_backtester_log)
+    if EVENT_BACKTESTER_BACKTESTING_FINISHED:
+        event_engine.register(EVENT_BACKTESTER_BACKTESTING_FINISHED, on_backtester_finished)
+    if EVENT_BACKTESTER_OPTIMIZATION_FINISHED:
+        event_engine.register(EVENT_BACKTESTER_OPTIMIZATION_FINISHED, on_backtester_optimization_finished)

@@ -38,5 +38,19 @@ class Runtime:
             raise RuntimeError("oms engine not started")
         return engine
 
+    @property
+    def cta(self):
+        """CtaEngine when CtaStrategyApp was soft-loaded; else None."""
+        if self.main_engine is None:
+            return None
+        return self.me.get_engine("CtaStrategy")
+
+    @property
+    def backtester(self):
+        """BacktesterEngine when CtaBacktesterApp was soft-loaded; else None."""
+        if self.main_engine is None:
+            return None
+        return self.me.get_engine("CtaBacktester")
+
 
 runtime = Runtime()

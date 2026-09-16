@@ -1,5 +1,5 @@
 import { getAccessToken } from "./api";
-import { useMarketStore, useTradeStore } from "./stores";
+import { useMarketStore, useStrategyStore, useTradeStore } from "./stores";
 
 type Handler = (msg: { type: string; data: Record<string, unknown> }) => void;
 
@@ -24,6 +24,7 @@ function wsUrl(): string {
 export function dispatch(msg: { type: string; data: Record<string, unknown> }) {
   const market = useMarketStore();
   const trade = useTradeStore();
+  const strategy = useStrategyStore();
   if (msg.type === "tick") market.upsertTick(msg.data);
   if (msg.type === "contract") scheduleContractReload();
   if (msg.type === "order") trade.upsertBy(trade.orders, msg.data, "vt_orderid");
@@ -43,6 +44,13 @@ export function dispatch(msg: { type: string; data: Record<string, unknown> }) {
     }
     for (const row of accounts) trade.upsertFund(row as Record<string, unknown>);
     if (missing) void trade.refresh();
+  }
+  if (msg.type === "cta_strategy") strategy.upsertStrategy(msg.data);
+  if (msg.type === "cta_log") strategy.upsertLog(msg.data);
+  if (msg.type === "cta_stop_order") strategy.upsertStopOrder(msg.data);
+  if (msg.type === "backtester_log") strategy.upsertBacktestLog(msg.data);
+  if (msg.type === "backtester_finished") {
+    strategy.upsertBacktestLog({ msg: "回测完成", level: "info" });
   }
   listeners.forEach((fn) => fn(msg));
 }
@@ -65,7 +73,28 @@ export function connectWs() {
     const msg = JSON.parse(event.data);
     dispatch(msg);
     if (msg.type === "auth_ok") {
-      socket?.send(JSON.stringify({ type: "subscribe", data: { topics: ["tick", "order", "trade", "position", "account", "gateway", "log", "contract"] } }));
+      socket?.send(
+        JSON.stringify({
+          type: "subscribe",
+          data: {
+            topics: [
+              "tick",
+              "order",
+              "trade",
+              "position",
+              "account",
+              "gateway",
+              "log",
+              "contract",
+              "cta_strategy",
+              "cta_log",
+              "cta_stop_order",
+              "backtester_log",
+              "backtester_finished",
+            ],
+          },
+        }),
+      );
       useTradeStore().refresh();
     }
   });

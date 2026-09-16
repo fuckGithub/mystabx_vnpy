@@ -73,8 +73,16 @@
 | **工作台** | `/workbench` | 首页：顶栏拆开 **账号登录**（交易 TD）与 **行情**（行情 MD）；持仓、已订阅行情、风险表、成交日志。账号/资金走 **SSE**（`/api/sse`，事件 `gateway` / `account`）；Tick 走 **WebSocket** |
 | **市场行情** | `/market/ticks` → `/market/quotes` | 侧栏顺序：**实时行情**（仅已订阅）→ **行情中心**（全市场）。点行只选中看盘；**订阅 / 退订**靠行内按钮或工具栏「订阅合约」，退订走 `POST /api/market/unsubscribe`。图表（`QuoteChart`）：分时（当日内存 tick + ClickHouse 近 10 日）+ 周期 **模拟 K 线**（RQData 未对接）+ MACD 副图 |
 | **交易下单** | `/trade/order`、`/trade/orders` | 下单面板（二次确认）；活动委托、撤单 |
+| **策略** | `/strategy/cta` 等 | 开源 `vnpy_ctastrategy` CTA：实例生命周期（管理员写 / 用户读）、停止单、策略日志；`/strategy/backtest` 最小回测（无 bar / RQData 时结果为空） |
 | **资金持仓** | `/account/gateways` 等 | **账户连接**表与管理端通道列表风格对齐：交易/行情双状态、自动连接、连接 / 测试联通 / 断开；另有资金、持仓、成交 |
 | **系统管理** | `/admin/users`、`/admin/accounts` | 管理员：用户 CRUD；通道 CRUD、保存后加密、**测试联通**、**操作日志**（SQLite `channel_op_logs`，列表「日志」抽屉） |
+
+**CTA 策略（开源 vnpy，非 Elite）**
+
+- 策略源码放仓库根目录 `strategies/`（如演示 `DoubleMaStrategy` / `RumiStrategy`）；进程启动时 `chdir` 到项目根，`CtaEngine.init_engine()` 自动加载类。
+- **管理员**在「策略 → CTA实例」创建 / 编辑 / 启停 / 移除；普通用户只读监控。WebSocket 推送 `cta_strategy` / `cta_log` / `cta_stop_order`。
+- Elite 风格 shim：`core/strategy_shim.py`（`HistoryManager`、sma/wma/cross、`EliteCtaTemplate`）。多进程 / 批量移仓 / R-Cubed / GA 优化属阶段 E，本期不做。
+- 回测依赖历史 bar；未配置 RQData 且本地库无数据时，回测结果为空属预期。
 
 **通道与连接**
 
@@ -88,7 +96,7 @@
 - **SQLite**（默认 `.vntrader/stabx_web.db`）：用户、通道（含 `auto_connect`）、会话、通道操作日志等；通道密钥 Fernet 加密。
 - **ClickHouse** 只存 Tick：库表 `vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。根目录 `ch_schema.sql` 是早期设计稿，运行时建表以 `core/clickhouse.py` 为准。
 
-技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。Web 端暂不挂载 vnpy 策略应用（CTA / 回测等）入口，待产品方案明确后再接入；Docker、RQData 历史行情仍非产品能力。
+技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。Docker、RQData 历史行情仍非产品能力。
 
 不要对 vnpy 引擎使用 `uvicorn --workers`（`MainEngine` 必须在同一进程内）。
 

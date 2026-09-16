@@ -2,6 +2,7 @@ import type { Component } from "vue";
 import {
   Box,
   Connection,
+  Cpu,
   DataLine,
   Document,
   EditPen,
@@ -28,6 +29,7 @@ export const topMenus: NavItem[] = [
   { path: "/workbench", title: "工作台", icon: HomeFilled, home: true },
   { path: "/market/ticks", title: "市场行情", icon: DataLine },
   { path: "/trade/order", title: "交易下单", icon: Tickets },
+  { path: "/strategy/cta", title: "策略", icon: Cpu },
   { path: "/account/gateways", title: "资金持仓", icon: Wallet },
   { path: "/admin/users", title: "系统管理", icon: Setting, admin: true },
 ];
@@ -40,6 +42,12 @@ export const sidebars: Record<string, NavItem[]> = {
   trade: [
     { path: "/trade/order", title: "下单面板", icon: EditPen },
     { path: "/trade/orders", title: "委托列表", icon: Document },
+  ],
+  strategy: [
+    { path: "/strategy/cta", title: "CTA实例", icon: Cpu },
+    { path: "/strategy/logs", title: "策略日志", icon: Notebook },
+    { path: "/strategy/stoporders", title: "停止单", icon: List },
+    { path: "/strategy/backtest", title: "回测", icon: TrendCharts },
   ],
   account: [
     { path: "/account/gateways", title: "账户连接", icon: Connection },
@@ -56,6 +64,7 @@ export const sidebars: Record<string, NavItem[]> = {
 export function moduleKeyFromPath(path: string): string {
   if (path.startsWith("/market")) return "market";
   if (path.startsWith("/trade")) return "trade";
+  if (path.startsWith("/strategy")) return "strategy";
   if (path.startsWith("/account")) return "account";
   if (path.startsWith("/admin")) return "admin";
   return "";

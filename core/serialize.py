@@ -174,3 +174,89 @@ def log_payload(log) -> dict:
         "time": dt_iso(getattr(log, "time", None)),
         "gateway_name": getattr(log, "gateway_name", "") or None,
     }
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, Enum):
+        return enum_out(value)
+    if isinstance(value, datetime):
+        return dt_iso(value)
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def cta_strategy_payload(strategy_or_data) -> dict:
+    """Serialize CTA strategy instance or EVENT_CTA_STRATEGY dict."""
+    if isinstance(strategy_or_data, dict):
+        data = dict(strategy_or_data)
+        parameters = dict(data.get("parameters") or {})
+        variables = dict(data.get("variables") or {}) if isinstance(data.get("variables"), dict) else {}
+        gateway_name = parameters.get("gateway_name") or data.get("gateway_name") or ""
+        return {
+            "strategy_name": data.get("strategy_name", ""),
+            "vt_symbol": data.get("vt_symbol", ""),
+            "class_name": data.get("class_name", ""),
+            "author": data.get("author", ""),
+            "parameters": _jsonable(parameters),
+            "variables": _jsonable(variables),
+            "inited": bool(variables.get("inited", data.get("inited", False))),
+            "trading": bool(variables.get("trading", data.get("trading", False))),
+            "pos": variables.get("pos", data.get("pos", 0)),
+            "gateway_name": gateway_name or None,
+        }
+
+    strategy = strategy_or_data
+    parameters = dict(strategy.get_parameters()) if hasattr(strategy, "get_parameters") else {}
+    variables = dict(strategy.get_variables()) if hasattr(strategy, "get_variables") else {}
+    setting_gw = str(parameters.get("gateway_name") or "")
+    return {
+        "strategy_name": getattr(strategy, "strategy_name", ""),
+        "vt_symbol": getattr(strategy, "vt_symbol", ""),
+        "class_name": strategy.__class__.__name__,
+        "author": getattr(strategy, "author", ""),
+        "parameters": _jsonable(parameters),
+        "variables": _jsonable(variables),
+        "inited": bool(getattr(strategy, "inited", False)),
+        "trading": bool(getattr(strategy, "trading", False)),
+        "pos": getattr(strategy, "pos", 0),
+        "gateway_name": setting_gw or None,
+    }
+
+
+def cta_stop_order_payload(stop_order) -> dict:
+    status = getattr(stop_order, "status", None)
+    status_name = enum_out(status) if status is not None else None
+    # Open-source enum values are localized Chinese; normalize for UI.
+    status_map = {
+        "WAITING": "WAITING",
+        "TRIGGERED": "TRIGGERED",
+        "CANCELLED": "CANCELLED",
+        "等待中": "WAITING",
+        "已触发": "TRIGGERED",
+        "已撤销": "CANCELLED",
+    }
+    return {
+        "stop_orderid": getattr(stop_order, "stop_orderid", ""),
+        "vt_symbol": getattr(stop_order, "vt_symbol", ""),
+        "direction": enum_out(getattr(stop_order, "direction", None)),
+        "offset": enum_out(getattr(stop_order, "offset", None)),
+        "price": getattr(stop_order, "price", 0),
+        "volume": getattr(stop_order, "volume", 0),
+        "status": status_map.get(str(status_name or ""), status_name),
+        "strategy_name": getattr(stop_order, "strategy_name", ""),
+        "vt_orderids": list(getattr(stop_order, "vt_orderids", None) or []),
+        "datetime": dt_iso(getattr(stop_order, "datetime", None)),
+    }
+
+
+def backtester_log_payload(log) -> dict:
+    return log_payload(log)
+
+
+def backtester_finished_payload(data: Any = None) -> dict:
+    return data if isinstance(data, dict) else {}

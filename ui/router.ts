@@ -5,6 +5,7 @@ import DisclaimerView from "../features/auth/DisclaimerView.vue";
 import WorkbenchView from "../features/workbench/index.vue";
 import MarketView from "../features/market/MarketView.vue";
 import TradeView from "../features/trade/TradeView.vue";
+import StrategyView from "../features/strategy/StrategyView.vue";
 import AccountView from "../features/account/AccountView.vue";
 import AdminView from "../features/admin/AdminView.vue";
 import AppLayout from "./components/AppLayout.vue";
@@ -24,6 +25,8 @@ const router = createRouter({
         { path: "market/:section", component: MarketView },
         { path: "trade", redirect: "/trade/order" },
         { path: "trade/:section", component: TradeView },
+        { path: "strategy", redirect: "/strategy/cta" },
+        { path: "strategy/:section", component: StrategyView },
         { path: "account", redirect: "/account/gateways" },
         { path: "account/:section", component: AccountView },
         { path: "admin", redirect: "/admin/users" },

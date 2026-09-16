@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -32,8 +34,10 @@ from core.ws import Connection, hub, pong, set_loop  # noqa: E402
 from features.account.api import router as account_router  # noqa: E402
 from features.admin.api import router as admin_router  # noqa: E402
 from features.auth.api import router as auth_router  # noqa: E402
+from features.backtest.api import router as backtest_router  # noqa: E402
 from features.market.api import router as market_router  # noqa: E402
 from features.market.tick_writer import start_tick_writer, stop_tick_writer  # noqa: E402
+from features.strategy.api import router as strategy_router  # noqa: E402
 from features.trade.api import router as trade_router  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s %(name)s: %(message)s")
@@ -57,6 +61,10 @@ async def lifespan(_app: FastAPI):
     else:
         logger.warning("ClickHouse unreachable %s — 分时今日走内存，历史交易日不可查", where)
     start_tick_writer()
+    # CtaEngine / BacktesterEngine load strategies from Path.cwd()/strategies
+    os.chdir(PROJECT_ROOT)
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
     main_engine, event_engine = build_headless_engines()
     manager = AccountGatewayManager(main_engine)
     manager.load_all(_load_accounts())
@@ -65,6 +73,20 @@ async def lifespan(_app: FastAPI):
     runtime.event_engine = event_engine
     runtime.gateways = manager
     set_loop(asyncio.get_running_loop())
+
+    if runtime.cta is not None:
+        try:
+            runtime.cta.init_engine()
+            logger.info("CTA engine ready, classes=%s", runtime.cta.get_all_strategy_class_names())
+        except Exception:
+            logger.exception("CTA init_engine failed")
+    if runtime.backtester is not None:
+        try:
+            runtime.backtester.init_engine()
+            logger.info("Backtester engine ready")
+        except Exception:
+            logger.exception("Backtester init_engine failed")
+
     manager.kickoff_auto_connects()
 
     def _event_depth() -> int | None:
@@ -106,14 +128,21 @@ app.include_router(admin_router)
 app.include_router(account_router)
 app.include_router(market_router)
 app.include_router(trade_router)
+app.include_router(strategy_router)
+app.include_router(backtest_router)
 
 
 @app.get("/health")
 def health() -> dict:
     engine_ok = runtime.main_engine is not None
+    cta = runtime.cta
+    backtester = runtime.backtester
     return {
         "status": "ok" if engine_ok else "starting",
         "engine": engine_ok,
+        "cta": cta is not None,
+        "cta_classes": list(cta.get_all_strategy_class_names()) if cta is not None else [],
+        "backtester": backtester is not None,
         "gateways": list(runtime.gw.index) if runtime.gateways else [],
         "ws": hub.snapshot_counts(),
         "sse": sse_hub.snapshot_counts(),
