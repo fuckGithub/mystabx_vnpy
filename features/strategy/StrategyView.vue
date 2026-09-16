@@ -103,20 +103,23 @@
 
     <div v-else class="page-list">
       <h3 class="page-section-title">CTA 实例</h3>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="试用：管理员 → 添加策略选「双均线策略」→ 填 vt_symbol（如 rb2501.SHFE）→ 初始化 → 启动。"
-        description="首次接入或装依赖后需重启后端，前端硬刷新。"
-        style="margin-bottom: 12px"
-      />
+      <el-alert class="cta-trial-hint" type="success" :closable="false" show-icon style="margin-bottom: 12px">
+        <template #title>
+          <span class="cta-trial-hint__title">试用流程</span>
+        </template>
+        <ol class="cta-trial-hint__steps">
+          <li>管理员点击「添加策略」，选择带中文名的策略类（如「双均线策略」）</li>
+          <li>填写实例名、合约 <code>vt_symbol</code>（如 <code>rb2501.SHFE</code>），并选择真实通道账户</li>
+          <li>列表中对该实例依次「初始化」→「启动」</li>
+        </ol>
+        <p class="cta-trial-hint__note">首次接入或安装依赖后需<strong>重启后端</strong>，前端<strong>硬刷新</strong>（Ctrl/Cmd+Shift+R）。</p>
+      </el-alert>
       <div class="page-toolbar">
         <el-button type="primary" :icon="Plus" :disabled="!auth.isAdmin" @click="openAdd">添加策略</el-button>
         <el-button :disabled="!auth.isAdmin" @click="batch('init-all')">全部初始化</el-button>
         <el-button :disabled="!auth.isAdmin" @click="batch('start-all')">全部启动</el-button>
         <el-button :disabled="!auth.isAdmin" @click="batch('stop-all')">全部停止</el-button>
-        <el-button :icon="Refresh" @click="strategy.refresh()">刷新</el-button>
+        <el-button :icon="Refresh" @click="refreshAll">刷新</el-button>
       </div>
 
       <el-table
@@ -135,7 +138,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="vt_symbol" label="合约" width="130" show-overflow-tooltip />
-        <el-table-column prop="gateway_name" label="账户" width="100" show-overflow-tooltip />
+        <el-table-column label="账户" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ gatewayLabel(row.gateway_name) }}</template>
+        </el-table-column>
         <el-table-column label="inited" width="80" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.inited ? 'success' : 'info'">{{ row.inited ? "是" : "否" }}</el-tag>
@@ -193,15 +198,25 @@
             <el-input v-model="form.vt_symbol" placeholder="rb2501.SHFE" />
             <p class="page-form-hint">格式：合约代码.交易所，如 rb2501.SHFE。添加后需「初始化」再「启动」。</p>
           </el-form-item>
-          <el-form-item label="账户 gateway">
-            <el-select v-model="form.setting.gateway_name" clearable filterable placeholder="可选" style="width: 100%">
+          <el-form-item label="交易账户">
+            <el-select
+              v-model="form.setting.gateway_name"
+              clearable
+              filterable
+              :placeholder="channelOptions.length ? '选择已配置通道' : '暂无可用通道'"
+              style="width: 100%"
+            >
               <el-option
-                v-for="g in trade.gateways"
-                :key="String(g.gateway_name)"
-                :label="String(g.account_name || g.gateway_name)"
-                :value="String(g.gateway_name)"
+                v-for="g in channelOptions"
+                :key="g.gateway_name"
+                :label="g.label"
+                :value="g.gateway_name"
               />
             </el-select>
+            <p v-if="!channelOptions.length" class="page-form-hint">
+              暂无可见通道。请先在「系统管理 → 通道配置」或「资金持仓 → 账户连接」中配置并启用账户。
+            </p>
+            <p v-else class="page-form-hint">选项来自当前用户可见的真实通道；提交值为 gateway_name。</p>
           </el-form-item>
           <el-form-item v-for="(defVal, key) in paramSchema" :key="String(key)" :label="String(key)">
             <el-input-number
@@ -278,6 +293,24 @@ const instanceByName = computed(() => {
   return map;
 });
 
+const channelOptions = computed(() => {
+  const seen = new Set<string>();
+  const rows: { gateway_name: string; label: string }[] = [];
+  for (const g of trade.gateways) {
+    const gatewayName = String(g.gateway_name || "").trim();
+    if (!gatewayName || seen.has(gatewayName)) continue;
+    seen.add(gatewayName);
+    rows.push({ gateway_name: gatewayName, label: formatChannelLabel(g) });
+  }
+  return rows.sort((a, b) => a.label.localeCompare(b.label, "zh"));
+});
+
+const channelLabelByGateway = computed(() => {
+  const map = new Map<string, string>();
+  for (const row of channelOptions.value) map.set(row.gateway_name, row.label);
+  return map;
+});
+
 const logStrategyOptions = computed(() => {
   const names = new Set<string>();
   for (const row of strategy.instances) {
@@ -299,6 +332,22 @@ const filteredLogs = computed(() => {
 
 function classLabel(row: StrategyClassRow) {
   return strategyDisplayName(row.class_name, row.display_name);
+}
+
+function formatChannelLabel(g: Record<string, unknown>) {
+  const gatewayName = String(g.gateway_name || "").trim();
+  const accountName = String(g.account_name || "").trim();
+  const front = String(g.front_label || "").trim();
+  if (accountName && accountName !== gatewayName) {
+    return front ? `${accountName}（${gatewayName} · ${front}）` : `${accountName}（${gatewayName}）`;
+  }
+  return front ? `${gatewayName}（${front}）` : gatewayName || "—";
+}
+
+function gatewayLabel(gatewayName: unknown) {
+  const name = String(gatewayName || "").trim();
+  if (!name) return "—";
+  return channelLabelByGateway.value.get(name) || name;
 }
 
 function formatMap(value: unknown) {
@@ -354,6 +403,10 @@ async function loadClasses() {
   classes.value = Array.isArray(data) ? data : [];
 }
 
+async function refreshAll() {
+  await Promise.all([strategy.refresh(), trade.refresh()]);
+}
+
 function onClassChange(name: string) {
   const found = classes.value.find((c) => c.class_name === name);
   const params = { ...(found?.parameters || {}) };
@@ -362,7 +415,7 @@ function onClassChange(name: string) {
   form.setting = { ...params, gateway_name: form.setting.gateway_name || "" };
 }
 
-function openAdd() {
+async function openAdd() {
   editingName.value = "";
   form.class_name = classes.value[0]?.class_name || "";
   form.strategy_name = "";
@@ -370,15 +423,17 @@ function openAdd() {
   form.setting = {};
   if (form.class_name) onClassChange(form.class_name);
   dialogVisible.value = true;
+  void trade.refresh();
 }
 
-function openEdit(row: Record<string, unknown>) {
+async function openEdit(row: Record<string, unknown>) {
   editingName.value = String(row.strategy_name || "");
   form.class_name = String(row.class_name || "");
   const params = { ...((row.parameters as Record<string, unknown>) || {}) };
   paramSchema.value = Object.fromEntries(Object.entries(params).filter(([k]) => k !== "gateway_name"));
   form.setting = { ...params };
   dialogVisible.value = true;
+  void trade.refresh();
 }
 
 async function saveInstance() {
@@ -491,6 +546,37 @@ onMounted(async () => {
 
 watch(section, (s) => {
   if (s === "backtest") void loadBacktestResult();
-  if (s === "cta" || !s || s === "logs" || s === "stoporders") void strategy.refresh();
+  if (s === "cta" || !s) {
+    void strategy.refresh();
+    void trade.refresh();
+  }
+  if (s === "logs" || s === "stoporders") void strategy.refresh();
 });
 </script>
+
+<style scoped>
+.cta-trial-hint :deep(.el-alert__content) {
+  width: 100%;
+}
+.cta-trial-hint__title {
+  font-weight: 600;
+}
+.cta-trial-hint__steps {
+  margin: 6px 0 0;
+  padding-left: 1.25em;
+  line-height: 1.65;
+  color: var(--el-text-color-regular);
+}
+.cta-trial-hint__steps code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--el-fill-color);
+  font-size: 12px;
+}
+.cta-trial-hint__note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+</style>

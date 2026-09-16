@@ -29,7 +29,7 @@ export const topMenus: NavItem[] = [
   { path: "/workbench", title: "工作台", icon: HomeFilled, home: true },
   { path: "/market/ticks", title: "市场行情", icon: DataLine },
   { path: "/trade/order", title: "交易下单", icon: Tickets },
-  { path: "/strategy/cta", title: "策略", icon: Cpu },
+  { path: "/strategy/cta", title: "策略模型", icon: Cpu },
   { path: "/account/gateways", title: "资金持仓", icon: Wallet },
   { path: "/admin/users", title: "系统管理", icon: Setting, admin: true },
 ];
