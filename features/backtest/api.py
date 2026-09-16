@@ -11,6 +11,7 @@ from core.db import User
 from core.deps import current_user, require_admin
 from core.runtime import runtime
 from core.serialize import trade_payload
+from core.strategy_names import strategy_display_name
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
@@ -57,7 +58,13 @@ def list_backtest_strategies(user: User = Depends(current_user)) -> list[dict]:
             params = engine.get_default_setting(name)
         except Exception:
             params = {}
-        rows.append({"class_name": name, "parameters": params or {}})
+        rows.append(
+            {
+                "class_name": name,
+                "display_name": strategy_display_name(name),
+                "parameters": params or {},
+            }
+        )
     return rows
 
 

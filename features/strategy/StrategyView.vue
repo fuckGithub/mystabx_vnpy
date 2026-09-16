@@ -12,7 +12,12 @@
       <el-form class="page-query" label-width="96px" @submit.prevent>
         <el-form-item label="策略类">
           <el-select v-model="btForm.class_name" filterable style="width: 260px">
-            <el-option v-for="c in btClasses" :key="c.class_name" :label="c.class_name" :value="c.class_name" />
+            <el-option
+              v-for="c in btClasses"
+              :key="c.class_name"
+              :label="classLabel(c)"
+              :value="c.class_name"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="合约">
@@ -62,10 +67,36 @@
 
     <div v-else-if="section === 'logs'" class="page-list">
       <h3 class="page-section-title">策略日志</h3>
-      <el-table :data="strategy.logs" border size="small" height="560" empty-text="暂无日志">
-        <el-table-column prop="time" label="时间" width="180" />
-        <el-table-column prop="strategy_name" label="策略" width="140" />
-        <el-table-column prop="level" label="级别" width="80" />
+      <el-form class="page-query" :inline="true" @submit.prevent>
+        <el-form-item label="策略实例">
+          <el-select v-model="logFilterName" clearable filterable placeholder="全部" style="width: 220px">
+            <el-option label="全部" value="" />
+            <el-option v-for="name in logStrategyOptions" :key="name" :label="name" :value="name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Refresh" @click="strategy.refresh()">刷新实例</el-button>
+        </el-form-item>
+      </el-form>
+      <el-table
+        :data="filteredLogs"
+        border
+        size="small"
+        highlight-current-row
+        style="width: 100%"
+        empty-text="暂无策略日志"
+      >
+        <el-table-column label="时间" width="168">
+          <template #default="{ row }">{{ formatLogTime(row.time) }}</template>
+        </el-table-column>
+        <el-table-column label="策略" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ formatLogStrategy(row) }}</template>
+        </el-table-column>
+        <el-table-column label="级别" width="88" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="logLevelType(row.level)">{{ logLevelLabel(row.level) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="msg" label="内容" min-width="320" show-overflow-tooltip />
       </el-table>
     </div>
@@ -76,7 +107,7 @@
         type="info"
         :closable="false"
         show-icon
-        title="试用：管理员 → 添加策略选 DoubleMaStrategy → 填 vt_symbol（如 rb2501.SHFE）→ 初始化 → 启动。"
+        title="试用：管理员 → 添加策略选「双均线策略」→ 填 vt_symbol（如 rb2501.SHFE）→ 初始化 → 启动。"
         description="首次接入或装依赖后需重启后端，前端硬刷新。"
         style="margin-bottom: 12px"
       />
@@ -98,7 +129,11 @@
         empty-text="暂无策略实例"
       >
         <el-table-column prop="strategy_name" label="实例" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="class_name" label="策略类" min-width="130" show-overflow-tooltip />
+        <el-table-column label="策略类" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ strategyDisplayName(String(row.class_name || ""), String(row.display_name || "") || null) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="vt_symbol" label="合约" width="130" show-overflow-tooltip />
         <el-table-column prop="gateway_name" label="账户" width="100" show-overflow-tooltip />
         <el-table-column label="inited" width="80" align="center">
@@ -143,7 +178,12 @@
         <el-form label-width="110px">
           <el-form-item v-if="!editingName" label="策略类">
             <el-select v-model="form.class_name" filterable style="width: 100%" @change="onClassChange">
-              <el-option v-for="c in classes" :key="c.class_name" :label="c.class_name" :value="c.class_name" />
+              <el-option
+                v-for="c in classes"
+                :key="c.class_name"
+                :label="classLabel(c)"
+                :value="c.class_name"
+              />
             </el-select>
           </el-form-item>
           <el-form-item v-if="!editingName" label="实例名称">
@@ -190,6 +230,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, Refresh } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import { useAuthStore, useStrategyStore, useTradeStore } from "@/stores";
+import { strategyDisplayName } from "./strategyNames";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -201,7 +242,12 @@ const loading = ref(false);
 const saving = ref(false);
 const dialogVisible = ref(false);
 const editingName = ref("");
-const classes = ref<{ class_name: string; parameters: Record<string, unknown> }[]>([]);
+type StrategyClassRow = {
+  class_name: string;
+  display_name?: string;
+  parameters: Record<string, unknown>;
+};
+const classes = ref<StrategyClassRow[]>([]);
 const paramSchema = ref<Record<string, unknown>>({});
 const form = reactive({
   class_name: "",
@@ -210,7 +256,7 @@ const form = reactive({
   setting: {} as Record<string, unknown>,
 });
 
-const btClasses = ref<{ class_name: string; parameters: Record<string, unknown> }[]>([]);
+const btClasses = ref<StrategyClassRow[]>([]);
 const btRunning = ref(false);
 const btStats = ref<Record<string, unknown> | null>(null);
 const btForm = reactive({
@@ -221,11 +267,79 @@ const btForm = reactive({
   end: "2024-06-01",
 });
 
+const logFilterName = ref("");
+
+const instanceByName = computed(() => {
+  const map = new Map<string, Record<string, unknown>>();
+  for (const row of strategy.instances) {
+    const name = String(row.strategy_name || "");
+    if (name) map.set(name, row);
+  }
+  return map;
+});
+
+const logStrategyOptions = computed(() => {
+  const names = new Set<string>();
+  for (const row of strategy.instances) {
+    const name = String(row.strategy_name || "");
+    if (name) names.add(name);
+  }
+  for (const row of strategy.logs) {
+    const name = String(row.strategy_name || "");
+    if (name) names.add(name);
+  }
+  return Array.from(names).sort((a, b) => a.localeCompare(b));
+});
+
+const filteredLogs = computed(() => {
+  const filter = logFilterName.value;
+  if (!filter) return strategy.logs;
+  return strategy.logs.filter((row) => String(row.strategy_name || "") === filter);
+});
+
+function classLabel(row: StrategyClassRow) {
+  return strategyDisplayName(row.class_name, row.display_name);
+}
+
 function formatMap(value: unknown) {
   if (!value || typeof value !== "object") return "—";
   return Object.entries(value as Record<string, unknown>)
     .map(([k, v]) => `${k}=${v}`)
     .join(", ");
+}
+
+function formatLogTime(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  // 2024-09-16T15:37:30.208+08:00 → 2024-09-16 15:37:30
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+  if (m) return `${m[1]} ${m[2]}`;
+  return raw.length > 19 ? raw.slice(0, 19).replace("T", " ") : raw.replace("T", " ");
+}
+
+function formatLogStrategy(row: Record<string, unknown>) {
+  const name = String(row.strategy_name || "").trim();
+  if (!name) return "—";
+  const inst = instanceByName.value.get(name);
+  const className = String(row.class_name || inst?.class_name || "").trim();
+  if (!className) return name;
+  const display = strategyDisplayName(className, String(inst?.display_name || "") || null);
+  return `${name} · ${display}`;
+}
+
+function logLevelType(level: unknown) {
+  const s = String(level || "").toLowerCase();
+  if (s === "error" || s === "critical") return "danger";
+  if (s === "warning" || s === "warn") return "warning";
+  if (s === "debug") return "info";
+  return "";
+}
+
+function logLevelLabel(level: unknown) {
+  const s = String(level || "").toLowerCase();
+  if (s === "warning") return "warning";
+  if (s === "critical") return "critical";
+  return s || "info";
 }
 
 function stopStatusType(status: unknown) {
@@ -377,6 +491,6 @@ onMounted(async () => {
 
 watch(section, (s) => {
   if (s === "backtest") void loadBacktestResult();
-  if (s === "cta" || !s) void strategy.refresh();
+  if (s === "cta" || !s || s === "logs" || s === "stoporders") void strategy.refresh();
 });
 </script>

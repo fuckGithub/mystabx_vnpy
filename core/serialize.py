@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
+from core.strategy_names import strategy_display_name
+
 SHANGHAI = timezone(timedelta(hours=8))
 
 _STATUS_OUT = {
@@ -197,10 +199,12 @@ def cta_strategy_payload(strategy_or_data) -> dict:
         parameters = dict(data.get("parameters") or {})
         variables = dict(data.get("variables") or {}) if isinstance(data.get("variables"), dict) else {}
         gateway_name = parameters.get("gateway_name") or data.get("gateway_name") or ""
+        class_name = data.get("class_name", "") or ""
         return {
             "strategy_name": data.get("strategy_name", ""),
             "vt_symbol": data.get("vt_symbol", ""),
-            "class_name": data.get("class_name", ""),
+            "class_name": class_name,
+            "display_name": strategy_display_name(str(class_name)),
             "author": data.get("author", ""),
             "parameters": _jsonable(parameters),
             "variables": _jsonable(variables),
@@ -214,10 +218,12 @@ def cta_strategy_payload(strategy_or_data) -> dict:
     parameters = dict(strategy.get_parameters()) if hasattr(strategy, "get_parameters") else {}
     variables = dict(strategy.get_variables()) if hasattr(strategy, "get_variables") else {}
     setting_gw = str(parameters.get("gateway_name") or "")
+    class_name = strategy.__class__.__name__
     return {
         "strategy_name": getattr(strategy, "strategy_name", ""),
         "vt_symbol": getattr(strategy, "vt_symbol", ""),
-        "class_name": strategy.__class__.__name__,
+        "class_name": class_name,
+        "display_name": strategy_display_name(class_name),
         "author": getattr(strategy, "author", ""),
         "parameters": _jsonable(parameters),
         "variables": _jsonable(variables),

@@ -9,6 +9,7 @@ from core.db import User
 from core.deps import current_user, require_admin
 from core.runtime import runtime
 from core.serialize import cta_stop_order_payload, cta_strategy_payload
+from core.strategy_names import strategy_display_name
 
 router = APIRouter(prefix="/api/cta", tags=["cta"])
 
@@ -44,7 +45,13 @@ def list_strategy_classes(user: User = Depends(current_user)) -> list[dict]:
             params = engine.get_strategy_class_parameters(name)
         except Exception:
             params = {}
-        rows.append({"class_name": name, "parameters": params})
+        rows.append(
+            {
+                "class_name": name,
+                "display_name": strategy_display_name(name),
+                "parameters": params,
+            }
+        )
     return rows
 
 
