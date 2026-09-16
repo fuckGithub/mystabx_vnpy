@@ -9,6 +9,7 @@ from vnpy.trader.object import OrderRequest
 
 from core.db import User
 from core.deps import current_user, visible_gateways
+from core.metrics import metrics
 from core.runtime import runtime
 from core.serialize import order_payload, position_payload, trade_payload
 
@@ -72,9 +73,10 @@ def list_trades(user: User = Depends(current_user)) -> list[dict]:
 def send_order(body: OrderBody, user: User = Depends(current_user)) -> dict:
     if body.gateway_name not in visible_gateways(user):
         raise HTTPException(status_code=403, detail="无权限在该账户下单")
+    exchange = _enum(_EXCHANGE, body.exchange, "exchange")
     request = OrderRequest(
         symbol=body.symbol,
-        exchange=_enum(_EXCHANGE, body.exchange, "exchange"),
+        exchange=exchange,
         direction=_enum(_DIRECTION, body.direction, "direction"),
         type=_enum(_ORDER_TYPE, body.type, "type"),
         price=body.price,
@@ -85,6 +87,7 @@ def send_order(body: OrderBody, user: User = Depends(current_user)) -> dict:
     vt_orderid = runtime.me.send_order(request, body.gateway_name)
     if not vt_orderid:
         raise HTTPException(status_code=400, detail="下单失败：网关未连接")
+    metrics.observe_tick_to_trade(body.symbol, exchange.name)
     return {"vt_orderid": vt_orderid}
 
 

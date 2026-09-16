@@ -8,6 +8,7 @@ import threading
 from typing import Any
 
 from core.clickhouse import insert_ticks
+from core.metrics import metrics
 
 logger = logging.getLogger("stabx.tick_writer")
 
@@ -18,14 +19,22 @@ _MAX_QUEUE = 50_000
 _q: queue.Queue[dict[str, Any] | None] = queue.Queue(maxsize=_MAX_QUEUE)
 _thread: threading.Thread | None = None
 _stop = threading.Event()
+_drops = 0
 
 
 def enqueue_tick(payload: dict[str, Any]) -> None:
     """Non-blocking. Drops if the queue is full (live chart still works)."""
+    global _drops
     try:
         _q.put_nowait(dict(payload))
     except queue.Full:
-        pass
+        _drops += 1
+        metrics.note_ch_drop()
+
+
+def queue_stats() -> dict[str, int]:
+    """P8: ClickHouse writer queue depth for /health metrics."""
+    return {"depth": _q.qsize(), "max": _MAX_QUEUE, "drops": _drops}
 
 
 def start_tick_writer() -> None:
@@ -33,6 +42,7 @@ def start_tick_writer() -> None:
     if _thread is not None and _thread.is_alive():
         return
     _stop.clear()
+    metrics.bind_ch_depth(queue_stats)
     _thread = threading.Thread(target=_run, name="ch-tick-writer", daemon=True)
     _thread.start()
     logger.info("ClickHouse tick writer started")

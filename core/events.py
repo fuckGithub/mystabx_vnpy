@@ -36,13 +36,19 @@ def _gateway_name(data) -> str | None:
 
 def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> None:
     def on_tick(event: Event) -> None:
-        gw = _gateway_name(event.data)
+        from core.metrics import metrics, perf_counter
+
+        t0 = perf_counter()
+        tick = event.data
+        gw = _gateway_name(tick)
         if gw:
             manager.note_market_event(str(gw), from_tick=True)
-        payload = tick_payload(event.data)
+        payload = tick_payload(tick)
+        metrics.note_tick_arrival(str(payload.get("symbol") or ""), str(payload.get("exchange") or ""))
         record_tick(payload)
         enqueue_tick(payload)
         publish_threadsafe(envelope("tick", payload))
+        metrics.observe_tick_handler((perf_counter() - t0) * 1000.0)
 
     def on_order(event: Event) -> None:
         publish_threadsafe(envelope("order", order_payload(event.data)))

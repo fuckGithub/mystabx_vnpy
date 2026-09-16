@@ -1,14 +1,33 @@
-"""WebSocket hub: auth, heartbeat, topic filter (docs/04)."""
+"""WebSocket hub: auth, heartbeat, topic filter (docs/04).
+
+P1/P2 (docs/09 §8): serialize each envelope once (orjson when available);
+track pending fan-out depth for P8. Routing semantics unchanged.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import json
+import time
 from dataclasses import dataclass, field
 
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 
+from core.metrics import metrics
 from core.serialize import envelope
+
+try:
+    import orjson as _orjson
+except ImportError:  # pragma: no cover
+    _orjson = None
+
+
+def _dumps_text(msg: dict) -> str:
+    """One JSON encoding for all matching connections (P1)."""
+    if _orjson is not None:
+        return _orjson.dumps(msg).decode("utf-8")
+    return json.dumps(msg, ensure_ascii=False)
 
 
 @dataclass
@@ -54,7 +73,7 @@ class WsHub:
         if conn.ws.client_state != WebSocketState.CONNECTED:
             return
         try:
-            await conn.ws.send_json(msg)
+            await conn.ws.send_text(_dumps_text(msg))
         except Exception:
             self.remove(conn.ws)
 
@@ -62,6 +81,7 @@ class WsHub:
         data = msg.get("data") or {}
         gateway_name = data.get("gateway_name")
         msg_type = msg.get("type")
+        targets: list[Connection] = []
         stale: list[WebSocket] = []
         for conn in list(self.connections):
             if not self._visible(conn, gateway_name):
@@ -71,10 +91,18 @@ class WsHub:
             if conn.ws.client_state != WebSocketState.CONNECTED:
                 stale.append(conn.ws)
                 continue
+            targets.append(conn)
+        if not targets and not stale:
+            return
+        t0 = time.perf_counter()
+        payload = _dumps_text(msg) if targets else ""
+        for conn in targets:
             try:
-                await conn.ws.send_json(msg)
+                await conn.ws.send_text(payload)
             except Exception:
                 stale.append(conn.ws)
+        if targets:
+            metrics.observe_ws_fanout((time.perf_counter() - t0) * 1000.0)
         for ws in stale:
             self.remove(ws)
 
@@ -84,7 +112,7 @@ class WsHub:
                 await self.send_envelope(conn, msg)
 
     def snapshot_counts(self) -> dict[str, int]:
-        return {"connections": len(self.connections)}
+        return {"connections": len(self.connections), "pending_fanouts": metrics.ws_queue_depth()}
 
 
 hub = WsHub()
@@ -99,14 +127,21 @@ def set_loop(loop: asyncio.AbstractEventLoop | None) -> None:
 async def _fanout(msg: dict) -> None:
     from core.sse import sse_hub
 
-    await hub.route(msg)
-    sse_hub.push(msg)
+    try:
+        await hub.route(msg)
+        sse_hub.push(msg)
+    finally:
+        metrics.ws_fanout_end()
 
 
 def publish_threadsafe(msg: dict) -> None:
     if _loop is None or not _loop.is_running():
         return
-    asyncio.run_coroutine_threadsafe(_fanout(msg), _loop)
+    metrics.ws_fanout_begin()
+    try:
+        asyncio.run_coroutine_threadsafe(_fanout(msg), _loop)
+    except Exception:
+        metrics.ws_fanout_end()
 
 
 def pong() -> dict:

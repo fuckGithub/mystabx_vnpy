@@ -93,6 +93,17 @@ class Settings:
             "http://127.0.0.1:5173,http://localhost:5173",
         )
         self.cors_origins = [item.strip() for item in raw_origins.split(",") if item.strip()]
+        # P8 metric alert thresholds (docs/09 §8.6)
+        self.metric_t2t_p99_ms = float(os.environ.get("STABX_METRIC_T2T_P99_MS", "50"))
+        self.metric_ch_queue_warn = int(os.environ.get("STABX_METRIC_CH_QUEUE_WARN", "40000"))
+        self.metric_ws_pending_warn = int(os.environ.get("STABX_METRIC_WS_PENDING_WARN", "2000"))
+
+    def metric_thresholds(self) -> dict[str, float]:
+        return {
+            "tick_to_trade_p99_ms": self.metric_t2t_p99_ms,
+            "ch_queue_warn": float(self.metric_ch_queue_warn),
+            "ws_pending_warn": float(self.metric_ws_pending_warn),
+        }
 
 
 settings = Settings()

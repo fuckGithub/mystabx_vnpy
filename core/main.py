@@ -24,6 +24,7 @@ from core.deps import decode_token, get_user_by_id, user_public, visible_gateway
 from core.engine import build_headless_engines  # noqa: E402
 from core.events import bind_events  # noqa: E402
 from core.gateways import AccountGatewayManager  # noqa: E402
+from core.metrics import metrics  # noqa: E402
 from core.runtime import runtime  # noqa: E402
 from core.serialize import envelope  # noqa: E402
 from core.sse import SseClient, format_sse, sse_hub  # noqa: E402
@@ -65,6 +66,20 @@ async def lifespan(_app: FastAPI):
     runtime.gateways = manager
     set_loop(asyncio.get_running_loop())
     manager.kickoff_auto_connects()
+
+    def _event_depth() -> int | None:
+        ee = runtime.event_engine
+        if ee is None:
+            return None
+        q = getattr(ee, "_queue", None)
+        if q is None:
+            return None
+        try:
+            return int(q.qsize())
+        except Exception:
+            return None
+
+    metrics.bind_event_depth(_event_depth)
     logger.info("headless engine ready, gateways=%s", list(manager.index))
     try:
         yield
@@ -103,6 +118,7 @@ def health() -> dict:
         "ws": hub.snapshot_counts(),
         "sse": sse_hub.snapshot_counts(),
         "clickhouse": clickhouse_status(refresh=True),
+        "metrics": metrics.snapshot(thresholds=settings.metric_thresholds()),
     }
 
 

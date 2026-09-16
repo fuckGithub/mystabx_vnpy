@@ -7,11 +7,22 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.metrics import metrics
+
 SSE_TYPES = frozenset({"gateway", "account"})
+
+try:
+    import orjson as _orjson
+except ImportError:  # pragma: no cover
+    _orjson = None
 
 
 def format_sse(event: str, payload: dict[str, Any]) -> str:
-    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    if _orjson is not None:
+        data = _orjson.dumps(payload).decode("utf-8")
+    else:
+        data = json.dumps(payload, ensure_ascii=False)
+    return f"event: {event}\ndata: {data}\n\n"
 
 
 @dataclass
@@ -61,7 +72,14 @@ class SseHub:
                 pass
 
     def snapshot_counts(self) -> dict[str, int]:
-        return {"connections": len(self.clients)}
+        return {"connections": len(self.clients), "queued": self.queued_depth()}
+
+    def queued_depth(self) -> int:
+        total = 0
+        for client in self.clients:
+            total += client.queue.qsize()
+        return total
 
 
 sse_hub = SseHub()
+metrics.bind_sse_depth(lambda: sse_hub.queued_depth())
