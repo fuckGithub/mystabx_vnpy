@@ -20,7 +20,7 @@ if [[ ! -x "${PY}" ]]; then
   exit 1
 fi
 
-uv pip install -e "${ROOT}[strategy]"
+uv pip install -e "${ROOT}"
 
 mkdir -p "${DEPS}"
 # Python bindings come from vnpy_ctp 6.7.7.2; Mac CTP dylibs/headers are overlaid

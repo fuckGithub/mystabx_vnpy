@@ -22,28 +22,6 @@ dependencies = [
     "httpx>=0.27",
 ]
 
-[project.optional-dependencies]
-# Soft-loaded by MainEngine (ImportError → skip). Install what you need:
-#   uv pip install -e ".[strategy]"
-# Excel RTD is Windows/Excel COM only — not included here.
-strategy = [
-    "vnpy_ctastrategy",
-    "vnpy_ctabacktester",
-    "vnpy_spreadtrading",
-    "vnpy_optionmaster",
-    "vnpy_portfoliostrategy",
-    "vnpy_algotrading",
-    "vnpy_scripttrader",
-    "vnpy_paperaccount",
-    "vnpy_datarecorder",
-    "vnpy_datamanager",
-    "vnpy_riskmanager",
-    "vnpy_rpcservice",
-    "vnpy_chartwizard",
-    "vnpy_portfoliomanager",
-    "vnpy_webtrader",
-]
-
 [project.scripts]
 start = "core.start:main"
 
@@ -59,7 +37,6 @@ exclude = ["ui*", "vendor*", "licenses*", "node_modules*", "docs*", "scripts*"]
 # Linux: compile vnpy_ctp 6.7.7.2 against Linux CTP .so (not Mac .framework)
 #   ./scripts/install_linux.sh
 # Do not use pip install -e for vnpy_ctp.
-# Strategy apps (optional): uv pip install -e ".[strategy]"
 
 [tool.pyright]
 venvPath = "."
