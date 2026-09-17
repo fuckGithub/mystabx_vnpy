@@ -82,9 +82,9 @@
   pointer-events: none;
 }
 .pane-caption :deep(.el-select) { pointer-events: auto; }
-/* In the band under price-pane time labels; volume grid starts at 62%. */
-.pane-caption.vol { top: 54%; }
-.pane-caption.macd { top: 76%; }
+/* Inside volume pane (grid top 62%), below price-pane time labels — not in the mid band. */
+.pane-caption.vol { top: 62%; }
+.pane-caption.macd { top: 78%; }
 .pane-caption b { color: var(--dash-heading); font-weight: 600; }
 .pane-caption small { color: var(--dash-text-muted); }
 .overlay-select { width: 88px; }
