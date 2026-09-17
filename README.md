@@ -11,12 +11,6 @@
 
 ## 社区与交流
 
-交流 Mystabx / vnpy Web 交易台落地实践，请按顺序加入：先知识星球，再申请微信沟通群。
-
-<p align="center">
-  <img src="docs/images/mystabx-brand-avatar.jpg" alt="MyStabx 项目头像" width="96" />
-</p>
-
 **① 知识星球**「MyStabx 期货量化交易平台」
 
 提示：长按或扫描下方优惠券二维码领取新人立减券（¥88，有效至 2026/12/31；**限量 100 张，先到先得**），完成注册后即可在星球内交流实践与联调经验。
