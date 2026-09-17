@@ -48,6 +48,41 @@ function tickSeriesId(tick: Record<string, unknown>): string {
   return `${tick.datetime ?? ""}|${tick.last_price ?? ""}|${tick.volume ?? ""}|${tick.last_volume ?? ""}`;
 }
 
+/**
+ * SimNow sometimes freezes tick.datetime (or stamps a prior calendar day) while
+ * last_price keeps moving. Bucketing by that stamp yields one minute → a flat
+ * 分时 line. For live WS/OMS upserts, re-stamp when the exchange clock lags.
+ */
+function withLiveTickStamp(tick: Record<string, unknown>): Record<string, unknown> {
+  const raw = tick.datetime;
+  if (raw == null || raw === "") {
+    return { ...tick, datetime: new Date().toISOString() };
+  }
+  let ms = 0;
+  if (typeof raw === "number") {
+    ms = raw < 1e12 ? raw * 1000 : raw;
+  } else {
+    const text = String(raw).trim();
+    if (/^\d+(\.\d+)?$/.test(text)) {
+      const n = Number(text);
+      ms = n < 1e12 ? n * 1000 : n;
+    } else {
+      const iso = text.includes("T") ? text : text.replace(" ", "T");
+      const withTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}+08:00`;
+      ms = Date.parse(withTz);
+    }
+  }
+  if (!Number.isFinite(ms)) {
+    return { ...tick, datetime: new Date().toISOString() };
+  }
+  const lagSec = (Date.now() - ms) / 1000;
+  // >2 min behind (frozen / wrong day) or >1 min ahead (clock skew)
+  if (lagSec > 120 || lagSec < -60) {
+    return { ...tick, datetime: new Date().toISOString() };
+  }
+  return tick;
+}
+
 export type ClickHouseHealth = {
   ok: boolean;
   state: string;
@@ -148,9 +183,10 @@ export const useMarketStore = defineStore("market", () => {
 
   /** Tick 入账不得视为订阅：仅显式 subscribeContract（或退订对称清理）改 subscribedKeys。 */
   function upsertTick(tick: Record<string, unknown>) {
-    const key = `${tick.exchange}.${tick.symbol}.${tick.gateway_name}`;
-    ticks[key] = tick;
-    appendSessionTick(tick);
+    const live = withLiveTickStamp(tick);
+    const key = `${live.exchange}.${live.symbol}.${live.gateway_name}`;
+    ticks[key] = live;
+    appendSessionTick(live);
   }
 
   function latestTick(symbol: string, exchange: string): Record<string, unknown> | undefined {

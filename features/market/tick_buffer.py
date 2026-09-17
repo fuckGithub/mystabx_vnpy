@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from datetime import date
+from datetime import date, datetime
 from threading import Lock
 from typing import Any
 
+from core.serialize import SHANGHAI, dt_iso
 from core.sessions import (
     current_trade_date,
     parse_tick_dt,
@@ -22,6 +23,26 @@ _lock = Lock()
 
 def contract_key(exchange: str, symbol: str) -> str:
     return f"{str(exchange or '').upper()}.{str(symbol or '').upper()}"
+
+
+def normalize_live_tick(payload: dict[str, Any]) -> dict[str, Any]:
+    """Re-stamp frozen / wrong-day SimNow datetimes so 分时 can bucket by wall clock.
+
+    Exchange last_price often keeps updating while datetime stays put; bucketing
+    by that stamp collapses the session to one minute (flat line, near-zero volume).
+    """
+    dt = parse_tick_dt(payload.get("datetime"))
+    now = datetime.now(tz=SHANGHAI)
+    if dt is None:
+        out = dict(payload)
+        out["datetime"] = dt_iso(now)
+        return out
+    lag = (now - dt).total_seconds()
+    if lag > 120 or lag < -60:
+        out = dict(payload)
+        out["datetime"] = dt_iso(now)
+        return out
+    return payload
 
 
 def record_tick(payload: dict[str, Any]) -> None:

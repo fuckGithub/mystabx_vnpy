@@ -124,16 +124,18 @@ def list_session_ticks(
     gws = set(visible_gateways(user))
     current = current_trade_date(exchange)
     td = parse_trade_date(trade_date) or current
-    mem = _visible_ticks(session_ticks(symbol, exchange, td), gws) if td == current else []
+    # Memory / ClickHouse rows are public market ticks for the contract. Do not
+    # drop them when gateway_name differs (reconnect / renamed account) — that
+    # left the UI with a single OMS snapshot and a flat 分时 line.
+    mem = session_ticks(symbol, exchange, td) if td == current else []
     oms = _oms_ticks(symbol, exchange, gws) if td == current else []
     ch_rows = query_ticks(symbol, exchange, td)
     ch_ok = ch_rows is not None
-    visible_ch = _visible_ticks(ch_rows or [], gws)
     return {
         "trade_date": td.isoformat(),
         "is_current": td == current,
         "clickhouse": "ok" if ch_ok else "down",
-        "ticks": _merge_ticks(visible_ch, mem, oms),
+        "ticks": _merge_ticks(ch_rows or [], mem, oms),
     }
 
 

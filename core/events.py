@@ -30,7 +30,7 @@ from core.serialize import (
     trade_payload,
 )
 from core.ws import publish_threadsafe
-from features.market.tick_buffer import record_tick
+from features.market.tick_buffer import normalize_live_tick, record_tick
 from features.market.tick_writer import enqueue_tick
 
 try:
@@ -65,7 +65,7 @@ def bind_events(event_engine: EventEngine, manager: AccountGatewayManager) -> No
         gw = _gateway_name(tick)
         if gw:
             manager.note_market_event(str(gw), from_tick=True)
-        payload = tick_payload(tick)
+        payload = normalize_live_tick(tick_payload(tick))
         metrics.note_tick_arrival(str(payload.get("symbol") or ""), str(payload.get("exchange") or ""))
         record_tick(payload)
         enqueue_tick(payload)

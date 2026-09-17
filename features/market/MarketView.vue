@@ -156,10 +156,6 @@ function mergeTickRows(...groups: Record<string, unknown>[][]): Record<string, u
   return [...merged.values()];
 }
 
-function pricedTickCount(rows: Record<string, unknown>[]): number {
-  return rows.filter((row) => finitePrice(row.last_price) != null).length;
-}
-
 /** Session API (memory + ClickHouse) plus live WS — 今日 used to ignore CH and keep one snapshot. */
 const liveTicks = computed(() => {
   const key = sessionKey.value;
@@ -305,14 +301,10 @@ async function onPick(row: ContractRow) {
   const next = currentTradeDate(String(row.exchange || ""));
   tradeDate.value = next;
   await refreshTradeDates(row);
+  // Always stay on the current 交易日 for live quotes. Falling back to a
+  // historical day when today still has <2 ticks made the tape look live
+  // while 分时 froze on a sparse/flat history series.
   await refreshSession(row, next);
-  if (pricedTickCount(loadedTicks.value) < 2) {
-    const fallback = tradeDates.value.find((d) => d.has_data && d.date !== next);
-    if (fallback) {
-      tradeDate.value = fallback.date;
-      await refreshSession(row, fallback.date);
-    }
-  }
   await ensureSpanTicks(row);
 }
 

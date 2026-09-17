@@ -155,15 +155,23 @@ function inWindows(mins: number, windows: Window[]): boolean {
   return windows.some((w) => mins >= w.start && mins < w.end);
 }
 
-/** Map an out-of-session clock (e.g. SimNow 17:30 after CFFEX close) onto the axis. */
+/**
+ * Map an out-of-session clock onto the axis.
+ * Critical: 15:00–21:00 (after day close, before night) must snap to 14:59,
+ * never to night open 21:00 — otherwise one after-hours tick forward-fills a
+ * flat line across the entire 夜盘+日盘 axis.
+ */
 function snapToSessionMinute(mins: number, windows: Window[]): number {
   if (!windows.length) return mins;
   if (inWindows(mins, windows)) return mins;
-  if (mins < windows[0].start) return windows[0].start;
   for (let i = windows.length - 1; i >= 0; i -= 1) {
-    if (mins >= windows[i].end) return windows[i].end - 1;
+    if (mins >= windows[i].end) {
+      const next = windows[i + 1];
+      if (!next || mins < next.start) return windows[i].end - 1;
+    }
   }
-  return windows[0].start;
+  if (mins < windows[0].start) return windows[0].start;
+  return windows[windows.length - 1].end - 1;
 }
 
 function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; nextCum: number } {
@@ -329,6 +337,8 @@ export function aggregateTimeshare(
       const mins = clockMinutes(dt);
       const inSession = inWindows(mins, windows);
       const inRange = dt.getTime() >= startMs && dt.getTime() < endMs;
+      // inSession uses clock only — SimNow often stamps the wrong calendar day
+      // but a valid session HH:mm; still plot those on today's axis.
       if (inSession || inRange) {
         putBucket(
           buckets,
@@ -339,16 +349,26 @@ export function aggregateTimeshare(
         );
         continue;
       }
+      // Live after-hours / mid-break quotes: pin to nearest session minute
+      // (e.g. 17:xx → 14:59) so the curve keeps the latest last_price.
+      if (live) {
+        putBucket(buckets, snapToSessionMinute(mins, windows), price, delta, oi);
+        continue;
+      }
+    } else if (live) {
+      putBucket(buckets, snapToSessionMinute(clockMinutes(new Date()), windows), price, delta, oi);
+      continue;
     }
     orphans.push({ price, volume: delta, oi, dt });
   }
 
   if (buckets.size === 0 && orphans.length) {
-    const last = orphans[orphans.length - 1];
-    const clock = last.dt
-      ? snapToSessionMinute(clockMinutes(last.dt), windows)
-      : snapToSessionMinute(clockMinutes(new Date()), windows);
-    putBucket(buckets, clock, last.price, last.volume, last.oi);
+    for (const row of orphans) {
+      const clock = row.dt
+        ? snapToSessionMinute(clockMinutes(row.dt), windows)
+        : snapToSessionMinute(clockMinutes(new Date()), windows);
+      putBucket(buckets, clock, row.price, row.volume, row.oi);
+    }
   }
 
   const nowMins = clockMinutes(new Date());
