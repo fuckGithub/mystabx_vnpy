@@ -55,9 +55,9 @@ echo "安装 Web 依赖（不含桌面 Qt / PySide6）..."
   "ta-lib>=0.6.3"
 
 "${PIP[@]}" install --no-deps "vnpy>=4.0.0,<5"
-echo "安装 CTA / 回测应用..."
-if ! "${PIP[@]}" install --only-binary=:all: "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"; then
-  "${PIP[@]}" install "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"
+echo "安装 CTA / 回测应用（--no-deps，避免经 vnpy 拉入 PySide6）..."
+if ! "${PIP[@]}" install --no-deps --only-binary=:all: "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"; then
+  "${PIP[@]}" install --no-deps "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"
 fi
 "${PIP[@]}" install --no-deps -e "${ROOT}"
 _uninstall_qt

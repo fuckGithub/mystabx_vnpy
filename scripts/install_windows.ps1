@@ -114,10 +114,10 @@ if ($LASTEXITCODE -ne 0) {
     Write-Warning "ta-lib 安装失败时可稍后重试（优先 wheel）。"
 }
 & $Py -m pip install --no-deps "vnpy>=4.0.0,<5"
-Write-Host "安装 CTA / 回测应用（优先 wheel）..."
-& $Py -m pip install --only-binary=:all: "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"
+Write-Host "安装 CTA / 回测应用（--no-deps，避免经 vnpy 拉入 PySide6）..."
+& $Py -m pip install --no-deps --only-binary=:all: "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"
 if ($LASTEXITCODE -ne 0) {
-    & $Py -m pip install "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"
+    & $Py -m pip install --no-deps "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"
 }
 & $Py -m pip install --no-deps -e $Root
 if ($LASTEXITCODE -ne 0) {
