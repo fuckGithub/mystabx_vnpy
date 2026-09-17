@@ -6,11 +6,10 @@
 set -euo pipefail
 
 # CTP C++ requires a valid locale; invalid LANG crashes after connect.
-# Use generated en_US.UTF-8 (run locale-gen on minimal images). Force override
-# so systemd/aliases like *.utf8 cannot reach libstdc++ and abort CTP.
-export LANG=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
-export LC_CTYPE=en_US.UTF-8
+# Prefer zh_CN.utf8 on minimal Linux images (often no zh_CN.UTF-8 alias).
+export LANG="${LANG:-zh_CN.utf8}"
+export LC_ALL="${LC_ALL:-zh_CN.utf8}"
+export LC_CTYPE="${LC_CTYPE:-zh_CN.utf8}"
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "${ROOT}"

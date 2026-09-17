@@ -286,8 +286,34 @@ else
   fi
 fi
 
+# vnpy_ctp 的 vnctptd/vnctpmd 硬编码 std::locale("zh_CN.GB18030")；缺该 locale 会在 CTP 登录后 ABRT。
+echo "确保 CTP 所需 locale（zh_CN.GB18030）…"
+if command -v apt-get >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+  if ! locale -a 2>/dev/null | grep -qiE '^zh_CN\.gb18030$'; then
+    apt-get install -y -qq locales-all >/dev/null 2>&1 \
+      || apt-get install -y -qq locales >/dev/null 2>&1 \
+      || true
+    if [[ -f /etc/locale.gen ]]; then
+      sed -i 's/^# *zh_CN.GB18030 GB18030/zh_CN.GB18030 GB18030/' /etc/locale.gen || true
+      grep -q '^zh_CN.GB18030 GB18030' /etc/locale.gen \
+        || echo 'zh_CN.GB18030 GB18030' >> /etc/locale.gen
+      locale-gen >/dev/null 2>&1 || true
+    fi
+  fi
+fi
+mkdir -p /etc/systemd/system/mystabx-vnpy.service.d
+cat > /etc/systemd/system/mystabx-vnpy.service.d/locale.conf <<'EOF'
+[Service]
+# Match mystabx-vnpy.service / start.sh: ECS ships *.utf8 (not en_US.UTF-8).
+Environment=LANG=zh_CN.utf8
+Environment=LC_ALL=zh_CN.utf8
+Environment=LC_CTYPE=zh_CN.utf8
+EOF
+
 echo "启动应用…"
 if [[ "${has_systemd}" == "1" ]]; then
+  systemctl daemon-reload
   systemctl enable mystabx-vnpy.service >/dev/null 2>&1 || true
   systemctl start mystabx-vnpy.service
   sleep 2
