@@ -505,6 +505,15 @@ function gatewayLabel(gatewayName: unknown) {
   return channelLabelByGateway.value.get(name) || name;
 }
 
+/** Prefer workbench-activated channel; else first visible gateway. */
+function defaultGatewayName() {
+  const options = channelOptions.value;
+  if (!options.length) return "";
+  const preferred = String(trade.activeGatewayName || "").trim();
+  if (preferred && options.some((row) => row.gateway_name === preferred)) return preferred;
+  return options[0]?.gateway_name || "";
+}
+
 function formatMap(value: unknown) {
   if (!value || typeof value !== "object") return "—";
   return Object.entries(value as Record<string, unknown>)
@@ -590,24 +599,35 @@ function onClassChange(name: string | null | undefined) {
   const params = { ...(found?.parameters || {}) };
   delete params.gateway_name;
   paramSchema.value = params;
-  form.setting = { ...params, gateway_name: form.setting.gateway_name || "" };
+  const currentGw = String(form.setting.gateway_name || "").trim();
+  form.setting = {
+    ...params,
+    gateway_name: currentGw || defaultGatewayName(),
+  };
 }
 
 async function openAdd() {
   editingName.value = "";
   form.strategy_name = "";
   form.vt_symbol = "";
-  form.setting = {};
+  form.setting = { gateway_name: defaultGatewayName() };
   paramSchema.value = {};
   dialogVisible.value = true;
   await loadClasses();
   form.class_name = classes.value[0]?.class_name || "";
   if (form.class_name) onClassChange(form.class_name);
+  else form.setting.gateway_name = defaultGatewayName();
   void Promise.all([
     trade.refresh(),
     market.loadSubscriptions(),
     market.loadContracts(),
-  ]);
+  ]).then(() => {
+    if (editingName.value) return;
+    const current = String(form.setting.gateway_name || "").trim();
+    if (!current || !channelOptions.value.some((row) => row.gateway_name === current)) {
+      form.setting.gateway_name = defaultGatewayName();
+    }
+  });
 }
 
 async function openEdit(row: Record<string, unknown>) {
