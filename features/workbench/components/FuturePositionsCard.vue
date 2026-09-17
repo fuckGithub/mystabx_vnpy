@@ -92,32 +92,4 @@ const summary = computed(() => {
 });
 </script>
 
-<style scoped>
-.card { border-radius: var(--dash-card-radius, 8px); padding: 14px; min-height: 0; display: flex; flex-direction: column; height: 100%; }
-.card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-.card-head h3 { margin: 0; font-size: 14px; color: var(--dash-heading); }
-.card-head p { margin: 4px 0 0; font-size: 11px; color: var(--dash-text-muted); }
-.live-dot { font-size: 10px; border-radius: 999px; padding: 2px 8px; }
-.table-wrap { flex: 1; min-height: 0; overflow: auto; border-radius: 10px; border: 1px solid var(--dash-border); background: var(--dash-surface); }
-.positions-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.table-empty { display: flex; align-items: center; justify-content: center; min-height: 72px; font-size: 12px; color: var(--dash-text-muted); }
-thead { position: sticky; top: 0; z-index: 1; }
-th, td {
-  padding: 9px 8px;
-  border-bottom: 1px solid var(--dash-border);
-  text-align: center;
-  white-space: nowrap;
-  box-sizing: border-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
-}
-th { font-weight: 500; color: var(--dash-text-muted); background: var(--dash-surface-soft); }
-.col-contract :deep(.inst) { align-items: center; max-width: 100%; }
-.col-qty, .col-avg, .col-pnl { font-variant-numeric: tabular-nums; overflow: visible; }
-.muted { color: var(--dash-text-muted); }
-.side { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
-code { font-size: 10px; color: var(--primary); }
-.card-foot { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--dash-border); font-size: 11px; color: var(--dash-text-muted); }
-.card-foot em { font-style: normal; font-weight: 600; }
-</style>
+<style scoped src="@/styles/future-positions.css"></style>

@@ -130,36 +130,4 @@ const pagedRows = computed(() => {
 });
 </script>
 
-<style scoped>
-.log-bar { border-radius: var(--dash-card-radius, 8px); padding: 12px 14px; height: 100%; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.log-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
-.log-head h3 { margin: 0; font-size: 13px; color: var(--dash-heading); }
-.log-head p { margin: 2px 0 0; font-size: 11px; color: var(--dash-text-muted); }
-.log-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.filter-select { width: 128px; }
-.filter-input { width: 120px; }
-.log-scroll { flex: 1; min-height: 0; overflow: auto; }
-.log-empty { display: flex; align-items: center; justify-content: center; min-height: 48px; font-size: 12px; color: var(--dash-text-muted); }
-.log-pagination {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding-top: 8px;
-  margin-top: 4px;
-  border-top: 1px solid var(--dash-border);
-}
-.log-pagination :deep(.el-pagination) {
-  flex-wrap: wrap;
-  row-gap: 4px;
-  --el-pagination-bg-color: transparent;
-  --el-pagination-button-bg-color: var(--dash-surface-soft);
-  --el-pagination-hover-color: var(--primary);
-  --el-pagination-button-color: var(--dash-text-secondary);
-}
-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-th, td { padding: 6px 8px; border-bottom: 1px solid var(--dash-border); text-align: left; white-space: nowrap; }
-th { position: sticky; top: 0; color: var(--dash-text-muted); background: var(--dash-surface-soft); z-index: 1; }
-code { font-size: 10px; color: var(--primary); }
-.env { padding: 2px 6px; border-radius: 999px; font-size: 10px; }
-</style>
+<style scoped src="@/styles/future-trade-log.css"></style>
