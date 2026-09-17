@@ -37,7 +37,7 @@
   <img src="docs/images/mystabx-alipay-coffee.jpg" alt="支付宝赞赏码：请作者喝杯咖啡" width="280" />
 </p>
 
-> 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）。启动任选其一：`python main.py`、`uv run start` 或 `./start.sh`（三者等价，均落到 `./start.sh`）。遗留 Qt 桌面仅 `python main.py --qt`。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
+> 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）。启动任选其一：`python main.py`、`uv run start` 或 `./start.sh`（三者等价，均落到 `./start.sh`）。**依赖不含 PySide6**；`python main.py --qt` 仅在本机自行安装了桌面 Qt 时才可用。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
 规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/11](docs/CTP分平台搭建.md)）。
 
@@ -138,7 +138,7 @@
 | 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
 | 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
 | 目录组织 | 功能域优先：`features/ + core/ + ui/`（不按 backend/frontend 分层） |
-| 运行入口 | `python main.py` / `uv run start` / `./start.sh`（单进程托管 API + 构建后的 SPA）；Qt 仅 `--qt` |
+| 运行入口 | `python main.py` / `uv run start` / `./start.sh`（单进程托管 API + 构建后的 SPA；Web-only，依赖不含 PySide6） |
 
 ## 文档索引
 
@@ -155,12 +155,13 @@
 | [09-CTA策略实施规划](docs/09-CTA策略实施规划.md) | CTA 策略 / 回测的实现阶段（阶段 A–E）与设计决策 |
 | [10-VeighNa功能列表](docs/10-VeighNa功能列表.md) | VeighNa 全量功能清单（核心框架 / 接口 / 应用 / 数据层 / 产品线） |
 | [CTP分平台搭建](docs/CTP分平台搭建.md)（[11](docs/11-分平台CTP搭建.md)） | Windows / macOS / Linux：vnpy_ctp 与 SimNow 动态库（`.dll` / `.framework` / `.so`） |
-| [ECS/RDS 连接说明](docs/ecs-rds.example.md) | 阿里云 ECS 公网地址与服务端口（**无密码**）；真实凭据见本机 `docs/ecs-rds.local.md`（gitignore） |
+| [ECS/RDS 连接说明](docs/ecs-rds.example.md) | 阿里云 ECS 公网地址与服务端口（**无密码**）；真实凭据见本机 `docs/ecs-rds.local.md`（gitignore）；含 `deploy_ecs.sh` 自动部署说明 |
 
 ## 与桌面端的关系
 
 - **产品（Web）**：`core/` + `features/` + `ui/`；`python main.py` / `uv run start` / `./start.sh` 一键起 FastAPI + Vue
-- **遗留（桌面）**：`mystabx/` + `python main.py --qt`（官方 MainWindow）。保留但不作为默认入口
+- **依赖**：`pyproject.toml` / `uv.lock` / 安装脚本 **不含 PySide6**（及 qdarkstyle / pyqtgraph）。vnpy 上游虽声明桌面 Qt，解析与安装时已排除
+- **遗留代码**：`mystabx/` 与 `python main.py --qt` 仍在仓库，但默认环境未装 Qt；缺 PySide6 时 `--qt` 会直接退出
 
 未完成（见 [06-实施路线图](docs/06-实施路线图.md)）：RQData 历史 K 线、Docker、Web 策略应用入口。分时与 ClickHouse Tick 入库（近 10 日）已落地；周期 K 线目前是 mock。
 
@@ -201,12 +202,12 @@ mystabx_vnpy/
 │   │   └── auth/                  #     登录页左侧品牌栏
 │   ├── styles/                    #   顶栏/侧栏、内页表格、登录、工作台 CSS
 │   └── assets/brand/              #   登录与壳层用的品牌图
-├── mystabx/                       # 遗留 Qt 桌面（python main.py --qt）
+├── mystabx/                       # 遗留桌面代码（默认未装 Qt；产品入口是 Web）
 ├── docs/                          # 文档 01–11
 ├── scripts/                       # 安装与冒烟（含 Windows PowerShell）
 ├── vendor/simnow-ctp/             # SimNow 官方 CTP 对接说明（Mac framework / Linux .so / Windows .dll）
 ├── licenses/                      # vn.py / vnpy_ctp 的 MIT 许可原文
-├── main.py                        # 产品入口 → start.sh；加 --qt 才起桌面
+├── main.py                        # 产品入口 → start.sh（Web）
 ├── start.sh                       # 构建 / 托管 SPA + uvicorn
 └── …（.venv / node_modules / dist / .vntrader / .deps 本机生成，gitignore）
 ```
@@ -261,7 +262,7 @@ python3 -m venv .venv
 
 **已知限制（macOS）**：SimNow CTP 6.7.13 上对 Md/Td 调用 `exit()`/`close()` 会导致进程崩溃，因此 Web 在 macOS 上「断开」只清本地状态并禁止自动重连，不拆原生会话；真正释放需重启进程。详见上文「通道与连接」。
 
-**Linux**（Ubuntu/Debian 等 x86_64）：同样源码编译 `vnpy_ctp` 6.7.7.2；用 Linux `.so`，不要跑 `install_macos.sh`、不要拷 Mac framework。系统依赖示例：
+**Linux**（Ubuntu/Debian 等 x86_64）：`./scripts/install_linux.sh` **优先** `uv pip install vnpy_ctp`（PyPI wheel）；仅当无可用 wheel 时才回退 git 源码。用 Linux `.so`，不要跑 `install_macos.sh`、不要拷 Mac framework。**Web-only：不装 PySide6**（对 vnpy 用 `--no-deps` 并 scrub Qt）。系统依赖示例：
 
 ```bash
 sudo apt-get install -y python3 python3-venv python3-dev build-essential git nodejs npm
@@ -294,7 +295,7 @@ cp .env.example .env
 
 按需改端口等。不要把真实 SimNow / CTP 密码或 InvestorID 写进仓库或脚本；账户密钥只走 Web **通道配置** 或本机 `.vntrader`。
 
-首次引导管理员（仅当 SQLite 里还没有该用户时写入）默认是 **`admin` / `admin123`**。上线后立刻改掉（可用 `STABX_ADMIN_PASSWORD` 覆盖首次密码，或在后台改用户）。
+首次引导管理员（仅当 SQLite 里还没有该用户时写入）默认用户名是 **`admin`**；未设 `STABX_ADMIN_PASSWORD` 时代码回退 `admin123`。**ECS / 生产必须在 `.env` 设强随机密码**（勿提交）。
 
 ### 5. 启动
 
@@ -318,17 +319,35 @@ uv run start --dev
 ./start.sh --dev
 ```
 
-已有 `dist/index.html` 时可跳过构建：`./start.sh --skip-build`。遗留桌面：`python main.py --qt`。
+已有 `dist/index.html` 时可跳过构建：`./start.sh --skip-build`。
 
-浏览器打开 `http://<主机>:<端口>/`。默认 `STABX_HOST=0.0.0.0`、`STABX_PORT=8000`。
+浏览器打开 `http://<主机>:<端口>/`。默认 `STABX_HOST=0.0.0.0`、`STABX_PORT=18080`。
 
-冒烟（不常驻 uvicorn、不打开 Qt）：
+冒烟（不常驻 uvicorn）：
 
 ```bash
 .venv/bin/python scripts/smoke_web.py
 ```
 
-不要让 agent 代为启动服务，也不要启动 Qt（除非显式 `--qt`）。
+不要让 agent 代为启动服务。产品入口是 Web，依赖管理不含 PySide6。
+
+## ECS 同步部署
+
+本机改代码后可推到服务器 `/stabx/mystabx_vnpy`（端口 **18080**，Web-only，无 PySide6）。凭据只写本机 `.env.ecs`（已 gitignore；脚本安全解析，勿 `source`）。rsync **不覆盖**远端 `.env`，也不重装 `.venv`。
+
+```bash
+cp .env.ecs.example .env.ecs   # 填写 ECS_PASSWORD 等
+./scripts/deploy_ecs.sh        # rsync → stop →（可选 npm build）→ start
+./scripts/deploy_ecs.sh --no-build   # 只同步代码并重启（前端 dist 已有时）
+./scripts/watch_deploy_ecs.sh  # 监视 core/features/ui 等，默认 45s 防抖 + --no-build
+```
+
+**开启自动部署（二选一）：**
+
+1. Cursor hook：`touch .cache/auto_deploy_ecs.enabled`（或 `export STABX_AUTO_DEPLOY_ECS=1`），编辑 `core/` / `features/` / `ui/` 等会防抖部署  
+2. 终端监视：`./scripts/watch_deploy_ecs.sh`
+
+关闭 hook：`rm -f .cache/auto_deploy_ecs.enabled`。日志：`.cache/deploy_ecs.log`。细则见 [docs/ecs-rds.example.md](docs/ecs-rds.example.md)。
 
 ## 推荐的服务器配置
 
@@ -354,7 +373,7 @@ uv run start --dev
    仓库根目录 `python main.py` / `uv run start` / `./start.sh`（或 `--dev`）。浏览器打开上述地址。
 
 2. **登录管理员**  
-   首次可用文档默认账号 `admin` / `admin123`，**登录后立刻改密**。管理员才能进 **系统管理**。
+   生产 / ECS 用 `.env` 里的 `STABX_ADMIN_*`（强随机密码）；本地未配置时不要用文档里的弱口令上线。管理员才能进 **系统管理**。
 
 3. **通道配置（SimNow 或实盘 CTP）**  
    **系统管理 → 通道配置 → 新增**，把通道分配给某个用户。表单含资金账号、密码、经纪商、产品名称、授权编码、是否启动自动连接等。密码保存后加密；更新时留空表示不改密码。  
@@ -391,9 +410,9 @@ uv run start --dev
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `STABX_HOST` | `0.0.0.0` | 监听地址 |
-| `STABX_PORT` | `8000` | 监听端口 |
+| `STABX_PORT` | `18080` | 监听端口 |
 | `STABX_ADMIN_USERNAME` | `admin` | 首次引导管理员名 |
-| `STABX_ADMIN_PASSWORD` | `admin123` | 首次引导管理员密码（立刻改掉） |
+| `STABX_ADMIN_PASSWORD` | （空则代码回退 `admin123`，**生产必须覆盖**） | 首次引导管理员密码 |
 | `STABX_SIMNOW_USER` | （空） | 本机新建通道预填资金账号，只写 `.env` |
 | `STABX_SIMNOW_PASSWORD` | （空） | 本机新建通道预填密码，只写 `.env`，勿提交 |
 | `STABX_JWT_SECRET` | 自动生成 | JWT 密钥；缺省写入 `.vntrader/web_keys.json` |
@@ -404,4 +423,4 @@ uv run start --dev
 | `STABX_METRIC_CH_QUEUE_WARN` | `40000` | ClickHouse 写队列深度告警 |
 | `STABX_METRIC_WS_PENDING_WARN` | `2000` | WS 待 fan-out 协程数告警 |
 
-**产品（Web）**：`core/` + `features/` + `ui/`；`python main.py` / `uv run start` / `./start.sh`。**遗留（桌面）**：`python main.py --qt` + `mystabx/`。
+**产品（Web）**：`core/` + `features/` + `ui/`；`python main.py` / `uv run start` / `./start.sh`。依赖不含 PySide6。

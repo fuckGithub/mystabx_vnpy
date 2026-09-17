@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/auto_deploy_ecs.sh",
+        "timeout": 15
+      }
+    ]
+  }
+}

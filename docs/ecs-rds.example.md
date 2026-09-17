@@ -51,7 +51,46 @@ ssh root@47.102.208.231
 | 用途 | URL |
 |------|-----|
 | API | `http://47.102.208.231:8848/nacos/` |
-| Console | `http://47.102.208.231:18080/` |
+| Console | 历史曾用 `18080`；**现与 mystabx Web 冲突时勿占用**（本仓库 Web 默认 `STABX_PORT=18080`） |
+
+## mystabx Web（本仓库）
+
+| 字段 | 值 |
+|------|-----|
+| 监听 | `0.0.0.0:18080`（`STABX_PORT`） |
+| 机内健康 | `http://127.0.0.1:18080/` · `/health` |
+| 公网 | `http://47.102.208.231:18080/`（需安全组放行 TCP 18080） |
+| 管理员 | 仅 ECS `.env` 的 `STABX_ADMIN_*`（勿提交；勿用 `admin123`） |
+| 安装 | `./scripts/install_linux.sh`（Web-only；**不装** PySide6 / qdarkstyle） |
+| 服务 | `scripts/mystabx-vnpy.service` → systemd；产品入口 Web，无桌面 Qt |
+| 远端路径 | `/stabx/mystabx_vnpy` |
+| 本机部署 | `./scripts/deploy_ecs.sh`（读 `.env.ecs`；rsync 后先停再启） |
+
+## ECS 自动部署
+
+凭据只放本机 `.env.ecs`（gitignore）。脚本**不会**把本机 `.env` / `.env.ecs` 覆盖到服务器；远端已有 `.env` 会保留。
+
+```bash
+# 一次性 / 手动
+./scripts/deploy_ecs.sh
+
+# 本机改代码后监视部署（防抖默认 45s；可 brew install fswatch）
+./scripts/watch_deploy_ecs.sh
+
+# Cursor afterFileEdit hook（仓库已带 .cursor/hooks.json）
+# 开启：touch .cache/auto_deploy_ecs.enabled
+# 或：export STABX_AUTO_DEPLOY_ECS=1
+# 关闭：rm -f .cache/auto_deploy_ecs.enabled
+# 防抖秒数：DEPLOY_ECS_DEBOUNCE=60
+# 日志：.cache/deploy_ecs.log
+```
+
+行为摘要：
+
+1. rsync → `/stabx/mystabx_vnpy`（排除 `.venv`、`node_modules`、`.git`、本机 `.env` / `.env.ecs`；保留远端 `.env`）
+2. 确认远端已有 `.venv`（最多 `--wait-ready`，默认 60s）；**不会**在服务器重跑 `install_linux` / `uv sync`
+3. `systemctl stop mystabx-vnpy`（或杀 `start.sh` / `uvicorn` / 释放 18080）
+4. 手动部署默认 `npm run build` 后 `systemctl start`；自动部署（hook / watch）默认 `--no-build` + `start.sh --skip-build`
 
 ## ClickHouse（ECS 本机 · 官方 deb）
 
