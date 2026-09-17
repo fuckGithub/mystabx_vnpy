@@ -297,6 +297,10 @@ def account_channel_dict(
         data["front_label"] = front_info.get("front_label")
         data["交易服务器"] = front_info.get("交易服务器")
         data["行情服务器"] = front_info.get("行情服务器")
+        if "front_fallback" in front_info:
+            data["front_fallback"] = front_info.get("front_fallback")
+        if "front_preferred" in front_info:
+            data["front_preferred"] = front_info.get("front_preferred")
     else:
         _resolved, meta = apply_simnow_auto_fronts(merged)
         data["front_env"] = meta["front_env"]

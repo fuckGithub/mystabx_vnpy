@@ -20,7 +20,6 @@ from mystabx.config.simnow import (
     apply_simnow_auto_fronts,
     ctp_connect_payload,
     merge_connect_settings,
-    probe_tcp_front,
 )
 
 # Run CTP qry on EventEngine thread — TdApi is not safe from FastAPI workers.
@@ -111,10 +110,20 @@ class AccountGatewayManager:
         self.td_status.setdefault(name, DISCONNECTED)
         self.md_status.setdefault(name, DISCONNECTED)
 
-    def connect(self, gateway_name: str, *, from_user: bool = True) -> dict[str, Any]:
+    def connect(
+        self,
+        gateway_name: str,
+        *,
+        from_user: bool = True,
+        setting: dict[str, Any] | None = None,
+        meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         acc = self.index[gateway_name]
-        setting = merge_connect_settings(decrypt(acc["connect_settings"]))
-        setting, meta = apply_simnow_auto_fronts(setting)
+        if setting is None or meta is None:
+            setting = merge_connect_settings(decrypt(acc["connect_settings"]))
+            # Probe preferred SimNow pair then alternate so off-hours / session
+            # refuse does not block connect when the other pair is up.
+            setting, meta = apply_simnow_auto_fronts(setting, probe=True)
         self.front_info[gateway_name] = meta
         if from_user:
             self._forced_off.discard(gateway_name)
@@ -190,10 +199,11 @@ class AccountGatewayManager:
         if acc is None:
             raise KeyError(gateway_name)
         setting = merge_connect_settings(decrypt(acc["connect_settings"]))
-        setting, meta = apply_simnow_auto_fronts(setting)
-        trade = probe_tcp_front(str(setting.get("交易服务器") or ""))
-        market = probe_tcp_front(str(setting.get("行情服务器") or ""))
-        reachable = bool(trade.get("ok") and market.get("ok"))
+        setting, meta = apply_simnow_auto_fronts(setting, probe=True)
+        self.front_info[gateway_name] = meta
+        trade = meta.get("probe_trade") or {}
+        market = meta.get("probe_market") or {}
+        reachable = bool(meta.get("reachable"))
         self.refresh_live_status(gateway_name, publish=False)
         prev_td = self.td_status.get(gateway_name, DISCONNECTED)
         login: dict[str, Any] = {
@@ -217,7 +227,8 @@ class AccountGatewayManager:
             login["attempted"] = True
             opened_for_test = prev_td != CONNECTING
             if opened_for_test:
-                self.connect(gateway_name)
+                # Reuse fronts already selected above; skip a second probe round-trip.
+                self.connect(gateway_name, setting=setting, meta=meta)
             deadline = time.time() + max(1.0, login_wait)
             while time.time() < deadline:
                 self.refresh_live_status(gateway_name, publish=True)
@@ -247,12 +258,25 @@ class AccountGatewayManager:
         elif reachable:
             summary = login["message"] or "前置可连，柜台登录未确认"
         else:
-            failed = []
-            if not trade.get("ok"):
-                failed.append(f"交易 {trade.get('address') or '—'}")
-            if not market.get("ok"):
-                failed.append(f"行情 {market.get('address') or '—'}")
-            summary = "前置不可达：" + "；".join(failed)
+            # Only when every candidate (preferred + alternate, or manual) failed.
+            failed: list[str] = []
+            for item in meta.get("probe_tried") or []:
+                label = item.get("label") or "前置"
+                bits = []
+                t = item.get("trade") or {}
+                m = item.get("market") or {}
+                if not t.get("ok"):
+                    bits.append(f"交易 {t.get('address') or '—'}")
+                if not m.get("ok"):
+                    bits.append(f"行情 {m.get('address') or '—'}")
+                if bits:
+                    failed.append(f"{label}（{'；'.join(bits)}）")
+            if not failed:
+                if not trade.get("ok"):
+                    failed.append(f"交易 {trade.get('address') or '—'}")
+                if not market.get("ok"):
+                    failed.append(f"行情 {market.get('address') or '—'}")
+            summary = "前置不可达：" + "；".join(failed) if failed else "前置不可达"
         return {
             "ok": ok,
             "reachable": reachable,
@@ -260,7 +284,11 @@ class AccountGatewayManager:
             "gateway_name": gateway_name,
             "front_env": meta.get("front_env"),
             "front_label": meta.get("front_label"),
+            "front_preferred": meta.get("front_preferred"),
+            "front_fallback": meta.get("front_fallback"),
             "auto_front": meta.get("auto_front"),
+            "交易服务器": meta.get("交易服务器"),
+            "行情服务器": meta.get("行情服务器"),
             "trade": trade,
             "market": market,
             "login": login,

@@ -152,10 +152,8 @@ def _in_session_window(now: datetime) -> bool:
     return False
 
 
-def simnow_fronts_for_now(now: datetime | None = None) -> dict[str, str]:
-    """Pick SimNow td/md fronts from Asia/Shanghai wall clock. See AUTO_FRONT_WINDOWS."""
-    current = _shanghai_now(now)
-    if _in_session_window(current):
+def _front_pair(env: str) -> dict[str, str]:
+    if env == "session":
         return {
             "交易服务器": SIMNOW_SESSION["td"],
             "行情服务器": SIMNOW_SESSION["md"],
@@ -167,6 +165,37 @@ def simnow_fronts_for_now(now: datetime | None = None) -> dict[str, str]:
         "行情服务器": SIMNOW_24H["md"],
         "env": "24x7",
         "label": "7×24",
+    }
+
+
+def simnow_fronts_for_now(now: datetime | None = None) -> dict[str, str]:
+    """Pick SimNow td/md fronts from Asia/Shanghai wall clock. See AUTO_FRONT_WINDOWS."""
+    current = _shanghai_now(now)
+    if _in_session_window(current):
+        return _front_pair("session")
+    return _front_pair("24x7")
+
+
+def simnow_front_candidates(now: datetime | None = None) -> list[dict[str, str]]:
+    """Preferred (by Shanghai session) first, then the other known SimNow pair."""
+    preferred = simnow_fronts_for_now(now)
+    alternate = _front_pair("24x7" if preferred["env"] == "session" else "session")
+    return [preferred, alternate]
+
+
+def probe_simnow_pair(
+    td: Any,
+    md: Any,
+    *,
+    timeout: float = 3.0,
+) -> dict[str, Any]:
+    """TCP-probe a trade+md pair; ok only when both fronts accept connections."""
+    trade = probe_tcp_front(str(td or ""), timeout=timeout)
+    market = probe_tcp_front(str(md or ""), timeout=timeout)
+    return {
+        "ok": bool(trade.get("ok") and market.get("ok")),
+        "trade": trade,
+        "market": market,
     }
 
 
@@ -242,30 +271,121 @@ def classify_fronts(td: Any, md: Any) -> tuple[str, str]:
 def apply_simnow_auto_fronts(
     setting: dict[str, Any] | None,
     now: datetime | None = None,
+    *,
+    probe: bool = False,
+    probe_timeout: float = 3.0,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Resolve fronts for connect. Does not create another gateway.
 
-    auto_front=false keeps saved addresses.
+    auto_front=false / 手动指定前置 keeps saved addresses (never auto-fallback).
     Otherwise empty or well-known SimNow ports (30001/30011 vs 40001/40011)
     follow simnow_fronts_for_now(); truly custom IPs stay as saved.
+
+    When probe=True and auto is on for known SimNow fronts: TCP-probe the
+    time-preferred pair first, then the alternate pair; use the first fully
+    reachable (trade+md) pair. meta.reachable is False only when every
+    candidate fails (preferred addresses are still written for diagnostics).
     """
     out = dict(setting or {})
-    chosen = simnow_fronts_for_now(now)
+    preferred = simnow_fronts_for_now(now)
     auto = auto_front_enabled(out)
     td, md = out.get("交易服务器"), out.get("行情服务器")
-    if auto:
+    can_auto_pair = auto and (
+        (not normalize_front(td) or is_known_simnow_front(td, role="td"))
+        and (not normalize_front(md) or is_known_simnow_front(md, role="md"))
+    )
+    fallback_used = False
+    preferred_label = preferred["label"]
+    probe_trade: dict[str, Any] | None = None
+    probe_market: dict[str, Any] | None = None
+    reachable: bool | None = None
+    tried: list[dict[str, Any]] = []
+
+    if can_auto_pair:
+        out["交易服务器"] = preferred["交易服务器"]
+        out["行情服务器"] = preferred["行情服务器"]
+        if probe:
+            selected: dict[str, str] | None = None
+            for candidate in simnow_front_candidates(now):
+                result = probe_simnow_pair(
+                    candidate["交易服务器"],
+                    candidate["行情服务器"],
+                    timeout=probe_timeout,
+                )
+                tried.append(
+                    {
+                        "env": candidate["env"],
+                        "label": candidate["label"],
+                        "交易服务器": candidate["交易服务器"],
+                        "行情服务器": candidate["行情服务器"],
+                        "ok": result["ok"],
+                        "trade": result["trade"],
+                        "market": result["market"],
+                    }
+                )
+                if result["ok"]:
+                    selected = candidate
+                    probe_trade = result["trade"]
+                    probe_market = result["market"]
+                    break
+            if selected is not None:
+                out["交易服务器"] = selected["交易服务器"]
+                out["行情服务器"] = selected["行情服务器"]
+                fallback_used = selected["env"] != preferred["env"]
+                reachable = True
+            else:
+                # Keep time-preferred fronts for error display; all probes failed.
+                last = tried[-1] if tried else None
+                if last:
+                    probe_trade = last.get("trade")
+                    probe_market = last.get("market")
+                reachable = False
+    elif auto:
         if not normalize_front(td) or is_known_simnow_front(td, role="td"):
-            out["交易服务器"] = chosen["交易服务器"]
+            out["交易服务器"] = preferred["交易服务器"]
         if not normalize_front(md) or is_known_simnow_front(md, role="md"):
-            out["行情服务器"] = chosen["行情服务器"]
+            out["行情服务器"] = preferred["行情服务器"]
+
+    if probe and not can_auto_pair:
+        # Manual / custom: probe saved fronts only — never switch pairs.
+        result = probe_simnow_pair(
+            out.get("交易服务器"),
+            out.get("行情服务器"),
+            timeout=probe_timeout,
+        )
+        probe_trade = result["trade"]
+        probe_market = result["market"]
+        reachable = result["ok"]
+        tried.append(
+            {
+                "env": "manual" if not auto else "custom",
+                "label": "手动指定" if not auto else "自定义",
+                "交易服务器": out.get("交易服务器"),
+                "行情服务器": out.get("行情服务器"),
+                "ok": result["ok"],
+                "trade": result["trade"],
+                "market": result["market"],
+            }
+        )
+
     env, label = classify_fronts(out.get("交易服务器"), out.get("行情服务器"))
-    if auto and env != "custom":
-        env, label = chosen["env"], chosen["label"]
-    meta = {
+    if can_auto_pair and env != "custom":
+        if fallback_used:
+            label = f"{label}（自动回退）"
+        elif reachable is not False:
+            env, label = preferred["env"], preferred["label"]
+    meta: dict[str, Any] = {
         "front_env": env,
         "front_label": label,
         "交易服务器": out.get("交易服务器"),
         "行情服务器": out.get("行情服务器"),
         "auto_front": auto,
+        "front_preferred": preferred_label,
+        "front_fallback": fallback_used,
     }
+    if probe:
+        meta["reachable"] = bool(reachable)
+        meta["probe_trade"] = probe_trade
+        meta["probe_market"] = probe_market
+        meta["probe_tried"] = tried
     return out, meta
