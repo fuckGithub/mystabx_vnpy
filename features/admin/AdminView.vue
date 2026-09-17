@@ -231,7 +231,7 @@
       <el-drawer
         v-model="logVisible"
         :title="logTitle"
-        size="760px"
+        size="860px"
         class="page-drawer"
         destroy-on-close
         @closed="resetLogPanel"
@@ -261,14 +261,16 @@
             style="width: 100%"
             empty-text="暂无操作日志"
           >
-            <el-table-column prop="created_at" label="时间" width="180" />
+            <el-table-column label="时间" width="168">
+              <template #default="{ row }">{{ formatLogTime(row.created_at) }}</template>
+            </el-table-column>
             <el-table-column prop="action" label="动作" width="100" />
             <el-table-column label="结果" width="88" align="center">
               <template #default="{ row }">
                 <el-tag size="small" :type="logResultType(row.result)">{{ logResultLabel(row.result) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="message" label="信息" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="message" label="信息" min-width="260" show-overflow-tooltip />
             <el-table-column label="操作人" width="110" show-overflow-tooltip>
               <template #default="{ row }">{{ row.operator_name || "—" }}</template>
             </el-table-column>
@@ -591,6 +593,14 @@ function resetAccQuery() {
   accKeyword.value = "";
   accApplied.value = "";
   accPage.value = 1;
+}
+
+function formatLogTime(value: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function logResultLabel(result: string) {
