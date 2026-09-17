@@ -49,8 +49,8 @@
     </div>
 
     <div v-else-if="section === 'stoporders'" class="page-list">
-      <h3 class="page-section-title">停止委托</h3>
-      <el-table :data="strategy.stopOrders" border size="small" empty-text="暂无停止委托">
+      <h3 class="page-section-title">停止报单</h3>
+      <el-table :data="strategy.stopOrders" border size="small" empty-text="暂无停止报单">
         <el-table-column prop="stop_orderid" label="编号" min-width="140" show-overflow-tooltip />
         <el-table-column prop="strategy_name" label="策略" width="120" />
         <el-table-column prop="vt_symbol" label="合约" width="120" />
