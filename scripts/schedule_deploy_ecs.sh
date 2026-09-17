@@ -9,8 +9,9 @@ MARKER="${ROOT}/.cache/deploy_ecs.pending"
 LOCKDIR="${ROOT}/.cache/deploy_ecs.lock"
 LOG="${ROOT}/.cache/deploy_ecs.log"
 DEBOUNCE_SEC="${DEPLOY_ECS_DEBOUNCE:-45}"
-# 自动部署默认 --no-build（保留远端 dist，不重装依赖）；手动全量构建：DEPLOY_ECS_ARGS="" ./scripts/deploy_ecs.sh
-DEPLOY_ARGS=(--no-build)
+# 默认跑远端 npm run build（rsync 已排除 dist/，否则源码加宽等前端改动不会进静态资源）。
+# 仅同步后端、跳过构建：DEPLOY_ECS_ARGS='--no-build' ./scripts/schedule_deploy_ecs.sh
+DEPLOY_ARGS=()
 if [[ -n "${DEPLOY_ECS_ARGS+x}" ]]; then
   # shellcheck disable=SC2206
   DEPLOY_ARGS=(${DEPLOY_ECS_ARGS})

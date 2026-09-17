@@ -18,9 +18,10 @@ _usage() {
 
   从 .env.ecs 读取 ECS_HOST / ECS_USER / ECS_PASSWORD（及可选 ECS_REMOTE_DIR、STABX_PORT）
   rsync 到远端后：先 stop 旧进程，再 start（systemd 优先，否则 ./start.sh）
+  默认会远端 npm run build（rsync 排除 dist/，避免本机旧产物覆盖服务器）
 
   --dry-run      只打印将执行的动作，不传文件、不重启
-  --no-build     远端跳过 npm run build（依赖已有 dist/；对应 start.sh --skip-build）
+  --no-build     远端跳过 npm run build（依赖远端已有 dist/；对应 start.sh --skip-build）
   --wait-ready N 若远端 .venv 暂不可用，最多等待 N 秒（默认 60；不重装依赖）
 EOF
 }
@@ -145,6 +146,7 @@ rsync -az --delete \
   --exclude '.venv/' \
   --exclude 'node_modules/' \
   --exclude 'ui/node_modules' \
+  --exclude 'dist/' \
   --exclude '.env' \
   --exclude '.env.ecs' \
   --exclude '.env.local' \
