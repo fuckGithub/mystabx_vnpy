@@ -16,6 +16,7 @@ from core.runtime import runtime
 from core.serialize import cta_stop_order_payload, cta_strategy_payload
 from core.strategy_names import strategy_display_name
 from core import strategy_loader, strategy_store
+from core import base_class_store
 from mystabx.paths import PROJECT_ROOT
 
 router = APIRouter(prefix="/api/cta", tags=["cta"])
@@ -173,19 +174,111 @@ def list_strategy_classes(user: User = Depends(current_user)) -> list[dict]:
 @router.get("/strategies/template")
 def get_strategy_template(
     class_name: str = "UserStrategy",
+    parent_class: str = "",
     user: User = Depends(current_user),
 ) -> dict:
-    """Default IDE template inheriting EliteCtaTemplate."""
+    """Default IDE template inheriting selected / default base class."""
     _ = user
     name = (class_name or "UserStrategy").strip() or "UserStrategy"
+    parent = (parent_class or "").strip() or None
+    info = strategy_loader.parent_class_info(parent)
     return {
         "class_name": name,
-        "content": strategy_loader.default_strategy_source(name),
+        "content": strategy_loader.default_strategy_source(name, parent),
         "editable": True,
         "store": "default",
         "is_default": True,
-        **strategy_loader.parent_class_info(),
+        **info,
     }
+
+
+class BaseClassBody(BaseModel):
+    class_name: str = ""
+    display_name: str = ""
+    module: str = ""
+    import_stmt: str = ""
+    description: str = ""
+    base_chain: str = ""
+    enabled: bool = True
+    is_default: bool = False
+    sort_order: int = 100
+
+
+class ApplyParentBody(BaseModel):
+    content: str
+    parent_class: str
+
+
+@router.post("/source/apply-parent")
+def apply_parent_class(body: ApplyParentBody, user: User = Depends(current_user)) -> dict:
+    """Rewrite strategy source inheritance + import for a catalog parent class."""
+    _ = user
+    parent = (body.parent_class or "").strip()
+    if not parent:
+        raise HTTPException(status_code=400, detail="parent_class 不能为空")
+    info = strategy_loader.parent_class_info(parent)
+    content = strategy_loader.apply_parent_to_source(
+        body.content or "",
+        info["parent_class"],
+        str(info.get("import_stmt") or ""),
+    )
+    return {"content": content, **info}
+
+
+@router.get("/base-classes")
+def list_base_classes(
+    enabled_only: bool = False,
+    user: User = Depends(current_user),
+) -> list[dict]:
+    _ = user
+    return base_class_store.list_base_classes(enabled_only=enabled_only)
+
+
+@router.get("/base-classes/{class_name}")
+def get_base_class(class_name: str, user: User = Depends(current_user)) -> dict:
+    _ = user
+    row = base_class_store.get_base_class(class_name)
+    if row is None:
+        raise HTTPException(status_code=404, detail="基类不存在")
+    return row
+
+
+@router.put("/base-classes/{class_name}")
+def put_base_class(
+    class_name: str,
+    body: BaseClassBody,
+    user: User = Depends(require_admin),
+) -> dict:
+    _ = user
+    payload = body.model_dump()
+    payload["class_name"] = (class_name or body.class_name or "").strip()
+    try:
+        return base_class_store.upsert_base_class(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/base-classes")
+def create_base_class(body: BaseClassBody, user: User = Depends(require_admin)) -> dict:
+    _ = user
+    try:
+        return base_class_store.upsert_base_class(body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.delete("/base-classes/{class_name}")
+def remove_base_class(class_name: str, user: User = Depends(require_admin)) -> dict:
+    _ = user
+    try:
+        base_class_store.delete_base_class(class_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.post("/strategies/reload")

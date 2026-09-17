@@ -111,6 +111,23 @@ class StrategyClass(Base):
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
+class StrategyBaseClass(Base):
+    """Catalog of CTA parent templates (EliteCtaTemplate / TargetPosTemplate / …)."""
+
+    __tablename__ = "strategy_base_classes"
+
+    class_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    display_name: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    module: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    import_stmt: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    base_chain: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_default: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
 class Watchlist(Base):
     __tablename__ = "watchlists"
 
@@ -281,6 +298,12 @@ def init_db() -> None:
         SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
         Base.metadata.create_all(_engine)
         _ensure_strategy_instance_source_column()
+        try:
+            from core import base_class_store
+
+            base_class_store.ensure_defaults()
+        except Exception:
+            logger.exception("seed strategy_base_classes on init failed")
         _ready = True
         _last_error = None
         logger.info("MySQL ready %s", describe())

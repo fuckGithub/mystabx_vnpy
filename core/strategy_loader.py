@@ -26,30 +26,100 @@ _PARENT_CLASS = "EliteCtaTemplate"
 _PARENT_IMPORT = "from core.strategy_shim import EliteCtaTemplate, HistoryManager, sma, cross_over, cross_below"
 
 
-def parent_class_info() -> dict[str, str]:
+def parent_class_info(parent_class: str | None = None) -> dict[str, str]:
+    try:
+        from core import base_class_store
+
+        row = (
+            base_class_store.get_base_class(parent_class)
+            if parent_class
+            else base_class_store.get_default_base_class()
+        )
+    except Exception:
+        row = None
+    if row:
+        return {
+            "parent_class": str(row.get("class_name") or _PARENT_CLASS),
+            "parent_module": str(row.get("module") or "core.strategy_shim"),
+            "base_chain": str(row.get("base_chain") or "CtaTemplate → TargetPosTemplate → EliteCtaTemplate"),
+            "import_stmt": str(row.get("import_stmt") or _PARENT_IMPORT),
+            "note": str(row.get("description") or ""),
+        }
     return {
         "parent_class": _PARENT_CLASS,
         "parent_module": "core.strategy_shim",
         "base_chain": "CtaTemplate → TargetPosTemplate → EliteCtaTemplate",
+        "import_stmt": _PARENT_IMPORT,
         "note": "默认模板继承本仓库 EliteCtaTemplate（对标 VeighNa Elite；开源 shim）",
     }
 
 
-def default_strategy_source(class_name: str = "UserStrategy") -> str:
+def apply_parent_to_source(content: str, parent_class: str, import_stmt: str = "") -> str:
+    """Rewrite class inheritance + ensure import for selected base class."""
+    text = content or ""
+    parent = _safe_ident(parent_class) or _PARENT_CLASS
+    stmt = (import_stmt or "").strip() or parent_class_info(parent).get("import_stmt") or _PARENT_IMPORT
+
+    # Replace `class Name(OldParent):` — keep class name, swap parent
+    text = re.sub(
+        r"(class\s+[A-Za-z_][A-Za-z0-9_]*\s*\()\s*[A-Za-z_][A-Za-z0-9_]*\s*(\))",
+        rf"\1{parent}\2",
+        text,
+        count=1,
+    )
+
+    # Drop known parent imports then insert selected import after __future__ / at top
+    lines = text.splitlines()
+    filtered: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("from core.strategy_shim import"):
+            continue
+        if stripped.startswith("from vnpy_ctastrategy import") and any(
+            x in stripped for x in ("CtaTemplate", "TargetPosTemplate", "EliteCtaTemplate")
+        ):
+            continue
+        filtered.append(line)
+
+    insert_at = 0
+    for i, line in enumerate(filtered):
+        if line.startswith("from __future__"):
+            insert_at = i + 1
+            while insert_at < len(filtered) and filtered[insert_at].strip() == "":
+                insert_at += 1
+            break
+        if line.startswith("import ") or line.startswith("from "):
+            insert_at = i
+            break
+        if line.startswith("class "):
+            insert_at = i
+            break
+
+    filtered.insert(insert_at, stmt)
+    if insert_at + 1 < len(filtered) and filtered[insert_at + 1].strip() != "":
+        filtered.insert(insert_at + 1, "")
+    return "\n".join(filtered) + ("\n" if text.endswith("\n") else "")
+
+
+def default_strategy_source(class_name: str = "UserStrategy", parent_class: str | None = None) -> str:
     """Default editable strategy body for the Web IDE."""
     safe = _safe_ident(class_name) or "UserStrategy"
+    info = parent_class_info(parent_class)
+    parent = info["parent_class"]
+    import_stmt = info.get("import_stmt") or _PARENT_IMPORT
+    note = info.get("note") or f"父类：{info.get('parent_module')}.{parent}"
     return f'''"""可编辑策略 — 源码以 MySQL 为准，运行前由后端动态编译。
 
-父类：core.strategy_shim.EliteCtaTemplate
-（TargetPosTemplate + HistoryManager / on_history）
+{note}
+父类：{info.get("parent_module")}.{parent}
 """
 
 from __future__ import annotations
 
-{_PARENT_IMPORT}
+{import_stmt}
 
 
-class {safe}(EliteCtaTemplate):
+class {safe}({parent}):
     """双均线目标仓位示例：金叉做多、死叉做空。"""
 
     author = "Stabx"
