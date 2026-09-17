@@ -115,7 +115,12 @@ const activeSidebarPath = computed(() => {
 });
 
 onMounted(async () => {
-  await Promise.all([trade.refresh(), market.loadTicks(), market.loadContracts()]);
+  await Promise.all([
+    trade.refresh(),
+    market.loadTicks(),
+    market.loadContracts(),
+    market.loadSubscriptions(),
+  ]);
   connectWs();
   connectSse();
 });

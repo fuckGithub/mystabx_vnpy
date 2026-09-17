@@ -109,7 +109,7 @@
         </template>
         <ol class="cta-trial-hint__steps">
           <li>管理员点击「添加策略」，选择带中文名的策略类（如「双均线策略」）</li>
-          <li>填写实例名、合约 <code>vt_symbol</code>（如 <code>rb2501.SHFE</code>），并选择真实通道账户</li>
+          <li>填写实例名、从已订阅合约中选择合约，并选择真实通道账户</li>
           <li>列表中对该实例依次「初始化」→「启动」</li>
         </ol>
         <p class="cta-trial-hint__note">首次接入或安装依赖后需<strong>重启后端</strong>，前端<strong>硬刷新</strong>（Ctrl/Cmd+Shift+R）。</p>
@@ -194,9 +194,32 @@
           <el-form-item v-if="!editingName" label="实例名称">
             <el-input v-model="form.strategy_name" />
           </el-form-item>
-          <el-form-item v-if="!editingName" label="合约 vt_symbol">
-            <el-input v-model="form.vt_symbol" placeholder="rb2501.SHFE" />
-            <p class="page-form-hint">格式：合约代码.交易所，如 rb2501.SHFE。添加后需「初始化」再「启动」。</p>
+          <el-form-item v-if="!editingName" label="合约">
+            <el-select
+              v-model="form.vt_symbol"
+              filterable
+              clearable
+              :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="opt in subscribedContractOptions"
+                :key="opt.vt_symbol"
+                :label="opt.label"
+                :value="opt.vt_symbol"
+              >
+                <span>{{ opt.name }}</span>
+                <span style="float: right; color: var(--el-text-color-secondary); font-size: 12px">
+                  {{ opt.vt_symbol }}
+                </span>
+              </el-option>
+            </el-select>
+            <p class="page-form-hint">
+              <template v-if="subscribedContractOptions.length">
+                选项来自已订阅合约；提交值为 vt_symbol（如 rb2501.SHFE）。添加后需「初始化」再「启动」。
+              </template>
+              <template v-else>请先去「行情中心」订阅合约后再添加策略。</template>
+            </p>
           </el-form-item>
           <el-form-item label="交易账户">
             <el-select
@@ -244,13 +267,15 @@ import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, Refresh } from "@element-plus/icons-vue";
 import { http } from "@/api";
-import { useAuthStore, useStrategyStore, useTradeStore } from "@/stores";
+import { useAuthStore, useMarketStore, useStrategyStore, useTradeStore } from "@/stores";
+import { contractKey, productName, type ContractRow } from "../market/contracts";
 import { strategyDisplayName } from "./strategyNames";
 
 const route = useRoute();
 const auth = useAuthStore();
 const strategy = useStrategyStore();
 const trade = useTradeStore();
+const market = useMarketStore();
 const section = computed(() => String(route.params.section || "cta"));
 
 const loading = ref(false);
@@ -309,6 +334,35 @@ const channelLabelByGateway = computed(() => {
   const map = new Map<string, string>();
   for (const row of channelOptions.value) map.set(row.gateway_name, row.label);
   return map;
+});
+
+const subscribedContractOptions = computed(() => {
+  const byVt = new Map<string, { vt_symbol: string; name: string; label: string }>();
+
+  const upsert = (row: ContractRow, vtHint = "") => {
+    const symbol = String(row.symbol || "").trim();
+    const exchange = String(row.exchange || "").trim().toUpperCase();
+    if (!symbol || !exchange) return;
+    const vt = String(row.vt_symbol || vtHint || `${symbol}.${exchange}`).trim();
+    if (!vt) return;
+    const rawName = String(row.name || "").trim();
+    const name =
+      rawName && rawName.toUpperCase() !== symbol.toUpperCase()
+        ? rawName
+        : productName(row) || symbol;
+    const label = name && name !== vt ? `${name}（${vt}）` : vt;
+    if (!byVt.has(vt)) byVt.set(vt, { vt_symbol: vt, name, label });
+  };
+
+  for (const row of market.contracts) {
+    if (!market.subscribedKeys[contractKey(row)]) continue;
+    upsert(row as ContractRow);
+  }
+  for (const row of market.subscriptions) {
+    upsert(row as ContractRow, String(row.vt_symbol || ""));
+  }
+
+  return Array.from(byVt.values()).sort((a, b) => a.label.localeCompare(b.label, "zh"));
 });
 
 const logStrategyOptions = computed(() => {
@@ -423,7 +477,11 @@ async function openAdd() {
   form.setting = {};
   if (form.class_name) onClassChange(form.class_name);
   dialogVisible.value = true;
-  void trade.refresh();
+  void Promise.all([
+    trade.refresh(),
+    market.loadSubscriptions(),
+    market.loadContracts(),
+  ]);
 }
 
 async function openEdit(row: Record<string, unknown>) {
@@ -444,7 +502,11 @@ async function saveInstance() {
       ElMessage.success("已更新参数");
     } else {
       if (!form.class_name || !form.strategy_name || !form.vt_symbol) {
-        ElMessage.warning("请填写策略类 / 实例名 / 合约");
+        ElMessage.warning(
+          !form.vt_symbol && !subscribedContractOptions.value.length
+            ? "请先去行情中心订阅合约"
+            : "请填写策略类 / 实例名 / 合约",
+        );
         return;
       }
       await http.post("/api/cta/instances", {
@@ -538,7 +600,14 @@ async function loadBacktestResult() {
 onMounted(async () => {
   loading.value = true;
   try {
-    await Promise.all([strategy.refresh(), loadClasses(), trade.refresh(), loadBacktestClasses()]);
+    await Promise.all([
+      strategy.refresh(),
+      loadClasses(),
+      trade.refresh(),
+      loadBacktestClasses(),
+      market.loadSubscriptions(),
+      market.loadContracts(),
+    ]);
   } finally {
     loading.value = false;
   }

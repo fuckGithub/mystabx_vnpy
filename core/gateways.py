@@ -781,6 +781,15 @@ class AccountGatewayManager:
                 message="行情服务器登录成功" if md == CONNECTED else "行情服务器连接断开或登录失败",
                 operator_name="系统",
             )
+            try:
+                from features.market.subscriptions import clear_restored, restore_gateway_subscriptions
+
+                if md == CONNECTED:
+                    restore_gateway_subscriptions(gateway_name)
+                else:
+                    clear_restored(gateway_name)
+            except Exception:
+                logger.exception("market subscription restore failed for %s", gateway_name)
 
     def _publish_status(self, gateway_name: str) -> None:
         publish_threadsafe(envelope("gateway", self.status_payload(gateway_name)))

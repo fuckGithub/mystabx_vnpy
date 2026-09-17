@@ -62,6 +62,7 @@ export const useMarketStore = defineStore("market", () => {
   const sessionTicks = reactive<Record<string, Record<string, unknown>[]>>({});
   const contracts = ref<Record<string, unknown>[]>([]);
   const subscribedKeys = ref<Record<string, true>>({});
+  const subscriptions = ref<Record<string, unknown>[]>([]);
   const clickhouse = reactive<ClickHouseHealth>({
     ok: false,
     state: "",
@@ -174,6 +175,27 @@ export const useMarketStore = defineStore("market", () => {
     }
   }
 
+  function applySubscriptions(rows: Record<string, unknown>[]) {
+    subscriptions.value = rows;
+    const next: Record<string, true> = {};
+    for (const row of rows) {
+      const key = `${String(row.exchange || "").toUpperCase()}.${String(row.symbol || "").toUpperCase()}`;
+      if (!key.includes(".") || key.startsWith(".") || key.endsWith(".")) continue;
+      next[key] = true;
+    }
+    subscribedKeys.value = next;
+  }
+
+  async function loadSubscriptions() {
+    try {
+      const { data } = await http.get("/api/market/subscriptions");
+      applySubscriptions(Array.isArray(data) ? data : []);
+    } catch {
+      applySubscriptions([]);
+    }
+    return subscriptions.value;
+  }
+
   async function loadContracts(q = "") {
     const { data } = await http.get("/api/contracts", { params: { q } });
     contracts.value = Array.isArray(data) ? data : [];
@@ -219,6 +241,7 @@ export const useMarketStore = defineStore("market", () => {
       exchange,
     });
     markSubscribed(symbol, exchange);
+    void loadSubscriptions();
   }
 
   async function unsubscribeContract(gatewayName: string, symbol: string, exchange: string) {
@@ -228,21 +251,25 @@ export const useMarketStore = defineStore("market", () => {
       exchange,
     });
     unmarkSubscribed(symbol, exchange);
+    void loadSubscriptions();
   }
 
   return {
     ticks,
     sessionTicks,
     contracts,
+    subscriptions,
     subscribedKeys,
     clickhouse,
     applyClickhouse,
     upsertTick,
     markSubscribed,
     unmarkSubscribed,
+    applySubscriptions,
     latestTick,
     loadHealth,
     loadContracts,
+    loadSubscriptions,
     loadTicks,
     loadSessionTicks,
     loadTradeDates,

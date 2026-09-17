@@ -14,6 +14,11 @@ from core.runtime import runtime
 from core.serialize import contract_payload, tick_payload
 from core.sessions import current_trade_date, parse_trade_date, recent_trade_dates
 from features.market.bars import INTERVALS, HistorySource, fetch_bars
+from features.market.subscriptions import (
+    delete_subscription,
+    list_user_subscriptions,
+    upsert_subscription,
+)
 from features.market.tick_buffer import session_ticks
 
 router = APIRouter(tags=["market"])
@@ -168,6 +173,13 @@ def _last_price(symbol: str, exchange: str) -> float | None:
     return None
 
 
+@router.get("/api/market/subscriptions")
+def list_subscriptions(user: User = Depends(current_user)) -> list[dict]:
+    """Persisted subscriptions for the current user (visible gateways only)."""
+    gws = set(visible_gateways(user))
+    return list_user_subscriptions(user.id, gateway_names=gws)
+
+
 @router.post("/api/market/subscribe")
 def subscribe(body: SubscribeBody, user: User = Depends(current_user)) -> dict:
     if body.gateway_name not in visible_gateways(user):
@@ -177,7 +189,19 @@ def subscribe(body: SubscribeBody, user: User = Depends(current_user)) -> dict:
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=f"invalid exchange: {body.exchange}") from exc
     runtime.me.subscribe(SubscribeRequest(symbol=body.symbol, exchange=exchange), body.gateway_name)
-    return {"ok": True}
+    row = upsert_subscription(
+        user_id=user.id,
+        gateway_name=body.gateway_name,
+        symbol=body.symbol,
+        exchange=body.exchange,
+    )
+    return {"ok": True, "subscription": {
+        "gateway_name": row.gateway_name,
+        "symbol": row.symbol,
+        "exchange": row.exchange,
+        "name": row.name or "",
+        "vt_symbol": f"{row.symbol}.{row.exchange}",
+    }}
 
 
 @router.post("/api/market/unsubscribe")
@@ -204,4 +228,10 @@ def unsubscribe(body: SubscribeBody, user: User = Depends(current_user)) -> dict
             unsub = getattr(md_api, "unSubscribeMarketData", None)
             if callable(unsub):
                 unsub(symbol)
+    delete_subscription(
+        user_id=user.id,
+        gateway_name=body.gateway_name,
+        symbol=body.symbol,
+        exchange=body.exchange,
+    )
     return {"ok": True}

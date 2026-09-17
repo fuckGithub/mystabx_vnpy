@@ -79,6 +79,29 @@ class Watchlist(Base):
     vt_symbol: Mapped[str] = mapped_column(String, primary_key=True)
 
 
+class MarketSubscription(Base):
+    """Persisted CTP market-data subscriptions (per user + gateway)."""
+
+    __tablename__ = "market_subscriptions"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "gateway_name",
+            "symbol",
+            "exchange",
+            name="uq_market_subscriptions_user_gw_sym_ex",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    gateway_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String, nullable=False)
+    exchange: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+
+
 class AlertRule(Base):
     __tablename__ = "alert_rules"
 

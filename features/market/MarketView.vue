@@ -241,7 +241,13 @@ const chStatusText = computed(() => {
 let healthTimer: ReturnType<typeof setInterval> | undefined;
 
 onMounted(async () => {
-  await Promise.allSettled([market.loadHealth(), market.loadContracts(), market.loadTicks(), trade.refresh()]);
+  await Promise.allSettled([
+    market.loadHealth(),
+    market.loadContracts(),
+    market.loadSubscriptions(),
+    market.loadTicks(),
+    trade.refresh(),
+  ]);
   healthTimer = setInterval(() => {
     void market.loadHealth();
   }, 15_000);
