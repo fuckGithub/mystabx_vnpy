@@ -10,6 +10,11 @@ Environment=HOME=/root
 Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=UV_LOCK_TIMEOUT=600
 Environment=STABX_PORT=18080
+# CTP native libs abort if locale name is invalid / missing.
+# ECS image only ships *.utf8 aliases (not zh_CN.UTF-8); use zh_CN.utf8.
+Environment=LANG=zh_CN.utf8
+Environment=LC_ALL=zh_CN.utf8
+Environment=LC_CTYPE=zh_CN.utf8
 EnvironmentFile=-/stabx/mystabx_vnpy/.env
 ExecStart=/stabx/mystabx_vnpy/start.sh --skip-build
 Restart=on-failure

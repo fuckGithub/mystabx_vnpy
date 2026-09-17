@@ -5,6 +5,12 @@
 # Linux：不假设 Homebrew / Xcode / Mac CTP .framework；不要对 vnpy 使用 --workers。
 set -euo pipefail
 
+# CTP C++ requires a valid locale; invalid LANG crashes after connect.
+# Prefer zh_CN.utf8 on minimal Linux images (often no zh_CN.UTF-8 alias).
+export LANG="${LANG:-zh_CN.utf8}"
+export LC_ALL="${LC_ALL:-zh_CN.utf8}"
+export LC_CTYPE="${LC_CTYPE:-zh_CN.utf8}"
+
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "${ROOT}"
 
@@ -243,7 +249,7 @@ probe_clickhouse() {
   url="${url%/}"
   host="${STABX_CLICKHOUSE_HOST:-}"
   port="${STABX_CLICKHOUSE_PORT:-}"
-  db="${STABX_CLICKHOUSE_DATABASE:-vnpy}"
+  db="${STABX_CLICKHOUSE_DATABASE:-mystabx_vnpy}"
   if [[ -z "${host}" || -z "${port}" ]]; then
     host="${url#*://}"
     host="${host%%/*}"
