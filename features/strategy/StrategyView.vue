@@ -254,6 +254,26 @@
         destroy-on-close
       >
         <el-form label-width="110px">
+          <el-form-item v-if="!editingName" label="策略模型">
+            <el-select
+              v-model="form.model_id"
+              clearable
+              filterable
+              placeholder="可选：从模型创建并钉住版本"
+              style="width: 100%"
+              @change="onModelChange"
+            >
+              <el-option
+                v-for="m in models"
+                :key="m.id"
+                :label="`${m.name}（${m.code}）`"
+                :value="m.id"
+              />
+            </el-select>
+            <p class="page-form-hint">
+              选择模型后会自动填充策略类与基础参数，并钉住该模型最新版本。
+            </p>
+          </el-form-item>
           <el-form-item v-if="!editingName" label="策略类">
             <div class="cta-class-row">
               <el-select
@@ -420,12 +440,25 @@ type StrategyClassRow = {
   module?: string;
 };
 const classes = ref<StrategyClassRow[]>([]);
+const models = ref<
+  {
+    id: number;
+    code: string;
+    name: string;
+    class_name: string;
+    latest_version_id?: number | null;
+    default_params?: Record<string, unknown>;
+    latest_version?: { params?: Record<string, unknown> };
+  }[]
+>([]);
 const reloadingClasses = ref(false);
 const paramSchema = ref<Record<string, unknown>>({});
 const form = reactive({
   class_name: "",
   strategy_name: "",
   vt_symbol: "",
+  model_id: null as number | null,
+  model_version_id: null as number | null,
   setting: {} as Record<string, unknown>,
 });
 
@@ -661,6 +694,15 @@ async function loadClasses() {
   }
 }
 
+async function loadModels() {
+  try {
+    const { data } = await http.get("/api/cta/models", { params: { enabled_only: true } });
+    models.value = Array.isArray(data) ? data : [];
+  } catch {
+    models.value = [];
+  }
+}
+
 async function reloadClasses() {
   if (!auth.isAdmin) return;
   reloadingClasses.value = true;
@@ -679,7 +721,7 @@ async function reloadClasses() {
 }
 
 async function refreshAll() {
-  await Promise.all([strategy.refresh(), trade.refresh(), loadClasses()]);
+  await Promise.all([strategy.refresh(), trade.refresh(), loadClasses(), loadModels()]);
 }
 
 function onClassChange(name: string | null | undefined) {
@@ -696,17 +738,43 @@ function onClassChange(name: string | null | undefined) {
   };
 }
 
+function onModelChange(modelId: number | null) {
+  form.model_id = modelId;
+  form.model_version_id = null;
+  if (!modelId) return;
+  const m = models.value.find((x) => x.id === modelId);
+  if (!m) return;
+  form.class_name = m.class_name || form.class_name;
+  form.model_version_id = m.latest_version_id ?? null;
+  const params = {
+    ...(m.latest_version?.params || m.default_params || {}),
+  } as Record<string, unknown>;
+  delete params.gateway_name;
+  paramSchema.value = params;
+  const currentGw = String(form.setting.gateway_name || "").trim();
+  form.setting = {
+    ...params,
+    gateway_name: currentGw || defaultGatewayName(),
+  };
+}
+
 async function openAdd() {
   editingName.value = "";
   form.strategy_name = "";
   form.vt_symbol = "";
+  form.model_id = null;
+  form.model_version_id = null;
   form.setting = { gateway_name: defaultGatewayName() };
   paramSchema.value = {};
   dialogVisible.value = true;
-  await loadClasses();
-  form.class_name = classes.value[0]?.class_name || "";
-  if (form.class_name) onClassChange(form.class_name);
-  else form.setting.gateway_name = defaultGatewayName();
+  await Promise.all([loadClasses(), loadModels()]);
+  if (models.value[0]) {
+    onModelChange(models.value[0].id);
+  } else {
+    form.class_name = classes.value[0]?.class_name || "";
+    if (form.class_name) onClassChange(form.class_name);
+    else form.setting.gateway_name = defaultGatewayName();
+  }
   void Promise.all([
     trade.refresh(),
     market.loadSubscriptions(),
@@ -750,6 +818,8 @@ async function saveInstance() {
         strategy_name: form.strategy_name,
         vt_symbol: form.vt_symbol,
         setting: form.setting,
+        model_id: form.model_id,
+        model_version_id: form.model_version_id,
       });
       ElMessage.success("已添加策略实例");
     }
