@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Install vnpy extras and compile vnpy_ctp from source on Linux (not editable).
-# Uses Linux CTP .so — never Mac .framework / Darwin patches.
+# Install mystabx + vnpy_ctp on Linux (practical path for low-RAM ECS).
+# Prefer: uv pip wheels for pure-Python / manylinux deps; apt for system libs.
+# vnpy_ctp: local sdist/wheel → PyPI (sdist compile OK) → git clone.
+# Web-only: never install PySide6 / qdarkstyle / pyqtgraph / shiboken6.
+# Do NOT compile ClickHouse from source (use official apt/deb).
 set -euo pipefail
 
 if [[ "$(uname -s)" != "Linux" ]]; then
@@ -12,6 +15,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${ROOT}/.venv/bin/python"
 DEPS="${ROOT}/.deps"
 ARCH="$(uname -m)"
+export UV_LOCK_TIMEOUT="${UV_LOCK_TIMEOUT:-600}"
+export PATH="${HOME}/.local/bin:/usr/local/bin:${PATH}"
+# Keep C++/ninja builds single-threaded on small ECS (avoids OOM / SIGTERM).
+export MAX_JOBS="${MAX_JOBS:-1}"
+export NINJAFLAGS="${NINJAFLAGS:--j${MAX_JOBS}}"
 
 _die() {
   echo "$1" >&2
@@ -30,9 +38,7 @@ if [[ "${ARCH}" != "x86_64" && "${ARCH}" != "amd64" ]]; then
   _die "官方 CTP Linux 动态库仅支持 x86_64，当前是 ${ARCH}。不要拷贝 Mac .framework。"
 fi
 
-_need_cmd git "Ubuntu/Debian: sudo apt-get install -y git"
 _need_cmd python3 "Ubuntu/Debian: sudo apt-get install -y python3 python3-venv python3-dev"
-_need_cmd g++ "编译 vnpy_ctp 需要 GCC。Ubuntu/Debian: sudo apt-get install -y build-essential"
 
 if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'; then
   _die "需要 Python ≥ 3.10（pyproject.toml）。当前: $(python3 --version 2>&1)"
@@ -40,13 +46,27 @@ fi
 
 if [[ ! -x "${PY}" ]]; then
   echo "未找到 ${PY}，正在创建虚拟环境 ..."
-  python3 -m venv "${ROOT}/.venv"
+  if command -v uv >/dev/null 2>&1; then
+    uv venv "${ROOT}/.venv" --python 3.12 || uv venv "${ROOT}/.venv"
+  else
+    python3 -m venv "${ROOT}/.venv"
+  fi
 fi
 if [[ ! -x "${PY}" ]]; then
-  _die "无法创建虚拟环境：${PY}。请安装 python3-venv 后重试。"
+  _die "无法创建虚拟环境：${PY}。请安装 python3-venv / uv 后重试。"
 fi
 
-# Linux 常见 TA-Lib 路径；不要假设 Homebrew。
+# Clear stale uv lock files only (do NOT pkill uv — that aborts in-flight compiles).
+rm -f /tmp/uv-*.lock 2>/dev/null || true
+find /tmp -maxdepth 1 -name 'uv-*.lock' -delete 2>/dev/null || true
+if command -v uv >/dev/null 2>&1; then
+  UV_CACHE="$(uv cache dir 2>/dev/null || true)"
+  if [[ -n "${UV_CACHE}" && -d "${UV_CACHE}" ]]; then
+    find "${UV_CACHE}" -name '*.lock' -delete 2>/dev/null || true
+  fi
+fi
+
+# Optional system TA-Lib (apt).
 if [[ -z "${TA_INCLUDE_PATH:-}" ]]; then
   for cand in /usr/include /usr/local/include; do
     if [[ -f "${cand}/ta-lib/ta_libc.h" ]]; then
@@ -74,18 +94,106 @@ else
   "${PY}" -m pip install -U pip
 fi
 
-"${PIP[@]}" install -e "${ROOT}"
+_uninstall_qt() {
+  echo "卸载桌面 Qt 相关包（若存在）..."
+  "${PIP[@]}" uninstall -y \
+    pyside6 pyside6-essentials pyside6-addons qdarkstyle shiboken6 pyqtgraph \
+    2>/dev/null || true
+}
 
-mkdir -p "${DEPS}"
-# Python 封装用 vnpy_ctp 6.7.7.2；Linux 用其自带 .so，或覆盖 vendor/simnow-ctp/linux。
-CTP_TAG="6.7.7.2"
-if [[ ! -d "${DEPS}/vnpy_ctp/.git" ]]; then
-  git clone --depth 1 --branch "${CTP_TAG}" https://github.com/vnpy/vnpy_ctp.git "${DEPS}/vnpy_ctp"
+echo "安装 Web 依赖（不含桌面 Qt / PySide6）..."
+"${PIP[@]}" install \
+  "fastapi>=0.115" \
+  "uvicorn[standard]>=0.32" \
+  "sqlalchemy>=2.0" \
+  "pyjwt>=2.9" \
+  "bcrypt>=4.2" \
+  "cryptography>=43" \
+  "python-multipart>=0.0.12" \
+  "httpx>=0.27" \
+  "orjson>=3.10" \
+  "vnpy_sqlite"
+
+echo "安装 vnpy 非 Qt 运行时依赖（wheels）..."
+"${PIP[@]}" install \
+  "deap>=1.4.2" \
+  "loguru>=0.7.3" \
+  "nbformat>=5.10.4" \
+  "numpy>=2.2.3" \
+  "pandas>=2.2.3" \
+  "plotly>=6.0.0" \
+  "pyzmq>=26.3.0" \
+  "tqdm>=4.67.1" \
+  "tzlocal>=5.3.1" \
+  "requests>=2.32" \
+  "qrcode>=7.4.2" \
+  "Pillow>=10" \
+  "chinese-calendar" \
+  "tzdata"
+
+echo "安装 ta-lib（优先 wheel；需系统 libta-lib）..."
+if ! "${PIP[@]}" install "ta-lib>=0.6.3"; then
+  echo "警告: ta-lib 安装失败。可先 apt 安装 libta-lib0 / ta-lib 头文件后再重试。" >&2
 fi
 
-bash "${ROOT}/scripts/load_simnow_ctp.sh"
+echo "安装 vnpy（--no-deps，避免拉入 PySide6）..."
+"${PIP[@]}" install --no-deps "vnpy>=4.0.0,<5"
 
-"${PIP[@]}" install "${DEPS}/vnpy_ctp"
+echo "安装本仓库（editable，--no-deps）..."
+"${PIP[@]}" install --no-deps -e "${ROOT}"
 
-echo "依赖已就绪（Linux CTP .so + vnpy_ctp）。产品入口是 Web：./start.sh"
+_uninstall_qt
+
+CTP_TAG="6.7.7.2"
+_need_cmd g++ "编译 vnpy_ctp 需要 GCC。Ubuntu/Debian: sudo apt-get install -y build-essential"
+echo "安装 vnpy_ctp==${CTP_TAG}（Linux 常需本地编译，MAX_JOBS=${MAX_JOBS}）..."
+
+LOCAL_CTP=""
+for cand in \
+  "${ROOT}/wheels/vnpy_ctp-${CTP_TAG}"-*.whl \
+  "${ROOT}/.deps/vnpy_ctp-${CTP_TAG}.tar.gz" \
+  "/tmp/ctp_sdist/vnpy_ctp-${CTP_TAG}.tar.gz" \
+  "${ROOT}/wheels/vnpy_ctp-${CTP_TAG}.tar.gz"
+do
+  # shellcheck disable=SC2086
+  if compgen -G "${cand}" >/dev/null 2>&1; then
+    LOCAL_CTP="$(ls -1t ${cand} 2>/dev/null | head -1)"
+    break
+  fi
+done
+
+if [[ -n "${LOCAL_CTP}" ]]; then
+  echo "使用本地包：${LOCAL_CTP}"
+  "${PIP[@]}" install --no-deps "${LOCAL_CTP}"
+  echo "vnpy_ctp 已从本地包安装。"
+elif "${PIP[@]}" install --no-deps "vnpy_ctp==${CTP_TAG}"; then
+  echo "vnpy_ctp 已通过 PyPI 安装（wheel 或 sdist 构建）。"
+else
+  echo "PyPI 安装失败，回退到 git 源码（需可达 GitHub）..." >&2
+  _need_cmd git "Ubuntu/Debian: sudo apt-get install -y git"
+  mkdir -p "${DEPS}"
+  if [[ ! -d "${DEPS}/vnpy_ctp/.git" ]]; then
+    git clone --depth 1 --branch "${CTP_TAG}" https://github.com/vnpy/vnpy_ctp.git "${DEPS}/vnpy_ctp"
+  fi
+  bash "${ROOT}/scripts/load_simnow_ctp.sh"
+  "${PIP[@]}" install --no-deps "${DEPS}/vnpy_ctp"
+  echo "vnpy_ctp 已从 git 源码安装。"
+fi
+
+if [[ -x "${ROOT}/scripts/load_simnow_ctp.sh" ]]; then
+  if [[ -d "${ROOT}/vendor/simnow-ctp/linux" ]] && compgen -G "${ROOT}/vendor/simnow-ctp/linux/*thost*.so" >/dev/null 2>&1; then
+    API_DST="$("${PY}" -c 'import vnpy_ctp, pathlib; print(pathlib.Path(vnpy_ctp.__file__).resolve().parent / "api")')"
+    echo "覆盖已安装 vnpy_ctp 的 Linux .so ← vendor/simnow-ctp/linux"
+    cp -f "${ROOT}/vendor/simnow-ctp/linux/"*thost*.so "${API_DST}/" 2>/dev/null || true
+  fi
+fi
+
+_uninstall_qt
+if "${PY}" -c "import importlib.util as u; raise SystemExit(0 if u.find_spec('PySide6') else 1)" 2>/dev/null; then
+  _die "PySide6 仍在环境中；请检查是否有其它包强制安装了桌面 Qt。"
+fi
+echo "已确认：未安装 PySide6（Web-only）。"
+
+echo "依赖已就绪。产品入口是 Web：./start.sh"
 echo "不要把 Mac 的 .framework 或本机编译产物拷到服务器。"
+echo "ClickHouse 请用官方 apt/deb，禁止源码编译。"
