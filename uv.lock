@@ -667,6 +667,8 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "vnpy" },
+    { name = "vnpy-ctabacktester" },
+    { name = "vnpy-ctastrategy" },
 ]
 
 [package.metadata]
@@ -682,6 +684,8 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
     { name = "vnpy", specifier = ">=4.0.0,<5" },
+    { name = "vnpy-ctabacktester", specifier = ">=1.3.0,<2" },
+    { name = "vnpy-ctastrategy", specifier = ">=1.4.0,<2" },
 ]
 
 [[package]]
@@ -2210,6 +2214,34 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ae/ff/9c986f504acb6cdfa1c379c8697202d5f257406f9928f5503fd03cf6e50c/vnpy-4.0.0.tar.gz", hash = "sha256:7c6b36dc0b40d58745235fc29b563a9f25646c82b9c224b2af61d5d75ce069b3", size = 154609, upload-time = "2025-04-10T00:58:25.634Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7c/23/a3cf142fa0a455f564fc1df42c2fb315fde99b1b41cc981fd92b84c685c0/vnpy-4.0.0-py3-none-any.whl", hash = "sha256:9460ce0fecb4451edb5c2c999ebf24ffaa45651fb97d7dcfff8a00c49970a97c", size = 181995, upload-time = "2025-04-10T00:58:22.747Z" },
+]
+
+[[package]]
+name = "vnpy-ctabacktester"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "vnpy" },
+    { name = "vnpy-ctastrategy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f2/4d/98367b55d4bf393c57dbb16d026e84b2546d8a0db58165ff1215701e3f58/vnpy_ctabacktester-1.3.0.tar.gz", hash = "sha256:8f4f90a759d47de6fa2aa76febb63e9f0ad2936e2d633a15c85ee6a1d057dc90", size = 25037, upload-time = "2025-12-22T08:59:03.366Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/74/d7/3bddb2753a8ece7619e3366660cac9ff00468364e4ade24b68abf114c1e3/vnpy_ctabacktester-1.3.0-py3-none-any.whl", hash = "sha256:d3685c07d572c9a8b0866edb167c30c58757c988bc85e83f415b84fe38cce7e6", size = 31947, upload-time = "2025-12-22T08:59:02.192Z" },
+]
+
+[[package]]
+name = "vnpy-ctastrategy"
+version = "1.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "pandas", version = "3.0.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "plotly" },
+    { name = "vnpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/40/b1/17f6164d8cbd90b0175e6f38923efc60b9534a99edd7b275b9b4696ae672/vnpy_ctastrategy-1.4.1.tar.gz", hash = "sha256:5da069ceb1696cd29a6bb4026e1a8194308d4f786fa714639b29241d31934097", size = 43202, upload-time = "2025-12-31T01:55:41.928Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/11/6c4b303c6f9428bfe34a3f6a3efd764c71cb61c5c7c4e4695f1c283aa96e/vnpy_ctastrategy-1.4.1-py3-none-any.whl", hash = "sha256:d625ebbff1fcf1a61794bf7c75c13f4bcfea333b3d80d0ada36292a09100288f", size = 58829, upload-time = "2025-12-31T01:55:40.842Z" },
 ]
 
 [[package]]

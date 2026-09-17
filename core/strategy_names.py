@@ -15,6 +15,7 @@ STRATEGY_TITLE_ZH: dict[str, str] = {
     "MultiTimeframeStrategy": "多周期策略",
     "TestStrategy": "测试策略",
     "DoubleMaStrategy": "双均线策略",
+    "DualMaTest": "双均线测试策略",
     "RumiStrategy": "RUMI均线偏差策略",
 }
 

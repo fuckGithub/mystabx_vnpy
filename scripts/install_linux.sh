@@ -141,6 +141,12 @@ fi
 echo "安装 vnpy（--no-deps，避免拉入 PySide6）..."
 "${PIP[@]}" install --no-deps "vnpy>=4.0.0,<5"
 
+echo "安装 CTA / 回测应用（优先 binary wheel）..."
+if ! "${PIP[@]}" install --only-binary=:all: "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"; then
+  echo "binary wheel 不可用，回退普通 pip 安装 vnpy_ctastrategy / vnpy_ctabacktester..."
+  "${PIP[@]}" install "vnpy_ctastrategy>=1.4.0,<2" "vnpy_ctabacktester>=1.3.0,<2"
+fi
+
 echo "安装本仓库（editable，--no-deps）..."
 "${PIP[@]}" install --no-deps -e "${ROOT}"
 
