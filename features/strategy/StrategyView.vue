@@ -182,7 +182,16 @@
       >
         <el-form label-width="110px">
           <el-form-item v-if="!editingName" label="策略类">
-            <el-select v-model="form.class_name" filterable style="width: 100%" @change="onClassChange">
+            <el-select
+              v-model="form.class_name"
+              filterable
+              allow-create
+              default-first-option
+              clearable
+              placeholder="选择或输入策略类名"
+              style="width: 100%"
+              @change="onClassChange"
+            >
               <el-option
                 v-for="c in classes"
                 :key="c.class_name"
@@ -190,6 +199,9 @@
                 :value="c.class_name"
               />
             </el-select>
+            <p class="page-form-hint">
+              选项来自 CTA 引擎已加载的策略类（`strategies/` 目录扫描，同 VeighNa）；可筛选，也可直接输入类名。
+            </p>
           </el-form-item>
           <el-form-item v-if="!editingName" label="实例名称">
             <el-input v-model="form.strategy_name" />
@@ -453,16 +465,22 @@ function stopStatusType(status: unknown) {
 }
 
 async function loadClasses() {
-  const { data } = await http.get("/api/cta/strategies");
-  classes.value = Array.isArray(data) ? data : [];
+  try {
+    const { data } = await http.get("/api/cta/strategies");
+    classes.value = Array.isArray(data) ? data : [];
+  } catch {
+    classes.value = [];
+  }
 }
 
 async function refreshAll() {
-  await Promise.all([strategy.refresh(), trade.refresh()]);
+  await Promise.all([strategy.refresh(), trade.refresh(), loadClasses()]);
 }
 
-function onClassChange(name: string) {
-  const found = classes.value.find((c) => c.class_name === name);
+function onClassChange(name: string | null | undefined) {
+  const className = String(name || "").trim();
+  form.class_name = className;
+  const found = classes.value.find((c) => c.class_name === className);
   const params = { ...(found?.parameters || {}) };
   delete params.gateway_name;
   paramSchema.value = params;
@@ -471,12 +489,14 @@ function onClassChange(name: string) {
 
 async function openAdd() {
   editingName.value = "";
-  form.class_name = classes.value[0]?.class_name || "";
   form.strategy_name = "";
   form.vt_symbol = "";
   form.setting = {};
-  if (form.class_name) onClassChange(form.class_name);
+  paramSchema.value = {};
   dialogVisible.value = true;
+  await loadClasses();
+  form.class_name = classes.value[0]?.class_name || "";
+  if (form.class_name) onClassChange(form.class_name);
   void Promise.all([
     trade.refresh(),
     market.loadSubscriptions(),
