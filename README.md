@@ -30,7 +30,9 @@
 
 提示：沟通群面向星球成员。请先完成上一步加入星球，再在星球内申请入群；下方二维码约 7 天有效（当前至 2026/9/24 前），过期后会刷新，请以本页最新图片为准。
 
-![MyStabx 微信群二维码](docs/images/mystabx-wechat-group-qr.jpg)
+<p align="center">
+  <img src="docs/images/mystabx-wechat-group-qr.jpg" alt="微信群二维码：MyStabx期货量化交易平台" width="360" />
+</p>
 
 ## 支持作者
 
