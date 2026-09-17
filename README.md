@@ -119,7 +119,7 @@
 
 **存储**
 
-- **SQLite**（默认 `.vntrader/stabx_web.db`）：用户、通道（含 `auto_connect`）、会话、通道操作日志等；通道密钥 Fernet 加密。
+- **SQLite**（默认 `.vntrader/stabx_web.db`）：用户、通道（含 `auto_connect`）、会话、行情订阅（`market_subscriptions`）、通道操作日志等；通道密钥 Fernet 加密。ClickHouse 只存 Tick，不存订阅。
 - **ClickHouse** 只存 Tick：库表 `mystabx_vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。根目录 `ch_schema.sql` 是早期设计稿，运行时建表以 `core/clickhouse.py` 为准。
 
 技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。Docker、RQData 历史行情仍非产品能力。
@@ -337,7 +337,7 @@ uv run start --dev
 
 ```bash
 cp .env.ecs.example .env.ecs   # 填写 ECS_PASSWORD 等
-./scripts/deploy_ecs.sh        # rsync → stop →（可选 npm build）→ start
+./scripts/deploy_ecs.sh        # stop → rsync（排除 .vntrader）→（可选 npm build）→ start
 ./scripts/deploy_ecs.sh --no-build   # 只同步代码并重启（前端 dist 已有时）
 ./scripts/watch_deploy_ecs.sh  # 监视 core/features/ui 等，默认 45s 防抖 + --no-build
 ```
@@ -416,7 +416,7 @@ cp .env.ecs.example .env.ecs   # 填写 ECS_PASSWORD 等
 | `STABX_SIMNOW_USER` | （空） | 本机新建通道预填资金账号，只写 `.env` |
 | `STABX_SIMNOW_PASSWORD` | （空） | 本机新建通道预填密码，只写 `.env`，勿提交 |
 | `STABX_JWT_SECRET` | 自动生成 | JWT 密钥；缺省写入 `.vntrader/web_keys.json` |
-| `STABX_SQLITE_PATH` | `.vntrader/stabx_web.db` | 业务库：用户、通道、会话、操作日志 |
+| `STABX_SQLITE_PATH` | `.vntrader/stabx_web.db` | 业务库：用户、通道、会话、行情订阅、操作日志 |
 | `STABX_CLICKHOUSE_URL` | `http://127.0.0.1:8123` | Tick 库 HTTP 口；不可用时软失败 |
 | `STABX_CLICKHOUSE_TICK_TTL_DAYS` | `10` | ClickHouse Tick 保留天数 |
 | `STABX_METRIC_T2T_P99_MS` | `50` | `/health` → `metrics.alerts`：Tick-2-Trade p99 告警阈值（毫秒） |

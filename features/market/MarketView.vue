@@ -92,7 +92,25 @@ const isLiveQuotes = computed(() => section.value === "ticks");
 const allContracts = computed(() => market.contracts as ContractRow[]);
 const listContracts = computed(() => {
   if (!isLiveQuotes.value) return allContracts.value;
-  return allContracts.value.filter((row) => market.subscribedKeys[contractKey(row)]);
+  const byKey = new Map<string, ContractRow>();
+  for (const row of allContracts.value) {
+    const key = contractKey(row);
+    if (key && market.subscribedKeys[key]) byKey.set(key, row);
+  }
+  // Restored SQLite rows must appear even before OMS contract query returns.
+  for (const sub of market.subscriptions) {
+    const row = sub as ContractRow;
+    const key = contractKey(row);
+    if (!key || byKey.has(key)) continue;
+    byKey.set(key, {
+      symbol: row.symbol,
+      exchange: row.exchange,
+      name: row.name || "",
+      gateway_name: row.gateway_name,
+      vt_symbol: row.vt_symbol || `${row.symbol}.${row.exchange}`,
+    });
+  }
+  return [...byKey.values()];
 });
 
 const listEmptyText = computed(() =>

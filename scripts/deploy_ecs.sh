@@ -17,7 +17,7 @@ _usage() {
 用法: ./scripts/deploy_ecs.sh [--dry-run] [--no-build] [--wait-ready SECS]
 
   从 .env.ecs 读取 ECS_HOST / ECS_USER / ECS_PASSWORD（及可选 ECS_REMOTE_DIR、STABX_PORT）
-  rsync 到远端后：先 stop 旧进程，再 start（systemd 优先，否则 ./start.sh）
+  先 stop，再 rsync（排除 .vntrader / .env），再 start（systemd 优先，否则 ./start.sh）
   默认会远端 npm run build（rsync 排除 dist/，避免本机旧产物覆盖服务器）
 
   --dry-run      只打印将执行的动作，不传文件、不重启
@@ -132,39 +132,16 @@ _log() {
 _log "部署开始 → ${ECS_USER}@${ECS_HOST}:${REMOTE_DIR}（端口 ${REMOTE_PORT}）"
 
 if [[ "${DRY_RUN}" == "1" ]]; then
-  _log "[dry-run] 将 rsync 排除 .venv/node_modules/.git/.env/.env.ecs 等，并远端 stop→start"
+  _log "[dry-run] 将先 stop，再 rsync（排除 .venv/node_modules/.git/.env/.vntrader），再 start"
   exit 0
 fi
 
 _log "确保远端目录存在"
 "${SSH_BASE[@]}" "mkdir -p '${REMOTE_DIR}'"
 
-_log "rsync 同步代码（保留远端 .env，不覆盖密钥）"
-# --delete 不会删除被 exclude 的远端文件（未使用 --delete-excluded）
-rsync -az --delete \
-  --exclude '.git/' \
-  --exclude '.venv/' \
-  --exclude 'node_modules/' \
-  --exclude 'ui/node_modules' \
-  --exclude 'dist/' \
-  --exclude '.env' \
-  --exclude '.env.ecs' \
-  --exclude '.env.local' \
-  --exclude '.cache/' \
-  --exclude '__pycache__/' \
-  --exclude '*.py[cod]' \
-  --exclude '.pytest_cache/' \
-  --exclude '.mypy_cache/' \
-  --exclude '.ruff_cache/' \
-  --exclude 'docs/ecs-rds.local.md' \
-  --exclude 'docs/ecs&rds.md' \
-  --exclude '.DS_Store' \
-  -e "${RSYNC_RSH}" \
-  "${ROOT}/" "${ECS_USER}@${ECS_HOST}:${REMOTE_DIR}/"
-
-_log "远端：停止旧应用 →（可选）构建 → 启动"
-# shellcheck disable=SC2029
-"${SSH_BASE[@]}" "REMOTE_DIR='${REMOTE_DIR}' REMOTE_PORT='${REMOTE_PORT}' DO_BUILD='${DO_BUILD}' WAIT_READY='${WAIT_READY}' bash -s" <<'REMOTE'
+# Shared remote helpers (stop must run BEFORE rsync so SQLite/WAL under .vntrader is not
+# unlinked while still open — that orphaned subscriptions in deleted inodes).
+_remote_common=$(cat <<'REMOTE_COMMON'
 set -euo pipefail
 
 cd "${REMOTE_DIR}" || {
@@ -228,6 +205,13 @@ _venv_import_ok() {
   py="$(_py)" || return 1
   "${py}" -c 'import uvicorn' >/dev/null 2>&1
 }
+REMOTE_COMMON
+)
+
+_log "远端：先停止旧应用（再 rsync，保护 .vntrader/SQLite）"
+# shellcheck disable=SC2029
+"${SSH_BASE[@]}" "REMOTE_DIR='${REMOTE_DIR}' REMOTE_PORT='${REMOTE_PORT}' WAIT_READY='${WAIT_READY}' bash -s" <<REMOTE
+${_remote_common}
 
 # 仅等待已有 .venv 可用；不在此脚本里 uv sync / pip install / install_linux
 elapsed=0
@@ -235,19 +219,19 @@ while true; do
   if _venv_import_ok; then
     break
   fi
-  if [[ "${elapsed}" -ge "${WAIT_READY}" ]]; then
-    echo "远端 .venv 未就绪（${WAIT_READY}s）。代码已同步；请先在服务器完成 ./scripts/install_linux.sh，再 deploy。" >&2
+  if [[ "\${elapsed}" -ge "\${WAIT_READY}" ]]; then
+    echo "远端 .venv 未就绪（\${WAIT_READY}s）。请先在服务器完成 ./scripts/install_linux.sh，再 deploy。" >&2
     exit 3
   fi
   if ! _py >/dev/null; then
-    echo "尚无可用 .venv，等待中… (${elapsed}/${WAIT_READY}s)"
+    echo "尚无可用 .venv，等待中… (\${elapsed}/\${WAIT_READY}s)"
   else
-    echo ".venv 存在但 import uvicorn 失败，等待中… (${elapsed}/${WAIT_READY}s)"
+    echo ".venv 存在但 import uvicorn 失败，等待中… (\${elapsed}/\${WAIT_READY}s)"
   fi
   sleep 5
-  elapsed=$((elapsed + 5))
+  elapsed=\$((elapsed + 5))
 done
-echo "远端 Python 运行时就绪：$(_py)"
+echo "远端 Python 运行时就绪：\$(_py)"
 
 has_systemd=0
 if command -v systemctl >/dev/null 2>&1; then
@@ -258,30 +242,68 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 
 echo "停止旧应用…"
-if [[ "${has_systemd}" == "1" ]]; then
+if [[ "\${has_systemd}" == "1" ]]; then
   systemctl stop mystabx-vnpy.service 2>/dev/null || systemctl stop mystabx-vnpy 2>/dev/null || true
 fi
-# 兜底：start.sh / uvicorn / 占用 18080 的残留
-pkill -f "${REMOTE_DIR}/start.sh" 2>/dev/null || true
+pkill -f "\${REMOTE_DIR}/start.sh" 2>/dev/null || true
 pkill -f "uvicorn core.main:app" 2>/dev/null || true
-_stop_port_listeners "${REMOTE_PORT}"
+_stop_port_listeners "\${REMOTE_PORT}"
+echo "已停止，可安全 rsync"
+REMOTE
 
-if [[ -f "${REMOTE_DIR}/scripts/mystabx-vnpy.service" ]] && command -v systemctl >/dev/null 2>&1; then
-  cp "${REMOTE_DIR}/scripts/mystabx-vnpy.service" /etc/systemd/system/mystabx-vnpy.service
+_log "rsync 同步代码（保留远端 .env / .vntrader，不覆盖密钥与业务库）"
+# --delete 不会删除被 exclude 的远端文件（未使用 --delete-excluded）
+rsync -az --delete \
+  --exclude '.git/' \
+  --exclude '.venv/' \
+  --exclude 'node_modules/' \
+  --exclude 'ui/node_modules' \
+  --exclude 'dist/' \
+  --exclude '.vntrader/' \
+  --exclude '.env' \
+  --exclude '.env.ecs' \
+  --exclude '.env.local' \
+  --exclude '.cache/' \
+  --exclude '__pycache__/' \
+  --exclude '*.py[cod]' \
+  --exclude '.pytest_cache/' \
+  --exclude '.mypy_cache/' \
+  --exclude '.ruff_cache/' \
+  --exclude 'docs/ecs-rds.local.md' \
+  --exclude 'docs/ecs&rds.md' \
+  --exclude '.DS_Store' \
+  -e "${RSYNC_RSH}" \
+  "${ROOT}/" "${ECS_USER}@${ECS_HOST}:${REMOTE_DIR}/"
+
+_log "远端：（可选）构建 → 启动"
+# shellcheck disable=SC2029
+"${SSH_BASE[@]}" "REMOTE_DIR='${REMOTE_DIR}' REMOTE_PORT='${REMOTE_PORT}' DO_BUILD='${DO_BUILD}' bash -s" <<REMOTE
+${_remote_common}
+
+has_systemd=0
+if command -v systemctl >/dev/null 2>&1; then
+  if [[ -f /etc/systemd/system/mystabx-vnpy.service ]] \
+    || systemctl cat mystabx-vnpy.service >/dev/null 2>&1; then
+    has_systemd=1
+  fi
+fi
+
+if [[ -f "\${REMOTE_DIR}/scripts/mystabx-vnpy.service" ]] && command -v systemctl >/dev/null 2>&1; then
+  cp "\${REMOTE_DIR}/scripts/mystabx-vnpy.service" /etc/systemd/system/mystabx-vnpy.service
   systemctl daemon-reload
   has_systemd=1
 fi
 
-if [[ "${DO_BUILD}" == "1" ]]; then
-  if [[ ! -d "${REMOTE_DIR}/node_modules" ]]; then
+if [[ "\${DO_BUILD}" == "1" ]]; then
+  if [[ ! -d "\${REMOTE_DIR}/node_modules" ]]; then
     echo "远端缺少 node_modules，执行 npm install（仅构建需要）…"
-    (cd "${REMOTE_DIR}" && npm install)
+    (cd "\${REMOTE_DIR}" && npm install)
   fi
   echo "远端 npm run build…"
-  (cd "${REMOTE_DIR}" && npm run build)
+  (cd "\${REMOTE_DIR}" && npm run build)
 else
   echo "跳过远端构建（--no-build；不跑 npm install）"
-  if [[ ! -f "${REMOTE_DIR}/dist/index.html" ]]; then
+  if [[ ! -f "\${REMOTE_DIR}/dist/index.html" ]]; then
     echo "警告：远端无 dist/index.html，--no-build 启动可能无前端静态页" >&2
   fi
 fi
@@ -290,7 +312,7 @@ fi
 echo "确保 CTP 所需 locale（zh_CN.GB18030）…"
 if command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
-  if ! locale -a 2>/dev/null | grep -qiE '^zh_CN\.gb18030$'; then
+  if ! locale -a 2>/dev/null | grep -qiE '^zh_CN\\.gb18030\$'; then
     apt-get install -y -qq locales-all >/dev/null 2>&1 \
       || apt-get install -y -qq locales >/dev/null 2>&1 \
       || true
@@ -312,29 +334,27 @@ Environment=LC_CTYPE=zh_CN.utf8
 EOF
 
 echo "启动应用…"
-if [[ "${has_systemd}" == "1" ]]; then
+if [[ "\${has_systemd}" == "1" ]]; then
   systemctl daemon-reload
   systemctl enable mystabx-vnpy.service >/dev/null 2>&1 || true
   systemctl start mystabx-vnpy.service
   sleep 2
   systemctl --no-pager -l status mystabx-vnpy.service || true
 else
-  # 无 systemd 时后台起 start.sh（有 dist 则 --skip-build）
   mkdir -p /var/log
-  if [[ -f "${REMOTE_DIR}/dist/index.html" ]]; then
-    nohup "${REMOTE_DIR}/start.sh" --skip-build >>/var/log/mystabx-vnpy.log 2>&1 &
+  if [[ -f "\${REMOTE_DIR}/dist/index.html" ]]; then
+    nohup "\${REMOTE_DIR}/start.sh" --skip-build >>/var/log/mystabx-vnpy.log 2>&1 &
   else
-    nohup "${REMOTE_DIR}/start.sh" >>/var/log/mystabx-vnpy.log 2>&1 &
+    nohup "\${REMOTE_DIR}/start.sh" >>/var/log/mystabx-vnpy.log 2>&1 &
   fi
   echo "已 nohup ./start.sh（日志 /var/log/mystabx-vnpy.log）"
 fi
 
-# 简单健康探测（不阻断：启动可能仍在 build/warmup）
 if command -v curl >/dev/null 2>&1; then
   for i in 1 2 3 4 5 6; do
-    if curl -fsS --max-time 2 "http://127.0.0.1:${REMOTE_PORT}/health" >/dev/null 2>&1 \
-      || curl -fsS --max-time 2 "http://127.0.0.1:${REMOTE_PORT}/" >/dev/null 2>&1; then
-      echo "健康检查通过 http://127.0.0.1:${REMOTE_PORT}/"
+    if curl -fsS --max-time 2 "http://127.0.0.1:\${REMOTE_PORT}/health" >/dev/null 2>&1 \
+      || curl -fsS --max-time 2 "http://127.0.0.1:\${REMOTE_PORT}/" >/dev/null 2>&1; then
+      echo "健康检查通过 http://127.0.0.1:\${REMOTE_PORT}/"
       exit 0
     fi
     sleep 5

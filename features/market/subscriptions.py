@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from vnpy.trader.constant import Exchange
 from vnpy.trader.object import SubscribeRequest
 
@@ -16,6 +16,14 @@ logger = logging.getLogger(__name__)
 
 # Gateways whose MD login already triggered a restore in this process.
 _restored_gateways: set[str] = set()
+
+
+def _checkpoint_sqlite(db) -> None:
+    """Flush WAL into the main DB file so rows survive abrupt process/file replace."""
+    try:
+        db.execute(text("PRAGMA wal_checkpoint(PASSIVE)"))
+    except Exception:
+        logger.debug("sqlite wal_checkpoint skipped", exc_info=True)
 
 
 def vt_symbol_of(symbol: str, exchange: str) -> str:
@@ -93,6 +101,7 @@ def upsert_subscription(
             row.name = resolved
         db.commit()
         db.refresh(row)
+        _checkpoint_sqlite(db)
         return row
     finally:
         db.close()
@@ -119,6 +128,7 @@ def delete_subscription(
             )
         )
         db.commit()
+        _checkpoint_sqlite(db)
         return bool(result.rowcount)
     finally:
         db.close()

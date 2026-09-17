@@ -188,13 +188,14 @@ def subscribe(body: SubscribeBody, user: User = Depends(current_user)) -> dict:
         exchange = Exchange[body.exchange.upper()]
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=f"invalid exchange: {body.exchange}") from exc
-    runtime.me.subscribe(SubscribeRequest(symbol=body.symbol, exchange=exchange), body.gateway_name)
+    # Persist first so a CTP hiccup cannot leave the UI subscribed without a durable row.
     row = upsert_subscription(
         user_id=user.id,
         gateway_name=body.gateway_name,
         symbol=body.symbol,
         exchange=body.exchange,
     )
+    runtime.me.subscribe(SubscribeRequest(symbol=body.symbol, exchange=exchange), body.gateway_name)
     return {"ok": True, "subscription": {
         "gateway_name": row.gateway_name,
         "symbol": row.symbol,

@@ -155,6 +155,21 @@ def init_db() -> None:
     _ensure_account_name_unique()
     _ensure_account_auto_connect()
     _bootstrap_admin()
+    _ensure_market_subscriptions_ready()
+
+
+def _ensure_market_subscriptions_ready() -> None:
+    """Confirm market_subscriptions exists (create_all); helps diagnose deploy wipe issues."""
+    if _engine is None:
+        return
+    with _engine.connect() as conn:
+        row = conn.exec_driver_sql(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='market_subscriptions'"
+        ).fetchone()
+        if not row:
+            # create_all should have made it; force once more for safety
+            MarketSubscription.__table__.create(bind=_engine, checkfirst=True)
+        conn.exec_driver_sql("PRAGMA wal_checkpoint(PASSIVE)")
 
 
 def _ensure_account_auto_connect() -> None:

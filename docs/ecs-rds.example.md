@@ -65,7 +65,7 @@ ssh root@47.102.208.231
 | 服务 | `scripts/mystabx-vnpy.service` → systemd；产品入口 Web，无桌面 Qt |
 | Locale | OS 必有 `zh_CN.gb18030`（`locales-all` / `locale-gen`；vnpy_ctp 硬编码）；unit/`start.sh` 用 `LANG=zh_CN.utf8`（勿用未生成的 `zh_CN.UTF-8` / `en_US.UTF-8`） |
 | 远端路径 | `/stabx/mystabx_vnpy` |
-| 本机部署 | `./scripts/deploy_ecs.sh`（读 `.env.ecs`；rsync 后先停再启） |
+| 本机部署 | `./scripts/deploy_ecs.sh`（读 `.env.ecs`；先 stop → rsync → start） |
 
 ## ECS 自动部署
 
@@ -88,9 +88,9 @@ ssh root@47.102.208.231
 
 行为摘要：
 
-1. rsync → `/stabx/mystabx_vnpy`（排除 `.venv`、`node_modules`、`.git`、本机 `.env` / `.env.ecs`；保留远端 `.env`）
-2. 确认远端已有 `.venv`（最多 `--wait-ready`，默认 60s）；**不会**在服务器重跑 `install_linux` / `uv sync`
-3. `systemctl stop mystabx-vnpy`（或杀 `start.sh` / `uvicorn` / 释放 18080）
+1. 远端 stop（避免覆盖仍打开的 `.vntrader`/SQLite WAL）
+2. rsync → `/stabx/mystabx_vnpy`（排除 `.venv`、`node_modules`、`.git`、`.vntrader`、本机 `.env` / `.env.ecs`；保留远端 `.env` 与业务库）
+3. 确认远端已有 `.venv`（最多 `--wait-ready`，默认 60s）；**不会**在服务器重跑 `install_linux` / `uv sync`
 4. 手动部署默认 `npm run build` 后 `systemctl start`；自动部署（hook / watch）默认 `--no-build` + `start.sh --skip-build`
 
 ## ClickHouse（ECS 本机 · 官方 deb）
