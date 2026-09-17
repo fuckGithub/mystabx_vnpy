@@ -9,6 +9,30 @@
 - **数据管控对接**：业务库 **MySQL**（用户、通道、会话、订阅、操作日志、策略元数据等）与行情 **ClickHouse**（Tick 近窗热路径）分工存储；订阅与策略源码版本化入库，双库治理，避免业务数据散落本地文件。
 - **策略模型（方向）**：策略类及版本化代码/参数入库（`model_store` / `strategy_loader`），由库加载运行并沉淀结果详情；相关能力持续完善中。
 
+### 新手必读
+
+- **在线演示（ECS）**：[http://47.102.208.231:18080/](http://47.102.208.231:18080/)（公网 Web，端口 `18080`；账号 **`admin`** / **`admin123`**）
+- **本机启动**：下文「搭建步骤」；入口 `python main.py` / `uv run start` / `./start.sh`
+- **架构与功能**：[docs/01-架构与功能规划.md](docs/01-架构与功能规划.md)
+- **存储方案**：[docs/02-数据存储方案.md](docs/02-数据存储方案.md)（实现以 MySQL + ClickHouse Tick 为准）
+- **WebSocket 协议**：[docs/04-WebSocket消息协议.md](docs/04-WebSocket消息协议.md)
+- **CTP 分平台搭建**：[docs/CTP分平台搭建.md](docs/CTP分平台搭建.md)
+- **ECS / 部署说明**：[docs/ecs-rds.example.md](docs/ecs-rds.example.md)（无密码；真实凭据仅本机 `ecs-rds.local.md`）
+- **免责声明**：[docs/07-用户服务协议与免责声明.md](docs/07-用户服务协议与免责声明.md)（页面路由 `/disclaimer`）
+- **仓库**：[Gitee](https://gitee.com/xjc621105/mystabx_vnpy) · [GitHub](https://github.com/fuckGithub/mystabx_vnpy)
+
+### 界面预览
+
+截图取自公网演示环境（`admin` / `admin123`）：
+
+| 登录 | 工作台 |
+|---|---|
+| ![登录页](docs/images/ui-login.png) | ![工作台](docs/images/ui-workbench.png) |
+
+| 市场行情 | 交易下单 |
+|---|---|
+| ![市场行情](docs/images/ui-market.png) | ![交易下单](docs/images/ui-trade.png) |
+
 ## 仓库地址
 
 | 平台 | 地址 | 说明 |
