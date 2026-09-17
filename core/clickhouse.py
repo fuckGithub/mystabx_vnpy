@@ -20,7 +20,7 @@ from core.sessions import parse_tick_dt, session_range, trade_date_of
 
 logger = logging.getLogger("stabx.clickhouse")
 
-DATABASE = "vnpy"
+DATABASE = "mystabx_vnpy"
 TABLE = "market_tick"
 
 

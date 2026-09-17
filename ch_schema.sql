@@ -2,9 +2,9 @@
 --   clickhouse-client --multiquery < ch_schema.sql
 -- P0 does not require ClickHouse to be running for REST/WS.
 
-CREATE DATABASE IF NOT EXISTS vnpy;
+CREATE DATABASE IF NOT EXISTS mystabx_vnpy;
 
-CREATE TABLE IF NOT EXISTS vnpy.bar_data (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.bar_data (
     symbol        String,
     exchange      String,
     interval      String,
@@ -21,7 +21,7 @@ PARTITION BY toYYYYMM(datetime)
 ORDER BY (symbol, exchange, interval, datetime)
 TTL datetime + INTERVAL 5 YEAR;
 
-CREATE TABLE IF NOT EXISTS vnpy.tick_data (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.tick_data (
     symbol        String,
     exchange      String,
     datetime      DateTime64(3, 'Asia/Shanghai'),
@@ -45,7 +45,7 @@ ORDER BY (symbol, exchange, datetime)
 TTL datetime + INTERVAL 6 MONTH;
 
 -- 分时 Tick：默认保留 10 个交易日（应用启动也会 CREATE IF NOT EXISTS）
-CREATE TABLE IF NOT EXISTS vnpy.market_tick (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.market_tick (
     symbol        String,
     exchange      String,
     gateway_name  String,
@@ -66,7 +66,7 @@ PARTITION BY trade_date
 ORDER BY (symbol, exchange, datetime)
 TTL datetime + INTERVAL 10 DAY DELETE;
 
-CREATE TABLE IF NOT EXISTS vnpy.order_event (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.order_event (
     event_time  DateTime64(3, 'Asia/Shanghai'),
     order_id    String,
     gateway     String,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS vnpy.order_event (
 ORDER BY (event_time, order_id)
 TTL event_time + INTERVAL 3 YEAR;
 
-CREATE TABLE IF NOT EXISTS vnpy.trade_event (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.trade_event (
     event_time DateTime64(3, 'Asia/Shanghai'),
     trade_id   String, order_id String,
     gateway    String,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS vnpy.trade_event (
 ORDER BY (event_time, trade_id)
 TTL event_time + INTERVAL 3 YEAR;
 
-CREATE TABLE IF NOT EXISTS vnpy.position_event (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.position_event (
     event_time DateTime64(3, 'Asia/Shanghai'),
     gateway    String,
     symbol     String, exchange String, direction String,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS vnpy.position_event (
 ) ENGINE = ReplacingMergeTree(event_time)
 ORDER BY (gateway, symbol, direction);
 
-CREATE TABLE IF NOT EXISTS vnpy.account_event (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.account_event (
     event_time DateTime64(3, 'Asia/Shanghai'),
     gateway    String,
     account_id String,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS vnpy.account_event (
 ) ENGINE = ReplacingMergeTree(event_time)
 ORDER BY (gateway, account_id);
 
-CREATE TABLE IF NOT EXISTS vnpy.log_event (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.log_event (
     event_time DateTime64(3, 'Asia/Shanghai'),
     level      String,
     source     String,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS vnpy.log_event (
 ORDER BY event_time
 TTL event_time + INTERVAL 1 YEAR;
 
-CREATE TABLE IF NOT EXISTS vnpy.audit_log (
+CREATE TABLE IF NOT EXISTS mystabx_vnpy.audit_log (
     event_time DateTime64(3, 'Asia/Shanghai'),
     user_id    Int32,
     gateway    String,

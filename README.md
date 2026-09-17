@@ -120,7 +120,7 @@
 **存储**
 
 - **SQLite**（默认 `.vntrader/stabx_web.db`）：用户、通道（含 `auto_connect`）、会话、通道操作日志等；通道密钥 Fernet 加密。
-- **ClickHouse** 只存 Tick：库表 `vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。根目录 `ch_schema.sql` 是早期设计稿，运行时建表以 `core/clickhouse.py` 为准。
+- **ClickHouse** 只存 Tick：库表 `mystabx_vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。根目录 `ch_schema.sql` 是早期设计稿，运行时建表以 `core/clickhouse.py` 为准。
 
 技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。Docker、RQData 历史行情仍非产品能力。
 

@@ -84,10 +84,10 @@ class Settings:
         self.clickhouse_port = int(os.environ.get("STABX_CLICKHOUSE_PORT", "8123"))
         self.clickhouse_user = os.environ.get("STABX_CLICKHOUSE_USER", "default")
         self.clickhouse_password = os.environ.get("STABX_CLICKHOUSE_PASSWORD", "")
-        self.clickhouse_database = os.environ.get("STABX_CLICKHOUSE_DATABASE", "vnpy")
+        self.clickhouse_database = os.environ.get("STABX_CLICKHOUSE_DATABASE", "mystabx_vnpy")
         self.clickhouse_tick_ttl_days = int(os.environ.get("STABX_CLICKHOUSE_TICK_TTL_DAYS", "10"))
         self.host = os.environ.get("STABX_HOST", "0.0.0.0")
-        self.port = int(os.environ.get("STABX_PORT", "8000"))
+        self.port = int(os.environ.get("STABX_PORT", "18080"))
         raw_origins = os.environ.get(
             "STABX_CORS_ORIGINS",
             "http://127.0.0.1:5173,http://localhost:5173",
