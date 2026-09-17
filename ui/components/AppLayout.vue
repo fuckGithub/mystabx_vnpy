@@ -103,7 +103,10 @@ const isWorkbench = computed(() => route.path === "/workbench" || route.path.sta
 const isMarketTerminal = computed(
   () => route.path === "/market" || route.path.startsWith("/market/"),
 );
-const isFullBleed = computed(() => isWorkbench.value || isMarketTerminal.value);
+const isStrategyDetail = computed(() => route.path.startsWith("/strategy/detail/"));
+const isFullBleed = computed(
+  () => isWorkbench.value || isMarketTerminal.value || isStrategyDetail.value,
+);
 const currentModule = computed(() => moduleKeyFromPath(route.path));
 const showSidebar = computed(() => Boolean(currentModule.value));
 const sidebarItems = computed(() => sidebars[currentModule.value] ?? []);
