@@ -131,11 +131,8 @@ atlassian-ide-plugin.xml
 .LSOverride
 ._*
 
-# Cursor 本地配置与规则（不提交）；hooks 例外，便于共享自动部署
-.cursor/*
-!.cursor/hooks.json
-!.cursor/hooks/
-!.cursor/hooks/**
+# Cursor 本地配置、规则与 hooks（不提交；保留本机文件）
+.cursor/
 
 # 本地部署防抖状态 / 日志（勿提交）
 .cache/
