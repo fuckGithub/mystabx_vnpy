@@ -147,5 +147,5 @@ if ($DllSrc) {
 }
 
 Write-Host "依赖已就绪（Windows CTP .dll + vnpy_ctp）。"
-Write-Host "原生 Windows 启动见 docs/11-分平台CTP搭建.md（uvicorn）；或用 WSL2 走 Linux 脚本。"
+Write-Host "原生 Windows 启动见 docs/CTP分平台搭建.md（uvicorn）；或用 WSL2 走 Linux 脚本。"
 Write-Host "不要把 Mac .framework / Linux .so 拷到本机。"

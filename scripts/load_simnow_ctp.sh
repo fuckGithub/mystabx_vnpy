@@ -209,7 +209,7 @@ case "${OS}" in
   *)
     echo "不支持的系统：${OS}（load_simnow_ctp.sh 仅 Linux / macOS）。" >&2
     echo "Windows 请运行：powershell -File scripts/install_windows.ps1" >&2
-    echo "说明：docs/11-分平台CTP搭建.md" >&2
+    echo "说明：docs/CTP分平台搭建.md" >&2
     exit 1
     ;;
 esac
