@@ -90,6 +90,102 @@
 - 前端用 **Vue 3** 做完整交易台
 - 支持**多用户**、**每用户独立账户**、**用户级隔离 + 管理员**
 
+## 技术架构
+
+主链路自左向右：**客户端 → 前端 SPA → 接入（直连 `:18080`，可选 Nginx）→ FastAPI + 进程内 vnpy → 存储**。上方为实时通道与进程内事件/保活，下方为 ECS 部署与轻量监控；策略模型、实例版本与动态编译挂在后端应用层，而非独立中间件。本仓库**未使用** Redis / ES / Jenkins / SkyWalking 等（规划中可扩展，见 [docs/06](docs/06-实施路线图.md)）。
+
+```mermaid
+flowchart TB
+  %% —— 辅助（上）：实时与进程内能力 ——
+  subgraph AUX_TOP[" "]
+    direction LR
+    subgraph RT["实时通道"]
+      direction TB
+      WS["WebSocket<br/>Tick / 委托 / CTA 推送"]
+      SSE["SSE<br/>账号登录 · 资金"]
+    end
+    subgraph EV["事件总线"]
+      EE["vnpy EventEngine<br/>进程内事件分发"]
+    end
+    subgraph KEEP["通道保活"]
+      AC["自动连接<br/>退避重连"]
+    end
+  end
+
+  %% —— 主链路：左 → 右 ——
+  subgraph MAIN[" "]
+    direction LR
+
+    subgraph CLIENT["客户端"]
+      PC["电脑<br/>浏览器"]
+    end
+
+    subgraph FE["前端服务"]
+      VUE["Vue 3 + Vite + TS<br/>Element Plus · ECharts<br/>工作台 / 行情 / 交易 / 策略"]
+    end
+
+    subgraph ACCESS["接入服务"]
+      UV["Uvicorn :18080<br/>可选 Nginx 反代"]
+    end
+
+    subgraph BE["后端服务"]
+      direction TB
+      API["FastAPI<br/>REST · WS · SSE"]
+      ME["vnpy MainEngine / OMS<br/>（headless，单进程）"]
+      CTP["CtpGateway 多账户<br/>SimNow / 实盘 CTP"]
+      APPS["CtaStrategyApp · CtaBacktesterApp"]
+      MOD["策略应用层<br/>模型管理 · 实例版本 · 动态编译"]
+    end
+
+    subgraph STORE["存储服务"]
+      direction TB
+      MYSQL[("MySQL<br/>业务数据<br/>用户 / 通道 / 订阅 / 策略源码与版本")]
+      CH[("ClickHouse<br/>Tick 数据<br/>market_tick · TTL ~10 天")]
+      LOCAL[(".vntrader / strategies/<br/>会话与源码物化缓存")]
+    end
+
+    CLIENT -->|"HTTP"| FE
+    FE -->|"HTTP / WS / SSE"| ACCESS
+    ACCESS -->|"单进程托管"| BE
+    BE -->|"业务读写"| MYSQL
+    BE -->|"Tick 写入"| CH
+    BE -->|"会话 / 缓存"| LOCAL
+  end
+
+  %% —— 辅助（下）：运维与监控 ——
+  subgraph AUX_BOT[" "]
+    direction LR
+    subgraph OPS["运维工具"]
+      direction TB
+      DEP["deploy_ecs.sh<br/>rsync 同步"]
+      SYS["systemd<br/>mystabx-vnpy.service"]
+    end
+    subgraph MON["监控"]
+      direction TB
+      HL["/health 健康检查"]
+      MET["core/metrics<br/>延迟 / 队列深度"]
+    end
+  end
+
+  RT -.->|"推送"| BE
+  EE -.->|"事件"| BE
+  AC -.->|"连柜"| CTP
+  OPS -.->|"部署服务"| BE
+  MON -.->|"监控服务"| BE
+
+  classDef box fill:#f0f7ff,stroke:#5b9bd5,stroke-dasharray: 5 3,color:#333
+  class CLIENT,FE,ACCESS,BE,STORE,RT,EV,KEEP,OPS,MON box
+```
+
+| 分层 | 本仓库实际组件 |
+|---|---|
+| 客户端 | 桌面浏览器（Vue SPA；无 UniApp / 原生 App） |
+| 前端 | `ui/` + `features/*`：Vue 3、Vite、TypeScript、Element Plus、ECharts |
+| 接入 | 默认直连 Uvicorn `STABX_PORT=18080`；Nginx 仅为可选反代（非必选） |
+| 后端 | FastAPI；进程内 `MainEngine` / `EventEngine`；`CtpGateway`；CTA / 回测 App；`model_store` / `strategy_loader`（模型版本与动态编译） |
+| 存储 | MySQL（业务）、ClickHouse（Tick）、`.vntrader` + `strategies/`（vnpy 会话与源码缓存） |
+| 运维 / 监控 | `scripts/deploy_ecs.sh`、`mystabx-vnpy.service`；`/health` 与进程内 metrics（无独立 APM） |
+
 ## 项目功能
 
 把 vnpy（VeighNa）跑成 **B/S 交易终端**：一个 Python 进程里启动 headless `MainEngine` / `EventEngine`，浏览器完成登录、连柜台、看行情、下单和查资金持仓。面向本机或局域网小团队，每用户独立 CTP / SimNow 账户，用户级隔离，另有管理员。
