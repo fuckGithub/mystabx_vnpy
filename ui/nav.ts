@@ -29,7 +29,7 @@ export const topMenus: NavItem[] = [
   { path: "/workbench", title: "工作台", icon: HomeFilled, home: true },
   { path: "/market/ticks", title: "市场行情", icon: DataLine },
   { path: "/trade/order", title: "交易下单", icon: Tickets },
-  { path: "/strategy/cta", title: "策略模型", icon: Cpu },
+  { path: "/strategy/models", title: "策略模型", icon: Cpu },
   { path: "/account/gateways", title: "资金持仓", icon: Wallet },
   { path: "/admin/users", title: "系统管理", icon: Setting, admin: true },
 ];
@@ -44,8 +44,7 @@ export const sidebars: Record<string, NavItem[]> = {
     { path: "/trade/orders", title: "委托列表", icon: Document },
   ],
   strategy: [
-    { path: "/strategy/cta", title: "策略实例", icon: Cpu },
-    { path: "/strategy/models", title: "模型管理", icon: SetUp },
+    { path: "/strategy/models", title: "策略模型", icon: Cpu },
     { path: "/strategy/logs", title: "策略日志", icon: Notebook },
     { path: "/strategy/stoporders", title: "停止报单", icon: List },
   ],

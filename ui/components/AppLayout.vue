@@ -103,7 +103,11 @@ const isWorkbench = computed(() => route.path === "/workbench" || route.path.sta
 const isMarketTerminal = computed(
   () => route.path === "/market" || route.path.startsWith("/market/"),
 );
-const isStrategyDetail = computed(() => route.path.startsWith("/strategy/detail/"));
+const isStrategyDetail = computed(
+  () =>
+    route.path.startsWith("/strategy/detail/") ||
+    /^\/strategy\/models\/\d+/.test(route.path),
+);
 const isFullBleed = computed(
   () => isWorkbench.value || isMarketTerminal.value || isStrategyDetail.value,
 );
@@ -114,11 +118,11 @@ const activeTopPath = computed(() => topActivePath(route.path));
 const activeSidebarPath = computed(() => {
   const items = sidebarItems.value;
   if (items.some((item) => item.path === route.path)) return route.path;
-  // 策略详情 / 基类管理归属侧栏高亮
-  if (route.path.startsWith("/strategy/detail/")) return "/strategy/cta";
+  if (route.path.startsWith("/strategy/detail/")) return "/strategy/models";
   if (route.path.startsWith("/strategy/models") || route.path.startsWith("/strategy/bases")) {
     return "/strategy/models";
   }
+  if (route.path.startsWith("/strategy/cta")) return "/strategy/models";
   return items[0]?.path ?? route.path;
 });
 

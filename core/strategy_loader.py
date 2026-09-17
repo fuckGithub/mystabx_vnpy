@@ -344,7 +344,7 @@ def ensure_class_loaded_from_db(class_name: str, *, strategy_name: str | None = 
         raise ValueError(f"策略 {name} 无可用源码")
 
     # Keep disk cache aligned for folder reloaders
-    if payload.get("store") in {"mysql", "mysql_instance", "default"}:
+    if payload.get("store") in {"mysql", "mysql_instance", "default", "mysql_model"}:
         snake = _camel_to_snake(name)
         path = _STRATEGIES_DIR / f"{snake}.py"
         try:
@@ -360,6 +360,34 @@ def ensure_class_loaded_from_db(class_name: str, *, strategy_name: str | None = 
     _try_reload_module(name)
     register_class_on_engines(cls, name)
     return cls
+
+
+def ensure_model_loaded_from_db(
+    *,
+    model_id: int,
+    model_version_id: int | None = None,
+    runtime_override: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Load model 合约/参数/基础配置/源码 from MySQL, compile, register. Returns run context."""
+    from core import model_store
+
+    ctx = model_store.resolve_model_run_context(
+        model_id,
+        model_version_id=model_version_id,
+        runtime_override=runtime_override,
+        prefer_draft=not model_version_id,
+    )
+    class_name = str(ctx["class_name"])
+    source = str(ctx["template_source"])
+
+    # Persist into strategy_classes + strategies/*.py so engines stay consistent
+    save_class_source(class_name, source)
+    cls = compile_strategy_source(source, prefer_name=class_name)
+    register_class_on_engines(cls, class_name)
+    _try_reload_module(class_name)
+    register_class_on_engines(cls, class_name)
+    ctx["loaded_class"] = class_name
+    return ctx
 
 
 def rebind_live_instance(strategy_name: str, class_name: str) -> None:

@@ -101,7 +101,7 @@ class StrategyInstance(Base):
 
 
 class StrategyModel(Base):
-    """Product-level strategy model (双均线 / 布林带…) — not a low-level CTA parent class."""
+    """Strategy model = one DB-backed CTA class (code / params / contract / base config)."""
 
     __tablename__ = "strategy_models"
     __table_args__ = (UniqueConstraint("code", name="uq_strategy_models_code"),)
@@ -114,6 +114,9 @@ class StrategyModel(Base):
     parent_template: Mapped[str] = mapped_column(String(128), nullable=False, default="EliteCtaTemplate")
     default_params: Mapped[str | None] = mapped_column(Text, nullable=True)
     template_source: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Working-copy run binding (version bump only via「保存为新版本」)
+    vt_symbol: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    base_config: Mapped[str | None] = mapped_column(Text, nullable=True)
     latest_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
@@ -165,16 +168,19 @@ class StrategyInstanceVersion(Base):
 
 
 class StrategyBacktestRun(Base):
-    """Backtest run linked to an instance version (and its pinned model version)."""
+    """Backtest / run snapshot tied to a model version (and optional legacy instance)."""
 
     __tablename__ = "strategy_backtest_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    model_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     instance_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     model_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     run_params: Mapped[str | None] = mapped_column(Text, nullable=True)
     statistics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # stats + trades + daily + logs payload for model detail persistence
+    result_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="done")
     note: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
@@ -383,6 +389,8 @@ def init_db() -> None:
         Base.metadata.create_all(_engine)
         _ensure_strategy_instance_source_column()
         _ensure_strategy_instance_model_columns()
+        _ensure_strategy_model_run_columns()
+        _ensure_strategy_backtest_run_columns()
         try:
             from core import base_class_store
 
@@ -446,6 +454,43 @@ def _ensure_strategy_instance_model_columns() -> None:
             conn.commit()
     except Exception:
         logger.exception("ensure strategy_instances model columns failed")
+
+
+def _ensure_table_columns(table: str, cols: tuple[tuple[str, str], ...]) -> None:
+    if _engine is None:
+        return
+    try:
+        with _engine.connect() as conn:
+            for name, ddl in cols:
+                rows = conn.execute(text(f"SHOW COLUMNS FROM {table} LIKE '{name}'")).fetchall()
+                if not rows:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+                    logger.info("added %s.%s", table, name)
+            conn.commit()
+    except Exception:
+        logger.exception("ensure %s columns failed", table)
+
+
+def _ensure_strategy_model_run_columns() -> None:
+    """Add vt_symbol / base_config on strategy_models for run-from-DB."""
+    _ensure_table_columns(
+        "strategy_models",
+        (
+            ("vt_symbol", "VARCHAR(64) NOT NULL DEFAULT ''"),
+            ("base_config", "TEXT NULL"),
+        ),
+    )
+
+
+def _ensure_strategy_backtest_run_columns() -> None:
+    """Add model_id / result_detail on strategy_backtest_runs."""
+    _ensure_table_columns(
+        "strategy_backtest_runs",
+        (
+            ("model_id", "INT NULL"),
+            ("result_detail", "TEXT NULL"),
+        ),
+    )
 
 
 def get_session() -> SASession:

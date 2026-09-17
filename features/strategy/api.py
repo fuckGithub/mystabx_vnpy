@@ -194,6 +194,8 @@ class ModelCreateBody(BaseModel):
     parent_template: str = "EliteCtaTemplate"
     default_params: dict = Field(default_factory=dict)
     template_source: str | None = None
+    vt_symbol: str = "rb2501.SHFE"
+    base_config: dict = Field(default_factory=dict)
     sort_order: int = 100
     enabled: bool = True
     note: str = "初始版本"
@@ -213,6 +215,15 @@ class ModelVersionBody(BaseModel):
     template_source: str | None = None
     label: str = ""
     note: str = ""
+
+
+class ModelDraftBody(BaseModel):
+    """Ordinary save — updates working draft without version bump."""
+
+    params: dict | None = None
+    template_source: str | None = None
+    vt_symbol: str | None = None
+    base_config: dict | None = None
 
 
 def _ensure_from_db(class_name: str, *, strategy_name: str | None = None) -> None:
@@ -378,6 +389,8 @@ def create_model(body: ModelCreateBody, user: User = Depends(require_admin)) -> 
             parent_template=body.parent_template,
             default_params=body.default_params,
             template_source=body.template_source,
+            vt_symbol=body.vt_symbol,
+            base_config=body.base_config or None,
             sort_order=body.sort_order,
             enabled=body.enabled,
             note=body.note,
@@ -415,13 +428,45 @@ def patch_model(model_id: int, body: ModelMetaBody, user: User = Depends(require
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.put("/models/{model_id}/draft")
+def put_model_draft(model_id: int, body: ModelDraftBody, user: User = Depends(require_admin)) -> dict:
+    """普通保存：更新草稿（代码/参数/合约/基础配置），不升级版本号。"""
+    _ = user
+    try:
+        return model_store.update_model_draft(
+            model_id,
+            params=body.params,
+            template_source=body.template_source,
+            vt_symbol=body.vt_symbol,
+            base_config=body.base_config,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/models/{model_id}/run-context")
+def get_model_run_context(
+    model_id: int,
+    model_version_id: int | None = None,
+    user: User = Depends(current_user),
+) -> dict:
+    """Preview what「运行」will load from DB (合约/参数/基础配置/源码)."""
+    _ = user
+    try:
+        return model_store.resolve_model_run_context(model_id, model_version_id=model_version_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.post("/models/{model_id}/versions")
 def create_model_version(
     model_id: int,
     body: ModelVersionBody,
     user: User = Depends(require_admin),
 ) -> dict:
-    """Param / template changes create a new model version (immutable snapshot)."""
+    """「保存为新版本」— only this bumps version_no."""
     _ = user
     try:
         return model_store.save_model_version(
@@ -442,6 +487,14 @@ def list_model_versions(model_id: int, user: User = Depends(current_user)) -> li
     if model_store.get_model(model_id) is None:
         raise HTTPException(status_code=404, detail="模型不存在")
     return model_store.list_model_versions(model_id)
+
+
+@router.get("/models/{model_id}/backtests")
+def list_model_backtests(model_id: int, user: User = Depends(current_user)) -> list[dict]:
+    _ = user
+    if model_store.get_model(model_id) is None:
+        raise HTTPException(status_code=404, detail="模型不存在")
+    return model_store.list_backtest_runs(model_id=model_id)
 
 
 @router.get("/model-versions/{version_id}")
