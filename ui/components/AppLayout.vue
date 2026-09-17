@@ -111,6 +111,8 @@ const activeTopPath = computed(() => topActivePath(route.path));
 const activeSidebarPath = computed(() => {
   const items = sidebarItems.value;
   if (items.some((item) => item.path === route.path)) return route.path;
+  // 策略详情归属「策略实例」
+  if (route.path.startsWith("/strategy/detail/")) return "/strategy/cta";
   return items[0]?.path ?? route.path;
 });
 

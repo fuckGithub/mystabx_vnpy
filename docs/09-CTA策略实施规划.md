@@ -151,9 +151,13 @@
 
 | 方法 | 路径 | 请求体 | 响应 | 引擎调用 |
 |---|---|---|---|---|
-| GET | `/api/cta/strategies` | — | `[{class_name, display_name, parameters, file_name, file_path, module}]` | `get_all_strategy_class_names()` + `get_strategy_class_parameters(name)` + 源文件元数据 |
-| POST | `/api/cta/strategies/reload` | — | 同上列表 | 管理员：`load_strategy_class()` 重扫 `strategies/` 并 `importlib.reload` |
-| GET | `/api/cta/instances` | — | `[cta_strategy_payload]` | 遍历 `engine.strategies` |
+| GET | `/api/cta/strategies` | — | `[{class_name, display_name, parameters, file_name, file_path, module, updated_at, editable}]` | `get_all_strategy_class_names()` + 源文件元数据 |
+| POST | `/api/cta/strategies/reload` | — | 同上列表 | 管理员：`load_strategy_class()` 重扫并热加载 |
+| GET | `/api/cta/strategies/{class_name}/source` | — | `{class_name, file_path, editable, content, updated_at}` | 读策略 `.py` |
+| PUT | `/api/cta/strategies/{class_name}/source` | `{content, reload}` | `{ok, reloaded, ...}` | 仅 `strategies/` 可写；可选热加载 |
+| GET | `/api/cta/instances` | — | `[cta_strategy_payload + file/updated_at/backtest_count]` | 遍历 `engine.strategies` |
+| GET | `/api/cta/instances/{name}` | — | 单实例详情 | |
+| POST | `/api/cta/instances/{name}/rename` | `{strategy_name}` | `{ok, strategy_name}` | 停止后 remove+add |
 | POST | `/api/cta/instances` | `{class_name, strategy_name, vt_symbol, setting}` | `{ok, strategy_name}` | `add_strategy(class_name, strategy_name, vt_symbol, setting)` |
 | POST | `/api/cta/instances/{name}/init` | — | `{ok}` | `init_strategy(name)`（返回 Future，异步完成） |
 | POST | `/api/cta/instances/{name}/start` | — | `{ok}` | `start_strategy(name)` |

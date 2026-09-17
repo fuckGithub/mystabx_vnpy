@@ -102,7 +102,16 @@
     </div>
 
     <div v-else class="page-list">
-      <h3 class="page-section-title">策略实例</h3>
+      <div class="cta-list-head">
+        <h3 class="page-section-title">策略列表</h3>
+        <el-input
+          v-model="listSearch"
+          clearable
+          placeholder="策略名称"
+          :prefix-icon="Search"
+          style="width: 240px"
+        />
+      </div>
       <el-alert class="cta-trial-hint" type="success" :closable="false" show-icon style="margin-bottom: 12px">
         <template #title>
           <span class="cta-trial-hint__title">试用流程</span>
@@ -110,11 +119,11 @@
         <ol class="cta-trial-hint__steps">
           <li>管理员点击「添加策略」，选择带中文名的策略类（如「双均线策略」）</li>
           <li>填写实例名、从已订阅合约中选择合约，并选择真实通道账户</li>
-          <li>列表中对该实例依次「初始化」→「启动」</li>
+          <li>点击名称进入详情；列表中也可「初始化」→「启动」</li>
         </ol>
         <p class="cta-trial-hint__note">首次接入或安装依赖后需<strong>重启后端</strong>，前端<strong>硬刷新</strong>（Ctrl/Cmd+Shift+R）。</p>
       </el-alert>
-      <div class="page-toolbar">
+      <div class="page-toolbar cta-list-toolbar">
         <el-button type="primary" :icon="Plus" :disabled="!auth.isAdmin" @click="openAdd">添加策略</el-button>
         <el-button :disabled="!auth.isAdmin" @click="batch('init-all')">全部初始化</el-button>
         <el-button :disabled="!auth.isAdmin" @click="batch('start-all')">全部启动</el-button>
@@ -124,43 +133,61 @@
 
       <el-table
         v-loading="loading"
-        :data="strategy.instances"
+        :data="filteredInstances"
         border
         size="small"
         highlight-current-row
         style="width: 100%"
         empty-text="暂无策略实例"
       >
-        <el-table-column prop="strategy_name" label="实例" min-width="120" show-overflow-tooltip />
-        <el-table-column label="策略类" min-width="160" show-overflow-tooltip>
+        <el-table-column label="名称" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ strategyDisplayName(String(row.class_name || ""), String(row.display_name || "") || null) }}
+            <router-link class="cta-name-link" :to="detailPath(row)">
+              {{ row.strategy_name }}
+            </router-link>
           </template>
         </el-table-column>
-        <el-table-column prop="vt_symbol" label="合约" width="130" show-overflow-tooltip />
-        <el-table-column label="账户" min-width="140" show-overflow-tooltip>
+        <el-table-column label="分类" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag size="small" type="info" effect="plain">
+              {{ strategyDisplayName(String(row.class_name || ""), String(row.display_name || "") || null) }}
+            </el-tag>
+            <span class="cta-class-code">{{ row.class_name }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="vt_symbol" label="合约" width="120" show-overflow-tooltip />
+        <el-table-column label="修改时间" width="178" show-overflow-tooltip>
+          <template #default="{ row }">{{ formatUpdatedAt(row.updated_at) }}</template>
+        </el-table-column>
+        <el-table-column label="历史回测" width="100" align="center">
+          <template #default="{ row }">
+            <router-link
+              v-if="Number(row.backtest_count || 0) > 0"
+              class="cta-name-link"
+              :to="`/strategy/backtest`"
+            >
+              {{ row.backtest_count }}
+            </router-link>
+            <router-link v-else class="cta-name-link cta-name-link--muted" :to="`/strategy/backtest`">
+              {{ row.backtest_count ?? 0 }}
+            </router-link>
+          </template>
+        </el-table-column>
+        <el-table-column label="账户" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">{{ gatewayLabel(row.gateway_name) }}</template>
         </el-table-column>
-        <el-table-column label="inited" width="80" align="center">
+        <el-table-column label="状态" width="120" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.inited ? 'success' : 'info'">{{ row.inited ? "是" : "否" }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="trading" width="80" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" :type="row.trading ? 'success' : 'info'">{{ row.trading ? "是" : "否" }}</el-tag>
+            <el-tag size="small" :type="row.trading ? 'success' : row.inited ? 'warning' : 'info'">
+              {{ row.trading ? "交易中" : row.inited ? "已初始化" : "未初始化" }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="pos" label="仓位" width="70" align="center" />
-        <el-table-column label="参数" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ formatMap(row.parameters) }}</template>
-        </el-table-column>
-        <el-table-column label="变量" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ formatMap(row.variables) }}</template>
-        </el-table-column>
         <el-table-column label="操作" width="280" align="center" header-class-name="table-action-col" class-name="table-action-col">
           <template #default="{ row }">
             <span class="table-row-actions">
+              <el-button type="primary" link @click="$router.push(detailPath(row))">详情</el-button>
               <el-button type="primary" link :disabled="!auth.isAdmin" @click="act(row, 'init')">初始化</el-button>
               <el-button type="primary" link :disabled="!auth.isAdmin || !row.inited" @click="act(row, 'start')">启动</el-button>
               <el-button link :disabled="!auth.isAdmin" @click="act(row, 'stop')">停止</el-button>
@@ -294,7 +321,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Plus, Refresh } from "@element-plus/icons-vue";
+import { Plus, Refresh, Search } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import { useAuthStore, useMarketStore, useStrategyStore, useTradeStore } from "@/stores";
 import { contractKey, productName, type ContractRow } from "../market/contracts";
@@ -309,6 +336,7 @@ const section = computed(() => String(route.params.section || "cta"));
 
 const loading = ref(false);
 const saving = ref(false);
+const listSearch = ref("");
 const dialogVisible = ref(false);
 const editingName = ref("");
 type StrategyClassRow = {
@@ -416,6 +444,32 @@ const filteredLogs = computed(() => {
   if (!filter) return strategy.logs;
   return strategy.logs.filter((row) => String(row.strategy_name || "") === filter);
 });
+
+const filteredInstances = computed(() => {
+  const q = listSearch.value.trim().toLowerCase();
+  if (!q) return strategy.instances;
+  return strategy.instances.filter((row) => {
+    const name = String(row.strategy_name || "").toLowerCase();
+    const cls = String(row.class_name || "").toLowerCase();
+    const display = strategyDisplayName(
+      String(row.class_name || ""),
+      String(row.display_name || "") || null,
+    ).toLowerCase();
+    return name.includes(q) || cls.includes(q) || display.includes(q);
+  });
+});
+
+function detailPath(row: Record<string, unknown>) {
+  return `/strategy/detail/${encodeURIComponent(String(row.strategy_name || ""))}`;
+}
+
+function formatUpdatedAt(value: unknown) {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+  if (m) return `${m[1]} ${m[2]}`;
+  return raw.replace("T", " ").slice(0, 19);
+}
 
 function classLabel(row: StrategyClassRow) {
   return strategyDisplayName(row.class_name, row.display_name);
@@ -741,5 +795,34 @@ watch(section, (s) => {
   border-radius: 3px;
   background: var(--el-fill-color);
   font-size: 12px;
+}
+.cta-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.cta-list-head .page-section-title {
+  margin: 0;
+}
+.cta-list-toolbar {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cta-name-link {
+  color: var(--el-color-primary);
+  text-decoration: none;
+}
+.cta-name-link:hover {
+  text-decoration: underline;
+}
+.cta-name-link--muted {
+  color: var(--el-text-color-secondary);
+}
+.cta-class-code {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>
