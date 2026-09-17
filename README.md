@@ -2,30 +2,6 @@
 
 浏览器里用的期货交易台：Vue 网页 + FastAPI（REST / WebSocket / SSE）+ 进程内 vnpy `MainEngine`。产品入口是 Web，不是桌面 Qt。
 
-## 项目信息
-
-> **【产品定位】** `mystabx_vnpy`（Stabx Web 交易台）把 vn.py（VeighNa）做成 **B/S 团队交易终端**：浏览器完成登录、连柜、行情、下单与策略监控；后端是 FastAPI 托管层 + 进程内 headless `MainEngine`，**不是**自研撮合引擎。
-
-> **【当前能力】** 国内期货 · CTP（SimNow / 实盘前置）· 多用户隔离 · 工作台 / 行情 / 交易 / CTA 策略与模型版本。规划中的 A 股、外盘、XTP、IB 等见下文「品种与接口路线图」。
-
-> **【一句话】** 喜欢把桌面量化终端搬进浏览器，也喜欢把联调踩坑写进文档。
-
-> **【关于本项目】** 白天盯行情与通道，晚上改 Web 壳与部署脚本。仓库在 [Gitee](https://gitee.com/xjc621105/mystabx_vnpy) / [GitHub](https://github.com/fuckGithub/mystabx_vnpy) 公开；交易运行时来自 [vnpy](https://github.com/vnpy/vnpy) / [vnpy_ctp](https://github.com/vnpy/vnpy_ctp)（MIT）。知识星球「MyStabx 期货量化交易平台」用于交流与联调，**不等于**另售闭源商业版声明。期货有风险，详见「免责声明」。
-
-> **【鼓励一下】** 若本仓库对你有帮助，欢迎在 Gitee / GitHub **Star**，也是对持续维护最大的鼓励。
-
-### 新手必读
-
-- **在线演示（ECS）**：[http://47.102.208.231:18080/](http://47.102.208.231:18080/)（公网 Web，端口 `18080`；账号见服务器 `.env`，勿用弱口令）
-- **本机启动**：下文「搭建步骤」；入口 `python main.py` / `uv run start` / `./start.sh`
-- **架构与功能**：[docs/01-架构与功能规划.md](docs/01-架构与功能规划.md)
-- **存储方案**：[docs/02-数据存储方案.md](docs/02-数据存储方案.md)（实现以 MySQL + ClickHouse Tick 为准）
-- **WebSocket 协议**：[docs/04-WebSocket消息协议.md](docs/04-WebSocket消息协议.md)
-- **CTP 分平台搭建**：[docs/CTP分平台搭建.md](docs/CTP分平台搭建.md)
-- **ECS / 部署说明**：[docs/ecs-rds.example.md](docs/ecs-rds.example.md)（无密码；真实凭据仅本机 `ecs-rds.local.md`）
-- **免责声明**：[docs/07-用户服务协议与免责声明.md](docs/07-用户服务协议与免责声明.md)（页面路由 `/disclaimer`）
-- **仓库**：[Gitee](https://gitee.com/xjc621105/mystabx_vnpy) · [GitHub](https://github.com/fuckGithub/mystabx_vnpy)
-
 ## 仓库地址
 
 | 平台 | 地址 | 说明 |
@@ -116,7 +92,7 @@
 
 ## 技术架构
 
-与上文「项目信息」对应：主链路自左向右为 **客户端 → 前端 SPA → 接入（直连 `:18080`，可选 Nginx）→ FastAPI + 进程内 vnpy → 存储**。上方是实时通道与进程内事件/保活；下方是 ECS 部署与轻量监控。策略「模型管理 / 实例版本 / 动态编译」属于后端应用层（`model_store`、`strategy_loader`），不是独立中间件。本仓库**未使用** Redis、Elasticsearch、Jenkins、SkyWalking 等；Docker / RQData 等仍属规划，见 [docs/06](docs/06-实施路线图.md)。
+主链路自左向右为 **客户端 → 前端 SPA → 接入（直连 `:18080`，可选 Nginx）→ FastAPI + 进程内 vnpy → 存储**。上方是实时通道与进程内事件/保活；下方是 ECS 部署与轻量监控。策略「模型管理 / 实例版本 / 动态编译」属于后端应用层（`model_store`、`strategy_loader`），不是独立中间件。本仓库**未使用** Redis、Elasticsearch、Jenkins、SkyWalking 等；Docker / RQData 等仍属规划，见 [docs/06](docs/06-实施路线图.md)。
 
 ```mermaid
 flowchart TB
