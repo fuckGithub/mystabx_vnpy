@@ -242,20 +242,21 @@ function chartAxisKey(): string {
 function render() {
   if (!chart) return;
   const c = colors();
-  const nextKey = chartAxisKey();
-  const rebuild = nextKey !== axisKey;
-  axisKey = nextKey;
+  axisKey = chartAxisKey();
+  // Always replace axes/series so OI/volume scales never merge onto the price pane.
+  const opts = { notMerge: true as const, lazyUpdate: false as const };
   if (props.period === "timeshare") {
-    chart.setOption(timeshareOption(c), rebuild);
+    chart.setOption(timeshareOption(c), opts);
     return;
   }
-  chart.setOption(klineOption(c), true);
+  chart.setOption(klineOption(c), opts);
 }
 
+/** Price / volume / MACD panes; mid band (≈52–62%) holds time labels + 持仓量 caption. */
 const grids = [
-  { left: 52, right: 48, top: 10, height: "50%" },
-  { left: 52, right: 48, top: "58%", height: "15%" },
-  { left: 52, right: 48, top: "78%", height: "16%" },
+  { left: 56, right: 56, top: 10, height: "42%" },
+  { left: 56, right: 56, top: "62%", height: "12%" },
+  { left: 56, right: 56, top: "80%", height: "14%" },
 ];
 
 function stackedXAxis(labels: string[], formatter?: (value: string, i: number) => string, interval?: (i: number) => boolean) {
@@ -267,19 +268,41 @@ function stackedXAxis(labels: string[], formatter?: (value: string, i: number) =
     axisLine: { lineStyle: { color: colors().line } },
     splitLine: { show: true, lineStyle: { color: colors().line, type: "solid" as const, opacity: 0.7 } },
   };
-  // Session / category labels live in the mid strip (持仓量 caption row), not under MACD.
-  const midLabel = {
+  // Time labels sit under the price pane (bottom of grid 0), above the 持仓量 caption — not on grid 1.
+  const timeLabel = {
+    show: true,
     color: colors().text,
     fontSize: 10,
     hideOverlap: true,
+    margin: 6,
     interval: interval ?? "auto",
     formatter: formatter || ((v: string) => v),
   };
   return [
-    { ...base, gridIndex: 0, axisLabel: { show: false } },
-    { ...base, gridIndex: 1, position: "top" as const, axisLabel: midLabel },
+    { ...base, gridIndex: 0, position: "bottom" as const, axisLabel: timeLabel },
+    { ...base, gridIndex: 1, axisLabel: { show: false } },
     { ...base, gridIndex: 2, axisLabel: { show: false } },
   ];
+}
+
+/** Keep price-pane series on price scale — reject OI/volume magnitude leaks. */
+function clampPriceSeries(values: Array<number | null>, ref: number): Array<number | null> {
+  const anchor = ref > 0 ? ref : [...values].reverse().find((v) => v != null && v > 0) || 0;
+  if (!(anchor > 0)) return values.map(() => null);
+  return values.map((v) => {
+    if (v == null || !Number.isFinite(v) || v <= 0) return null;
+    if (v > anchor * 20 || v < anchor * 0.05) return null;
+    return v;
+  });
+}
+
+function formatAxisPrice(v: number): string {
+  if (!Number.isFinite(v)) return "";
+  const abs = Math.abs(v);
+  if (abs >= 1e4) return abs >= 1e8 ? `${(v / 1e8).toFixed(2)}亿` : String(Math.round(v));
+  if (abs >= 100) return v.toFixed(0);
+  if (abs >= 10) return v.toFixed(1);
+  return v.toFixed(2);
 }
 
 function markSeries(labels: string[], c: ReturnType<typeof colors>): echarts.SeriesOption | null {
@@ -313,20 +336,25 @@ function markSeries(labels: string[], c: ReturnType<typeof colors>): echarts.Ser
 
 function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
   const labels = props.timeshare.map((p) => p.axisKey);
-  const prices = props.timeshare.map((p) => (p.session === "break" ? null : p.price));
-  const avgs = props.timeshare.map((p) => (p.session === "break" ? null : p.avg));
+  const rawPrices = props.timeshare.map((p) => (p.session === "break" ? null : p.price));
+  const rawAvgs = props.timeshare.map((p) => (p.session === "break" ? null : p.avg));
+  const last =
+    [...rawPrices].reverse().find((v) => v !== null) ?? props.preClose ?? 0;
+  const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
+  const prices = clampPriceSeries(rawPrices, ref || last);
+  const avgs = clampPriceSeries(rawAvgs, ref || last);
   const vols = props.timeshare.map((p, i) => {
     const prev = [...prices].slice(0, i).reverse().find((v) => v != null);
     const px = prices[i];
     const up = px != null && prev != null ? px >= prev : true;
     return {
-      value: p.session === "break" ? 0 : p.volume,
+      value: p.session === "break" ? null : p.volume > 0 ? p.volume : null,
       itemStyle: { color: up ? c.rise : c.fall },
     };
   });
   const oi = props.timeshare.map((p) => (p.session === "break" ? null : p.openInterest));
-  const overlay = overlayKind.value === "oi" ? oi : props.timeshare.map((p) => (p.session === "break" ? null : p.volume));
-  const last = [...prices].reverse().find((v) => v !== null) ?? props.preClose ?? 0;
+  const overlay =
+    overlayKind.value === "oi" ? oi : props.timeshare.map((p) => (p.session === "break" ? null : p.volume));
   const lastIdx = (() => {
     let volIdx = -1;
     let priceIdx = -1;
@@ -334,12 +362,17 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
       if (prices[i] != null) priceIdx = i;
       if ((props.timeshare[i]?.volume || 0) > 0) volIdx = i;
     }
-    return volIdx >= 0 ? volIdx : priceIdx;
+    return priceIdx >= 0 ? priceIdx : volIdx;
   })();
-  const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
-  const yRange = timesharePriceRange(props.timeshare);
-  const minP = yRange.min ?? last * 0.99;
-  const maxP = yRange.max ?? last * 1.01;
+  const yRange = timesharePriceRange(
+    props.timeshare.map((p, i) => ({
+      ...p,
+      price: prices[i],
+      avg: avgs[i],
+    })),
+  );
+  const minP = yRange.min ?? (last > 0 ? last * 0.99 : 0);
+  const maxP = yRange.max ?? (last > 0 ? last * 1.01 : 1);
   const minPct = ref ? ((minP - ref) / ref) * 100 : -1;
   const maxPct = ref ? ((maxP - ref) / ref) * 100 : 1;
   const macd = computeMacd(prices, macdFast.value, macdSlow.value, macdSignal.value);
@@ -349,17 +382,17 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     backgroundColor: "transparent",
     tooltip: {
       trigger: "axis",
-      axisPointer: { type: "cross" },
+      axisPointer: { type: "cross", label: { show: false } },
       formatter: (items: unknown) => {
         const list = Array.isArray(items) ? items : [];
         const first = list[0] as { dataIndex?: number } | undefined;
         const idx = first?.dataIndex ?? 0;
         const pt = props.timeshare[idx];
         if (!pt || pt.session === "break") return "";
-        const price = pt.price == null ? "—" : String(pt.price);
-        const avg = pt.avg == null ? "—" : String(Number(pt.avg).toFixed(2));
+        const price = prices[idx] == null ? "—" : String(prices[idx]);
+        const avg = avgs[idx] == null ? "—" : String(Number(avgs[idx]).toFixed(2));
         const pct =
-          pt.price != null && ref ? `${(((pt.price - ref) / ref) * 100).toFixed(2)}%` : "—";
+          prices[idx] != null && ref ? `${(((prices[idx]! - ref) / ref) * 100).toFixed(2)}%` : "—";
         const oiVal = pt.openInterest == null ? "—" : formatQty(pt.openInterest);
         return `${pt.tradeDate} ${pt.label}<br/>现价 ${price}（${pct}）<br/>均价 ${avg}<br/>量 ${pt.volume}<br/>仓 ${oiVal}`;
       },
@@ -373,35 +406,48 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     ),
     yAxis: [
       {
-        scale: true,
+        gridIndex: 0,
+        position: "left",
         min: minP,
         max: maxP,
+        scale: false,
         splitLine: { lineStyle: { color: c.line } },
-        axisLabel: { color: c.text, fontSize: 10 },
+        axisLabel: { color: c.text, fontSize: 10, formatter: formatAxisPrice },
       },
       {
-        scale: true,
+        gridIndex: 0,
+        position: "right",
         min: minPct,
         max: maxPct,
+        scale: false,
         splitLine: { show: false },
         axisLabel: {
           color: c.text,
           fontSize: 10,
-          formatter: (v: number) => `${v >= 0 ? "" : ""}${v.toFixed(2)}%`,
+          formatter: (v: number) => `${v.toFixed(2)}%`,
         },
       },
       {
         gridIndex: 1,
+        position: "left",
+        scale: true,
         splitLine: { show: false },
-        axisLabel: { color: c.text, fontSize: 10, show: false },
+        axisLabel: { show: false },
       },
       {
         gridIndex: 1,
+        position: "right",
+        scale: true,
         splitLine: { show: false },
-        axisLabel: { color: c.text, fontSize: 10 },
+        axisLabel: {
+          color: c.text,
+          fontSize: 10,
+          formatter: (v: number) => formatQty(v),
+        },
       },
       {
         gridIndex: 2,
+        position: "right",
         scale: true,
         splitLine: { lineStyle: { color: c.line, type: "dashed" } },
         axisLabel: { color: c.text, fontSize: 10 },
@@ -411,6 +457,8 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
       {
         name: "现价",
         type: "line",
+        xAxisIndex: 0,
+        yAxisIndex: 0,
         data: prices,
         showSymbol: lastIdx >= 0,
         symbolSize: (_v: unknown, params: { dataIndex?: number }) => (params.dataIndex === lastIdx ? 6 : 0),
@@ -430,8 +478,9 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
       {
         name: "均价",
         type: "line",
-        data: avgs,
+        xAxisIndex: 0,
         yAxisIndex: 0,
+        data: avgs,
         showSymbol: false,
         connectNulls: false,
         lineStyle: { width: 1.1, color: c.avg },
@@ -440,6 +489,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
       {
         name: "涨跌幅",
         type: "line",
+        xAxisIndex: 0,
         yAxisIndex: 1,
         data: prices.map((p) => (p == null || !ref ? null : ((p - ref) / ref) * 100)),
         showSymbol: false,
@@ -506,7 +556,7 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
   });
   const ohlc = props.bars.map((b) => [b.open, b.close, b.low, b.high]);
   const vols = props.bars.map((b, i) => ({
-    value: b.volume,
+    value: b.volume > 0 ? b.volume : null,
     itemStyle: { color: b.close >= (props.bars[i - 1]?.close ?? b.open) ? c.rise : c.fall },
   }));
   const oi = props.bars.map((b) => b.open_interest ?? null);
@@ -516,36 +566,47 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
   const macd = computeMacd(closes, macdFast.value, macdSlow.value, macdSignal.value);
   const last = closes[closes.length - 1] || 0;
   const ref = props.preClose && props.preClose > 0 ? props.preClose : last;
-  const minP = yRange.min ?? last * 0.99;
-  const maxP = yRange.max ?? last * 1.01;
+  const minP = yRange.min ?? (last > 0 ? last * 0.99 : 0);
+  const maxP = yRange.max ?? (last > 0 ? last * 1.01 : 1);
   const minPct = ref ? ((minP - ref) / ref) * 100 : -1;
   const maxPct = ref ? ((maxP - ref) / ref) * 100 : 1;
   return {
     animation: false,
     backgroundColor: "transparent",
-    tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+    tooltip: { trigger: "axis", axisPointer: { type: "cross", label: { show: false } } },
     axisPointer: { link: [{ xAxisIndex: "all" }] },
     grid: grids,
     xAxis: stackedXAxis(labels),
     yAxis: [
       {
-        scale: true,
+        gridIndex: 0,
+        position: "left",
         min: minP,
         max: maxP,
+        scale: false,
         splitLine: { lineStyle: { color: c.line } },
-        axisLabel: { color: c.text, fontSize: 10 },
+        axisLabel: { color: c.text, fontSize: 10, formatter: formatAxisPrice },
       },
       {
-        scale: true,
+        gridIndex: 0,
+        position: "right",
         min: minPct,
         max: maxPct,
+        scale: false,
         splitLine: { show: false },
         axisLabel: { color: c.text, fontSize: 10, formatter: (v: number) => `${v.toFixed(2)}%` },
       },
-      { gridIndex: 1, splitLine: { show: false }, axisLabel: { show: false } },
-      { gridIndex: 1, splitLine: { show: false }, axisLabel: { color: c.text, fontSize: 10 } },
+      { gridIndex: 1, position: "left", scale: true, splitLine: { show: false }, axisLabel: { show: false } },
+      {
+        gridIndex: 1,
+        position: "right",
+        scale: true,
+        splitLine: { show: false },
+        axisLabel: { color: c.text, fontSize: 10, formatter: (v: number) => formatQty(v) },
+      },
       {
         gridIndex: 2,
+        position: "right",
         scale: true,
         splitLine: { lineStyle: { color: c.line, type: "dashed" } },
         axisLabel: { color: c.text, fontSize: 10 },
@@ -554,6 +615,8 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
     series: [
       {
         type: "candlestick",
+        xAxisIndex: 0,
+        yAxisIndex: 0,
         data: ohlc,
         itemStyle: {
           color: c.rise,
@@ -565,6 +628,7 @@ function klineOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
       {
         name: "涨跌幅",
         type: "line",
+        xAxisIndex: 0,
         yAxisIndex: 1,
         data: closes.map((p) => (!ref ? null : ((p - ref) / ref) * 100)),
         showSymbol: false,
