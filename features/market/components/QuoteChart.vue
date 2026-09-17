@@ -267,20 +267,18 @@ function stackedXAxis(labels: string[], formatter?: (value: string, i: number) =
     axisLine: { lineStyle: { color: colors().line } },
     splitLine: { show: true, lineStyle: { color: colors().line, type: "solid" as const, opacity: 0.7 } },
   };
+  // Session / category labels live in the mid strip (持仓量 caption row), not under MACD.
+  const midLabel = {
+    color: colors().text,
+    fontSize: 10,
+    hideOverlap: true,
+    interval: interval ?? "auto",
+    formatter: formatter || ((v: string) => v),
+  };
   return [
     { ...base, gridIndex: 0, axisLabel: { show: false } },
-    { ...base, gridIndex: 1, axisLabel: { show: false } },
-    {
-      ...base,
-      gridIndex: 2,
-      axisLabel: {
-        color: colors().text,
-        fontSize: 10,
-        hideOverlap: true,
-        interval: interval ?? "auto",
-        formatter: formatter || ((v: string) => v),
-      },
-    },
+    { ...base, gridIndex: 1, position: "top" as const, axisLabel: midLabel },
+    { ...base, gridIndex: 2, axisLabel: { show: false } },
   ];
 }
 
