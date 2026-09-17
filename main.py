@@ -1,8 +1,10 @@
 """Product entry: exec ./start.sh (Vue web trader). Same as `uv run start`.
 
-`python main.py` and IDE Run on this file start the Web trader (not Qt).
+`python main.py` and IDE Run on this file start the Web trader.
 Args pass through to start.sh: --dev, --skip-build, --help.
-Legacy Qt desktop only with explicit --qt.
+
+`--qt` is a leftover desktop path and is not supported in the default
+dependency set (no PySide6). Prefer the Web entry.
 """
 
 from __future__ import annotations
@@ -19,6 +21,16 @@ os.chdir(ROOT)
 
 
 def _run_legacy_qt() -> None:
+    try:
+        import PySide6  # noqa: F401
+    except ImportError:
+        print(
+            "桌面 Qt 未安装：本仓库依赖不含 PySide6。"
+            "产品入口是 Web（python main.py / ./start.sh）。",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+
     from mystabx.paths import ensure_project_trader_dir
 
     ensure_project_trader_dir()

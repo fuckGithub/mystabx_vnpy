@@ -1,13 +1,20 @@
-"""Create a QApplication and quit. Does not start the trader window."""
+"""Optional leftover Qt smoke. Default deps do not include PySide6."""
 
 from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import QApplication
-
 
 def main() -> int:
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        print(
+            "PySide6 not installed (Web-only deps). Skip Qt smoke.",
+            file=sys.stderr,
+        )
+        return 0
+
     app = QApplication(sys.argv)
     platform = app.platformName()
     print(f"qt_platform={platform}")

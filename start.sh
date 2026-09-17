@@ -27,8 +27,10 @@ if [[ -f "${ROOT}/.env" ]]; then
 fi
 
 # Linux：系统/nvm 路径。不要把 Homebrew 加进 Linux PATH。
+# systemd 可能未设 HOME；set -u 下必须用默认值。
 if [[ "${OS}" == "Linux" ]]; then
   export PATH="/usr/local/bin:/usr/bin:${PATH}"
+  export HOME="${HOME:-/root}"
   if [[ -z "${NVM_DIR:-}" && -d "${HOME}/.nvm" ]]; then
     NVM_DIR="${HOME}/.nvm"
   fi
@@ -100,7 +102,7 @@ if [[ "${OS}" == "Linux" ]]; then
 fi
 
 HOST="${STABX_HOST:-0.0.0.0}"
-PORT="${STABX_PORT:-8000}"
+PORT="${STABX_PORT:-18080}"
 MODE="prod"
 SKIP_BUILD="${STABX_SKIP_BUILD:-0}"
 

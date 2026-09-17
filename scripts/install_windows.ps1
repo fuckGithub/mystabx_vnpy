@@ -99,10 +99,26 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 & $Py -m pip install -U pip
-& $Py -m pip install -e $Root
+# Web-only: install leaf deps, then vnpy/project --no-deps (vnpy still declares PySide6).
+Write-Host "安装 Web 依赖（不含桌面 Qt / PySide6）..."
+& $Py -m pip install `
+  "fastapi>=0.115" "uvicorn[standard]>=0.32" "sqlalchemy>=2.0" `
+  "pyjwt>=2.9" "bcrypt>=4.2" "cryptography>=43" `
+  "python-multipart>=0.0.12" "httpx>=0.27" "orjson>=3.10" "vnpy_sqlite"
+& $Py -m pip install `
+  "deap>=1.4.2" "loguru>=0.7.3" "nbformat>=5.10.4" `
+  "numpy>=2.2.3" "pandas>=2.2.3" "plotly>=6.0.0" `
+  "pyzmq>=26.3.0" "tqdm>=4.67.1" "tzlocal>=5.3.1"
+& $Py -m pip install "ta-lib>=0.6.3"
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "pip install -e . 失败"
+    Write-Warning "ta-lib 安装失败时可稍后重试（优先 wheel）。"
 }
+& $Py -m pip install --no-deps "vnpy>=4.0.0,<5"
+& $Py -m pip install --no-deps -e $Root
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "pip install --no-deps -e . 失败"
+}
+& $Py -m pip uninstall -y pyside6 pyside6-essentials pyside6-addons qdarkstyle shiboken6 pyqtgraph 2>$null
 
 $FromSource = $env:STABX_CTP_FROM_SOURCE -eq "1"
 if ($FromSource) {

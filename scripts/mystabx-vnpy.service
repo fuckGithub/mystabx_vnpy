@@ -1,0 +1,20 @@
+[Unit]
+Description=Stabx mystabx_vnpy Web trader
+After=network.target clickhouse-server.service
+Wants=clickhouse-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=/stabx/mystabx_vnpy
+Environment=HOME=/root
+Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=UV_LOCK_TIMEOUT=600
+Environment=STABX_PORT=18080
+EnvironmentFile=-/stabx/mystabx_vnpy/.env
+ExecStart=/stabx/mystabx_vnpy/start.sh --skip-build
+Restart=on-failure
+RestartSec=5
+# Single process: do not use uvicorn --workers
+
+[Install]
+WantedBy=multi-user.target

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Install mystabx + vnpy_ctp on Linux (practical path for low-RAM ECS).
-# Prefer: uv pip wheels for pure-Python / manylinux deps; apt for system libs.
-# vnpy_ctp: local sdist/wheel → PyPI (sdist compile OK) → git clone.
+# Install mystabx + vnpy_ctp on Linux via wheels (no silent sdist compile).
+# Prefer: uv pip / apt. Do NOT compile ClickHouse from source.
 # Web-only: never install PySide6 / qdarkstyle / pyqtgraph / shiboken6.
-# Do NOT compile ClickHouse from source (use official apt/deb).
+# vnpy_ctp: PyPI ships Windows wheels only (no manylinux). Order:
+#   1) local wheels/vnpy_ctp-*.whl
+#   2) PyPI --only-binary=:all:
+#   3) sdist/git compile ONLY if STABX_CTP_FROM_SOURCE=1
 set -euo pipefail
 
 if [[ "$(uname -s)" != "Linux" ]]; then
@@ -145,39 +147,39 @@ echo "安装本仓库（editable，--no-deps）..."
 _uninstall_qt
 
 CTP_TAG="6.7.7.2"
-_need_cmd g++ "编译 vnpy_ctp 需要 GCC。Ubuntu/Debian: sudo apt-get install -y build-essential"
-echo "安装 vnpy_ctp==${CTP_TAG}（Linux 常需本地编译，MAX_JOBS=${MAX_JOBS}）..."
+mkdir -p "${ROOT}/wheels"
+CTP_WHEEL=""
+if compgen -G "${ROOT}/wheels/vnpy_ctp-${CTP_TAG}-*.whl" >/dev/null 2>&1; then
+  # shellcheck disable=SC2012
+  CTP_WHEEL="$(ls -1t "${ROOT}/wheels"/vnpy_ctp-${CTP_TAG}-*.whl | head -1)"
+elif compgen -G "${ROOT}/wheels/vnpy_ctp-*.whl" >/dev/null 2>&1; then
+  # shellcheck disable=SC2012
+  CTP_WHEEL="$(ls -1t "${ROOT}/wheels"/vnpy_ctp-*.whl | head -1)"
+fi
 
-LOCAL_CTP=""
-for cand in \
-  "${ROOT}/wheels/vnpy_ctp-${CTP_TAG}"-*.whl \
-  "${ROOT}/.deps/vnpy_ctp-${CTP_TAG}.tar.gz" \
-  "/tmp/ctp_sdist/vnpy_ctp-${CTP_TAG}.tar.gz" \
-  "${ROOT}/wheels/vnpy_ctp-${CTP_TAG}.tar.gz"
-do
-  # shellcheck disable=SC2086
-  if compgen -G "${cand}" >/dev/null 2>&1; then
-    LOCAL_CTP="$(ls -1t ${cand} 2>/dev/null | head -1)"
-    break
+if [[ -n "${CTP_WHEEL}" ]]; then
+  echo "安装本地 vnpy_ctp wheel：${CTP_WHEEL}"
+  "${PIP[@]}" install --no-deps "${CTP_WHEEL}"
+  echo "vnpy_ctp 已从本地 wheel 安装。"
+elif "${PIP[@]}" install --no-deps --only-binary=:all: "vnpy_ctp==${CTP_TAG}"; then
+  echo "vnpy_ctp 已通过 PyPI binary wheel 安装。"
+elif [[ "${STABX_CTP_FROM_SOURCE:-0}" == "1" ]]; then
+  echo "无可用 wheel；STABX_CTP_FROM_SOURCE=1，允许 sdist/git 编译（MAX_JOBS=${MAX_JOBS}）..." >&2
+  _need_cmd g++ "编译 vnpy_ctp 需要 GCC。Ubuntu/Debian: sudo apt-get install -y build-essential"
+  if "${PIP[@]}" install --no-deps "vnpy_ctp==${CTP_TAG}"; then
+    echo "vnpy_ctp 已从 PyPI sdist 编译安装。"
+  else
+    _need_cmd git "Ubuntu/Debian: sudo apt-get install -y git"
+    mkdir -p "${DEPS}"
+    if [[ ! -d "${DEPS}/vnpy_ctp/.git" ]]; then
+      git clone --depth 1 --branch "${CTP_TAG}" https://github.com/vnpy/vnpy_ctp.git "${DEPS}/vnpy_ctp"
+    fi
+    bash "${ROOT}/scripts/load_simnow_ctp.sh"
+    "${PIP[@]}" install --no-deps "${DEPS}/vnpy_ctp"
+    echo "vnpy_ctp 已从 git 源码安装。"
   fi
-done
-
-if [[ -n "${LOCAL_CTP}" ]]; then
-  echo "使用本地包：${LOCAL_CTP}"
-  "${PIP[@]}" install --no-deps "${LOCAL_CTP}"
-  echo "vnpy_ctp 已从本地包安装。"
-elif "${PIP[@]}" install --no-deps "vnpy_ctp==${CTP_TAG}"; then
-  echo "vnpy_ctp 已通过 PyPI 安装（wheel 或 sdist 构建）。"
 else
-  echo "PyPI 安装失败，回退到 git 源码（需可达 GitHub）..." >&2
-  _need_cmd git "Ubuntu/Debian: sudo apt-get install -y git"
-  mkdir -p "${DEPS}"
-  if [[ ! -d "${DEPS}/vnpy_ctp/.git" ]]; then
-    git clone --depth 1 --branch "${CTP_TAG}" https://github.com/vnpy/vnpy_ctp.git "${DEPS}/vnpy_ctp"
-  fi
-  bash "${ROOT}/scripts/load_simnow_ctp.sh"
-  "${PIP[@]}" install --no-deps "${DEPS}/vnpy_ctp"
-  echo "vnpy_ctp 已从 git 源码安装。"
+  _die "无 vnpy_ctp Linux wheel（PyPI 仅有 Windows wheel）。请把预构建 .whl 放到 ${ROOT}/wheels/ 后重跑，或显式设置 STABX_CTP_FROM_SOURCE=1 允许编译。"
 fi
 
 if [[ -x "${ROOT}/scripts/load_simnow_ctp.sh" ]]; then
