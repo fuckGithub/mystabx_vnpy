@@ -32,12 +32,19 @@
 
 ![MyStabx 微信群二维码](docs/images/mystabx-wechat-group-qr.jpg)
 
+## 支持作者
 
-本机 `origin` 配置了 **双 push URL**（Gitee + GitHub）：`git push origin` 会同时推送到两个平台。另有独立 remote 名 `github` 指向同一 GitHub 仓库。
+开源不易，维护与联调都要花时间。若本项目对你有帮助，欢迎请作者喝杯咖啡——完全自愿，绝不强制。
+
+支付宝扫码赞赏（收款名：小葫芦金(**初)）：
+
+<p align="center">
+  <img src="docs/images/mystabx-alipay-coffee.jpg" alt="支付宝赞赏码：请作者喝杯咖啡" width="280" />
+</p>
 
 > 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）。启动任选其一：`python main.py`、`uv run start` 或 `./start.sh`（三者等价，均落到 `./start.sh`）。遗留 Qt 桌面仅 `python main.py --qt`。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
-规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/09](docs/09-CTA策略实施规划.md)）。
+规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/10](docs/10-VeighNa功能列表.md)）。
 
 ## 后端与引擎归属
 
@@ -151,6 +158,7 @@
 | [07-用户服务协议与免责声明](docs/07-用户服务协议与免责声明.md) | 免责声明全文（与 `/disclaimer` 一致） |
 | [08-VeighNa-Elite-CTA策略参考](docs/08-VeighNa-Elite-CTA策略参考.md) | VeighNa Elite 官方文档「CTA趋势策略」本地镜像（正文 + 28 张截图） |
 | [09-CTA策略实施规划](docs/09-CTA策略实施规划.md) | CTA 策略 / 回测的实现阶段（阶段 A–E）与设计决策 |
+| [10-VeighNa功能列表](docs/10-VeighNa功能列表.md) | VeighNa 全量功能清单（核心框架 / 接口 / 应用 / 数据层 / 产品线） |
 
 ## 与桌面端的关系
 
@@ -197,7 +205,7 @@ mystabx_vnpy/
 │   ├── styles/                    #   顶栏/侧栏、内页表格、登录、工作台 CSS
 │   └── assets/brand/              #   登录与壳层用的品牌图
 ├── mystabx/                       # 遗留 Qt 桌面（python main.py --qt）
-├── docs/                          # 文档 01–09
+├── docs/                          # 文档 01–10
 ├── scripts/                       # 安装与冒烟
 ├── vendor/simnow-ctp/             # SimNow 官方 CTP 对接说明（Mac framework / Linux .so）
 ├── licenses/                      # vn.py / vnpy_ctp 的 MIT 许可原文
@@ -219,7 +227,7 @@ mystabx_vnpy/
 | `features/admin/` | 用户 CRUD、通道 CRUD/加密、测试联通、操作日志抽屉。 |
 | `ui/` | 路由 / 导航（行情默认 `/market/ticks`）、布局、SSE/WS 客户端、`gatewayStatus`。 |
 | `mystabx/` | 桌面连接框、Mac 主题、官方 MainWindow；与 Web 共用 SimNow 前置逻辑。 |
-| `docs/` | `01` 架构 … `07` 免责声明全文；`08` VeighNa Elite CTA策略参考（含截图）；`09` CTA 策略实施规划。 |
+| `docs/` | `01` 架构 … `07` 免责声明全文；`08` Elite CTA参考；`09` CTA 实施规划；`10` VeighNa 功能列表。 |
 | `scripts/` | `install_macos.sh` / `install_linux.sh`、`load_simnow_ctp.sh`、`smoke_*.py`。 |
 | `vendor/simnow-ctp/` | 上期技术 CTP 二进制说明（Mac `.framework` / Linux `.so`，gitignore）。 |
 
