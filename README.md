@@ -116,7 +116,7 @@
 
 ## 技术架构
 
-主链路自左向右：**客户端 → 前端 SPA → 接入（直连 `:18080`，可选 Nginx）→ FastAPI + 进程内 vnpy → 存储**。上方为实时通道与进程内事件/保活，下方为 ECS 部署与轻量监控；策略模型、实例版本与动态编译挂在后端应用层，而非独立中间件。本仓库**未使用** Redis / ES / Jenkins / SkyWalking 等（规划中可扩展，见 [docs/06](docs/06-实施路线图.md)）。
+与上文「项目信息」对应：主链路自左向右为 **客户端 → 前端 SPA → 接入（直连 `:18080`，可选 Nginx）→ FastAPI + 进程内 vnpy → 存储**。上方是实时通道与进程内事件/保活；下方是 ECS 部署与轻量监控。策略「模型管理 / 实例版本 / 动态编译」属于后端应用层（`model_store`、`strategy_loader`），不是独立中间件。本仓库**未使用** Redis、Elasticsearch、Jenkins、SkyWalking 等；Docker / RQData 等仍属规划，见 [docs/06](docs/06-实施路线图.md)。
 
 ```mermaid
 flowchart TB
