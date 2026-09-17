@@ -9,11 +9,23 @@
 | Gitee | https://gitee.com/xjc621105/mystabx_vnpy | 主远程（`origin` fetch） |
 | GitHub | https://github.com/fuckGithub/mystabx_vnpy | 公开开源镜像（MIT） |
 
-## 知识星球
+## 社区与交流
 
-欢迎加入知识星球 **「MyStabx 期货量化交易平台」**，交流 Mystabx / vnpy Web 交易台落地实践、踩坑与联调经验。
+欢迎通过微信群或知识星球交流 Mystabx / vnpy Web 交易台落地实践。
 
-提示：长按或扫描下方优惠券中的二维码，可领取新人立减券（¥88，有效期至 2026/12/31），再进入星球参与讨论。
+<p align="center">
+  <img src="docs/images/mystabx-avatar.png" alt="MyStabx 项目头像" width="120" />
+</p>
+
+**微信交流群**（群聊：MyStabx期货量化交易平台）
+
+提示：微信群二维码约 7 天有效（当前至 2026/9/24 前）；过期后会刷新，请以本页最新图片为准。
+
+![MyStabx 微信群二维码](docs/images/mystabx-wechat-group-qr.jpg)
+
+**知识星球**「MyStabx 期货量化交易平台」
+
+提示：长按或扫描下方优惠券二维码，领取新人立减券（¥88，有效至 2026/12/31），进星球交流实践与联调经验。
 
 ![MyStabx 知识星球新人优惠券](docs/images/mystabx-zsxq-coupon.png)
 
