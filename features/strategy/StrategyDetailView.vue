@@ -1,81 +1,114 @@
 <template>
   <div v-loading="loading" class="page-shell strategy-detail">
-    <div class="strategy-detail__header">
-      <div class="strategy-detail__title-row">
-        <el-button link type="primary" @click="goList">← 返回列表</el-button>
-        <h3 class="strategy-detail__title">
-          {{ displayTitle }}
+    <!-- JoinQuant-style header -->
+    <header class="sd-header">
+      <div class="sd-header__top">
+        <div class="sd-header__title-wrap">
+          <el-button class="sd-back" link type="primary" @click="goList">←</el-button>
+          <h3 class="sd-title">{{ displayTitle }}</h3>
           <el-button
+            class="sd-edit"
             link
-            type="primary"
             :icon="EditPen"
             :disabled="!auth.isAdmin || !!instance?.trading"
             title="重命名实例"
             @click="renameInstance"
           />
-        </h3>
-        <el-tag size="small" type="info">Python</el-tag>
-        <el-tag v-if="instance?.trading" size="small" type="success">交易中</el-tag>
-        <el-tag v-else-if="instance?.inited" size="small" type="warning">已初始化</el-tag>
-        <el-tag v-else size="small">未初始化</el-tag>
+          <el-tag size="small" type="primary" effect="plain" class="sd-lang">Python</el-tag>
+        </div>
+        <div class="sd-header__actions">
+          <el-button
+            size="small"
+            class="sd-btn-sim"
+            :disabled="!auth.isAdmin || !instance?.inited || !!instance?.trading"
+            @click="act('start')"
+          >
+            模拟交易
+          </el-button>
+          <el-button size="small" type="primary" @click="goBacktest">回测分析</el-button>
+          <el-button size="small" :disabled="!auth.isAdmin" @click="act('init')">初始化</el-button>
+          <el-button size="small" :disabled="!auth.isAdmin" @click="act('stop')">停止</el-button>
+          <el-button size="small" :icon="Refresh" @click="refreshAll">刷新</el-button>
+        </div>
       </div>
-      <div class="strategy-detail__meta">
-        <span>策略类：{{ classLabel }}</span>
-        <span>合约：{{ instance?.vt_symbol || "—" }}</span>
-        <span>账户：{{ instance?.gateway_name || "—" }}</span>
-        <span>源码：{{ instance?.file_path || "—" }}</span>
-        <span v-if="btMeta">
-          回测：{{ btMeta.start || "?" }} 到 {{ btMeta.end || "?" }}
-          · 资金 {{ btMeta.capital ?? "—" }}
-          · {{ btMeta.interval || "—" }}
-          · {{ btRunning ? "运行中" : btHasResult ? "有结果" : "暂无结果" }}
+      <div class="sd-header__meta">
+        <span class="sd-meta-item">
+          <em>设置：</em>
+          {{ settingsLine }}
+        </span>
+        <span class="sd-meta-item sd-meta-status">
+          <em>状态：</em>
+          <span class="sd-status-dot" :class="statusDotClass" />
+          {{ statusLine }}
         </span>
       </div>
-      <div class="strategy-detail__actions">
-        <el-button size="small" type="primary" :disabled="!auth.isAdmin" @click="act('init')">初始化</el-button>
-        <el-button size="small" type="primary" :disabled="!auth.isAdmin || !instance?.inited" @click="act('start')">启动</el-button>
-        <el-button size="small" :disabled="!auth.isAdmin" @click="act('stop')">停止</el-button>
-        <el-button size="small" :icon="Refresh" @click="refreshAll">刷新</el-button>
-      </div>
-    </div>
+    </header>
 
-    <div class="strategy-detail__body">
-      <aside class="strategy-detail__aside">
-        <el-menu :default-active="pane" @select="onSelectPane">
-          <el-menu-item v-for="item in primaryPanes" :key="item.key" :index="item.key">
+    <div class="sd-body">
+      <aside class="sd-aside">
+        <nav class="sd-nav">
+          <button
+            v-for="item in primaryPanes"
+            :key="item.key"
+            type="button"
+            class="sd-nav__item"
+            :class="{ 'is-active': pane === item.key }"
+            @click="onSelectPane(item.key)"
+          >
             {{ item.label }}
-          </el-menu-item>
-          <div class="strategy-detail__aside-sep" />
-          <el-menu-item v-for="item in metricPanes" :key="item.key" :index="item.key">
+          </button>
+          <div class="sd-nav__sep" />
+          <button
+            v-for="item in metricPanes"
+            :key="item.key"
+            type="button"
+            class="sd-nav__item sd-nav__item--metric"
+            :class="{ 'is-active': pane === item.key }"
+            @click="onSelectPane(item.key)"
+          >
             {{ item.label }}
-          </el-menu-item>
-        </el-menu>
+          </button>
+        </nav>
       </aside>
 
-      <main class="strategy-detail__main">
+      <main class="sd-main">
         <!-- 收益概述 -->
-        <section v-if="pane === 'overview'" class="strategy-detail__panel">
-          <h4 class="strategy-detail__panel-title">收益概述</h4>
-          <el-descriptions v-if="btStats && Object.keys(btStats).length" :column="3" border size="small">
+        <section v-if="pane === 'overview'" class="sd-panel">
+          <h4 class="sd-panel__title">收益概述</h4>
+          <el-descriptions
+            v-if="btStats && Object.keys(btStats).length"
+            :column="3"
+            border
+            size="small"
+            class="sd-desc"
+          >
             <el-descriptions-item v-for="(val, key) in btStats" :key="String(key)" :label="String(key)">
               {{ val }}
             </el-descriptions-item>
           </el-descriptions>
           <el-empty v-else description="暂无回测统计（可在「策略回测」运行后查看）" />
-          <div class="strategy-detail__live">
+          <div class="sd-live">
             <h5>实盘状态</h5>
             <el-descriptions :column="2" border size="small">
               <el-descriptions-item label="仓位">{{ instance?.pos ?? "—" }}</el-descriptions-item>
               <el-descriptions-item label="参数">{{ formatMap(instance?.parameters) }}</el-descriptions-item>
               <el-descriptions-item label="变量">{{ formatMap(instance?.variables) }}</el-descriptions-item>
+              <el-descriptions-item label="合约">{{ instance?.vt_symbol || "—" }}</el-descriptions-item>
             </el-descriptions>
           </div>
         </section>
 
         <!-- 交易详情 -->
-        <section v-else-if="pane === 'trades'" class="strategy-detail__panel">
-          <h4 class="strategy-detail__panel-title">交易详情</h4>
-          <el-table :data="btTrades" border size="small" empty-text="暂无回测成交（跑完回测后显示）">
+        <section v-else-if="pane === 'trades'" class="sd-panel">
+          <h4 class="sd-panel__title">交易详情</h4>
+          <el-table
+            :data="btTrades"
+            stripe
+            border
+            size="small"
+            class="sd-table"
+            empty-text="暂无回测成交（跑完回测后显示）"
+          >
             <el-table-column prop="datetime" label="时间" min-width="160" show-overflow-tooltip />
             <el-table-column prop="vt_symbol" label="合约" width="120" />
             <el-table-column prop="direction" label="方向" width="80" />
@@ -85,11 +118,11 @@
           </el-table>
         </section>
 
-        <!-- 每日持仓 -->
-        <section v-else-if="pane === 'daily'" class="strategy-detail__panel">
-          <h4 class="strategy-detail__panel-title">每日持仓</h4>
-          <el-table :data="btDaily" border size="small" empty-text="暂无每日结果">
-            <el-table-column prop="date" label="日期" width="120" />
+        <!-- 每日持仓&收益 -->
+        <section v-else-if="pane === 'daily'" class="sd-panel">
+          <h4 class="sd-panel__title">每日持仓&收益</h4>
+          <el-table :data="btDaily" stripe border size="small" class="sd-table" empty-text="暂无每日结果">
+            <el-table-column prop="date" label="日期" width="120" sortable />
             <el-table-column prop="close_price" label="收盘" width="100" />
             <el-table-column prop="net_pnl" label="净盈亏" width="110" />
             <el-table-column prop="balance" label="结余" width="110" />
@@ -97,48 +130,54 @@
           </el-table>
         </section>
 
-        <!-- 日志输出 -->
-        <section v-else-if="pane === 'logs'" class="strategy-detail__panel">
-          <h4 class="strategy-detail__panel-title">日志输出</h4>
-          <el-table :data="instanceLogs" border size="small" max-height="480" empty-text="暂无该实例日志">
-            <el-table-column label="时间" width="168">
-              <template #default="{ row }">{{ formatLogTime(row.time) }}</template>
-            </el-table-column>
-            <el-table-column prop="level" label="级别" width="88" />
-            <el-table-column prop="msg" label="内容" min-width="320" show-overflow-tooltip />
-          </el-table>
-          <el-divider content-position="left">回测日志</el-divider>
-          <el-table :data="strategy.backtestLogs" border size="small" max-height="240" empty-text="暂无回测日志">
-            <el-table-column prop="msg" label="内容" min-width="320" show-overflow-tooltip />
-          </el-table>
+        <!-- 日志输出 — dark console -->
+        <section v-else-if="pane === 'logs'" class="sd-panel">
+          <h4 class="sd-panel__title">日志输出</h4>
+          <div class="sd-console" tabindex="0">
+            <pre v-if="consoleLines.length">{{ consoleLines.join("\n") }}</pre>
+            <pre v-else class="sd-console__empty">暂无该实例或回测日志</pre>
+          </div>
         </section>
 
         <!-- 性能分析 -->
-        <section v-else-if="pane === 'perf'" class="strategy-detail__panel">
-          <h4 class="strategy-detail__panel-title">性能分析</h4>
-          <el-descriptions v-if="btStats && Object.keys(btStats).length" :column="2" border size="small">
+        <section v-else-if="pane === 'perf'" class="sd-panel">
+          <h4 class="sd-panel__title">性能分析</h4>
+          <el-descriptions
+            v-if="btStats && Object.keys(btStats).length"
+            :column="2"
+            border
+            size="small"
+            class="sd-desc"
+          >
             <el-descriptions-item v-for="key in perfKeys" :key="key" :label="key">
               {{ btStats[key] ?? "—" }}
             </el-descriptions-item>
           </el-descriptions>
-          <el-empty v-else description="暂无性能数据" />
+          <div v-else class="sd-console sd-console--hint">
+            <pre>暂无性能数据。完成回测后可在此查看夏普、回撤等统计。</pre>
+          </div>
         </section>
 
         <!-- 策略代码 -->
-        <section v-else-if="pane === 'code'" class="strategy-detail__panel strategy-detail__code">
-          <div class="strategy-detail__code-toolbar">
-            <h4 class="strategy-detail__panel-title">策略代码</h4>
-            <span class="strategy-detail__code-path">{{ source.file_path || "—" }}</span>
-            <el-button size="small" :icon="Refresh" @click="loadSource">重新加载</el-button>
-            <el-button
-              size="small"
-              type="primary"
-              :loading="savingCode"
-              :disabled="!auth.isAdmin || !source.editable"
-              @click="saveSource"
-            >
-              保存并热加载
-            </el-button>
+        <section v-else-if="pane === 'code'" class="sd-panel sd-code">
+          <div class="sd-code__head">
+            <h4 class="sd-panel__title">策略代码</h4>
+            <span class="sd-code__path">{{ source.file_path || "—" }}</span>
+            <div class="sd-code__btns">
+              <el-button size="small" :disabled="!auth.isAdmin || !source.editable" @click="startEditCode">
+                编写代码
+              </el-button>
+              <el-button size="small" :loading="loadingSource" @click="restoreCode">恢复代码</el-button>
+              <el-button
+                size="small"
+                type="primary"
+                :loading="savingCode"
+                :disabled="!auth.isAdmin || !source.editable || !codeEditing"
+                @click="saveSource"
+              >
+                保存并热加载
+              </el-button>
+            </div>
           </div>
           <el-alert
             v-if="source.editable === false"
@@ -149,27 +188,45 @@
             style="margin-bottom: 8px"
           />
           <el-input
+            ref="codeInputRef"
             v-model="source.content"
             type="textarea"
-            :rows="28"
-            class="strategy-detail__editor"
-            :readonly="!auth.isAdmin || !source.editable"
+            :rows="22"
+            class="sd-editor"
+            :readonly="!auth.isAdmin || !source.editable || !codeEditing"
             spellcheck="false"
           />
+          <div class="sd-code-history">
+            <h5 class="sd-code-history__title">代码变更记录</h5>
+            <el-table :data="codeHistoryRows" stripe border size="small" empty-text="暂无变更记录">
+              <el-table-column prop="time" label="操作时间" width="180" />
+              <el-table-column prop="method" label="操作方式" width="120" />
+              <el-table-column prop="note" label="备注" min-width="200" />
+              <el-table-column prop="code" label="代码" width="100" />
+            </el-table>
+          </div>
         </section>
 
-        <!-- 指标表（占位 / 从统计取标量） -->
-        <section v-else class="strategy-detail__panel">
-          <h4 class="strategy-detail__panel-title">{{ currentMetricLabel }}</h4>
-          <el-table :data="metricTableRows" border size="small" empty-text="暂无滚动指标数据（后续接回测序列）">
-            <el-table-column prop="date" label="日期" width="120" />
-            <el-table-column prop="m1" label="1个月" />
-            <el-table-column prop="m3" label="3个月" />
-            <el-table-column prop="m6" label="6个月" />
-            <el-table-column prop="m12" label="12个月" />
+        <!-- 滚动指标表 -->
+        <section v-else class="sd-panel">
+          <h4 class="sd-panel__title">{{ currentMetricLabel }}</h4>
+          <el-table
+            :data="metricTableRows"
+            stripe
+            border
+            size="small"
+            class="sd-table"
+            empty-text="暂无滚动指标序列（后续接回测月度序列）"
+          >
+            <el-table-column prop="date" label="日期" width="120" sortable />
+            <el-table-column prop="m1" label="1个月" align="center" />
+            <el-table-column prop="m3" label="3个月" align="center" />
+            <el-table-column prop="m6" label="6个月" align="center" />
+            <el-table-column prop="m12" label="12个月" align="center" />
           </el-table>
-          <p v-if="metricScalar != null" class="strategy-detail__scalar">
-            当前回测统计：{{ currentMetricLabel }} = <strong>{{ metricScalar }}</strong>
+          <p v-if="metricScalar != null" class="sd-scalar">
+            当前回测统计：{{ currentMetricLabel }} =
+            <strong>{{ formatMetric(metricScalar) }}</strong>
           </p>
         </section>
       </main>
@@ -178,7 +235,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { EditPen, Refresh } from "@element-plus/icons-vue";
@@ -192,7 +249,10 @@ const auth = useAuthStore();
 const strategy = useStrategyStore();
 
 const loading = ref(false);
+const loadingSource = ref(false);
 const savingCode = ref(false);
+const codeEditing = ref(false);
+const codeInputRef = ref<{ focus?: () => void } | null>(null);
 const instance = ref<Record<string, unknown> | null>(null);
 const pane = ref(String(route.query.pane || "overview"));
 
@@ -201,7 +261,6 @@ const btDaily = ref<Record<string, unknown>[]>([]);
 const btTrades = ref<Record<string, unknown>[]>([]);
 const btRunning = ref(false);
 const btHasResult = ref(false);
-const btMeta = ref<Record<string, unknown> | null>(null);
 
 const source = reactive({
   content: "",
@@ -210,10 +269,13 @@ const source = reactive({
   updated_at: "" as string | null,
 });
 
+/** Stub only — no JoinQuant history API */
+const codeHistoryRows = ref<{ time: string; method: string; note: string; code: string }[]>([]);
+
 const primaryPanes = [
   { key: "overview", label: "收益概述" },
   { key: "trades", label: "交易详情" },
-  { key: "daily", label: "每日持仓" },
+  { key: "daily", label: "每日持仓&收益" },
   { key: "logs", label: "日志输出" },
   { key: "perf", label: "性能分析" },
   { key: "code", label: "策略代码" },
@@ -225,6 +287,10 @@ const metricPanes = [
   { key: "alpha", label: "阿尔法", statKey: "return_drawdown_ratio" },
   { key: "beta", label: "贝塔", statKey: "" },
   { key: "sharpe", label: "夏普比率", statKey: "sharpe_ratio" },
+  { key: "sortino", label: "索提诺比率", statKey: "" },
+  { key: "info", label: "信息比率", statKey: "" },
+  { key: "vol", label: "波动率", statKey: "" },
+  { key: "vol_bench", label: "基准波动率", statKey: "" },
   { key: "maxdd", label: "最大回撤", statKey: "max_drawdown" },
 ];
 
@@ -254,6 +320,51 @@ const instanceLogs = computed(() =>
   strategy.logs.filter((row) => String(row.strategy_name || "") === name.value),
 );
 
+const consoleLines = computed(() => {
+  const lines: string[] = [];
+  for (const row of instanceLogs.value) {
+    const t = formatLogTime(row.time);
+    const level = String(row.level || "INFO").toUpperCase();
+    const msg = String(row.msg || "");
+    lines.push(`[${t}] - ${level} - ${msg}`);
+  }
+  for (const row of strategy.backtestLogs) {
+    const msg = String((row as { msg?: string }).msg || JSON.stringify(row));
+    lines.push(`[backtest] - INFO - ${msg}`);
+  }
+  return lines;
+});
+
+const settingsLine = computed(() => {
+  const start = dateFromDaily(btDaily.value, "first");
+  const end = dateFromDaily(btDaily.value, "last");
+  const capital =
+    (btStats.value?.capital as string | number | undefined) ??
+    (instance.value?.parameters as Record<string, unknown> | undefined)?.capital ??
+    "—";
+  const interval =
+    String((instance.value as { interval?: string } | null)?.interval || "").trim() || "—";
+  const symbol = String(instance.value?.vt_symbol || "—");
+  const range = start && end ? `${start} 到 ${end}` : "暂无回测区间";
+  const capText = capital === "—" ? "资金 —" : `¥ ${capital}`;
+  return `${range}，${capText}，${interval} · ${classLabel.value} · ${symbol}`;
+});
+
+const statusLine = computed(() => {
+  if (btRunning.value) return "回测运行中";
+  if (btHasResult.value) return "回测完成";
+  if (instance.value?.trading) return "交易中（模拟）";
+  if (instance.value?.inited) return "已初始化，待启动";
+  return "未初始化";
+});
+
+const statusDotClass = computed(() => {
+  if (btRunning.value) return "is-running";
+  if (btHasResult.value || instance.value?.trading) return "is-ok";
+  if (instance.value?.inited) return "is-warn";
+  return "is-idle";
+});
+
 const currentMetric = computed(() => metricPanes.find((p) => p.key === pane.value));
 const currentMetricLabel = computed(() => currentMetric.value?.label || pane.value);
 const metricScalar = computed(() => {
@@ -261,7 +372,17 @@ const metricScalar = computed(() => {
   if (!key || !btStats.value) return null;
   return btStats.value[key] ?? null;
 });
-const metricTableRows = computed(() => [] as { date: string; m1: string; m3: string; m6: string; m12: string }[]);
+const metricTableRows = computed(
+  () => [] as { date: string; m1: string; m3: string; m6: string; m12: string }[],
+);
+
+function dateFromDaily(rows: Record<string, unknown>[], which: "first" | "last") {
+  if (!rows.length) return "";
+  const row = which === "first" ? rows[0] : rows[rows.length - 1];
+  const raw = row?.date ?? row?.Date;
+  if (!raw) return "";
+  return String(raw).slice(0, 10);
+}
 
 function formatMap(value: unknown) {
   if (!value || typeof value !== "object") return "—";
@@ -278,8 +399,18 @@ function formatLogTime(value: unknown) {
   return raw.length > 19 ? raw.slice(0, 19).replace("T", " ") : raw.replace("T", " ");
 }
 
+function formatMetric(val: unknown) {
+  if (val == null || val === "") return "—";
+  if (typeof val === "number" && Number.isFinite(val)) return val.toFixed(4);
+  return String(val);
+}
+
 function goList() {
   router.push("/strategy/cta");
+}
+
+function goBacktest() {
+  router.push("/strategy/backtest");
 }
 
 function onSelectPane(key: string) {
@@ -308,18 +439,35 @@ async function loadSource() {
     source.content = "";
     return;
   }
+  loadingSource.value = true;
   try {
     const { data } = await http.get(`/api/cta/strategies/${encodeURIComponent(className)}/source`);
     source.content = String(data?.content ?? "");
     source.file_path = String(data?.file_path ?? "");
     source.editable = Boolean(data?.editable);
     source.updated_at = data?.updated_at ?? null;
+    codeEditing.value = false;
   } catch (e: unknown) {
     const err = e as { response?: { data?: { detail?: string } } };
     source.content = "";
     source.editable = false;
     ElMessage.error(err.response?.data?.detail || "读取源码失败");
+  } finally {
+    loadingSource.value = false;
   }
+}
+
+async function startEditCode() {
+  if (!auth.isAdmin || !source.editable) return;
+  if (!source.content) await loadSource();
+  codeEditing.value = true;
+  await nextTick();
+  codeInputRef.value?.focus?.();
+}
+
+async function restoreCode() {
+  await loadSource();
+  ElMessage.success("已从磁盘恢复代码");
 }
 
 async function saveSource() {
@@ -333,6 +481,7 @@ async function saveSource() {
     });
     source.file_path = String(data?.file_path ?? source.file_path);
     source.updated_at = data?.updated_at ?? source.updated_at;
+    codeEditing.value = false;
     ElMessage.success(data?.reloaded ? "已保存并热加载策略类" : "已保存");
   } catch (e: unknown) {
     const err = e as { response?: { data?: { detail?: string } } };
@@ -354,9 +503,6 @@ async function loadBacktest() {
     btStats.value = (resultRes.data?.statistics as Record<string, unknown>) || null;
     btDaily.value = Array.isArray(resultRes.data?.daily_results) ? resultRes.data.daily_results : [];
     btTrades.value = Array.isArray(tradesRes.data) ? tradesRes.data : [];
-    btMeta.value = btHasResult.value
-      ? { start: "—", end: "—", capital: "—", interval: "—" }
-      : null;
   } catch {
     btStats.value = null;
     btDaily.value = [];
@@ -431,108 +577,323 @@ watch(
 </script>
 
 <style scoped>
-.strategy-detail__header {
+.strategy-detail {
+  background: #f5f7fa;
+  margin: -4px -4px 0;
+  padding: 12px 16px 16px;
+  border-radius: 4px;
+}
+
+.sd-header {
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  padding: 12px 16px 10px;
   margin-bottom: 12px;
 }
-.strategy-detail__title-row {
+
+.sd-header__top {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   flex-wrap: wrap;
 }
-.strategy-detail__title {
+
+.sd-header__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sd-back {
+  font-size: 18px;
+  font-weight: 600;
+  padding: 0 4px;
+  color: #606266 !important;
+}
+
+.sd-title {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  color: #303133;
+  line-height: 1.3;
 }
-.strategy-detail__meta {
+
+.sd-edit {
+  color: #909399 !important;
+  padding: 0 2px;
+}
+
+.sd-lang {
+  margin-left: 4px;
+}
+
+.sd-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.sd-btn-sim {
+  background: #e64340 !important;
+  border-color: #e64340 !important;
+  color: #fff !important;
+}
+
+.sd-btn-sim:hover:not(:disabled) {
+  background: #d73936 !important;
+  border-color: #d73936 !important;
+}
+
+.sd-btn-sim:disabled {
+  opacity: 0.55;
+}
+
+.sd-header__meta {
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 20px;
+  gap: 8px 28px;
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: #606266;
+  line-height: 1.5;
 }
-.strategy-detail__actions {
-  margin-top: 10px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+
+.sd-meta-item em {
+  font-style: normal;
+  color: #909399;
 }
-.strategy-detail__body {
+
+.sd-meta-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sd-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #c0c4cc;
+  flex-shrink: 0;
+}
+
+.sd-status-dot.is-ok {
+  background: #67c23a;
+  box-shadow: 0 0 0 2px rgba(103, 194, 58, 0.25);
+}
+
+.sd-status-dot.is-running {
+  background: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.25);
+}
+
+.sd-status-dot.is-warn {
+  background: #e6a23c;
+}
+
+.sd-status-dot.is-idle {
+  background: #c0c4cc;
+}
+
+.sd-body {
   display: flex;
   gap: 0;
   flex: 1;
-  min-height: 0;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  background: var(--el-bg-color);
+  min-height: 480px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background: #fff;
   overflow: hidden;
 }
-.strategy-detail__aside {
+
+.sd-aside {
   width: 168px;
   flex-shrink: 0;
-  border-right: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-blank);
+  background: #f7f8fa;
+  border-right: 1px solid #e4e7ed;
+  overflow-y: auto;
 }
-.strategy-detail__aside :deep(.el-menu) {
-  border-right: none;
+
+.sd-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
+.sd-nav__item {
+  appearance: none;
+  border: 0;
   background: transparent;
-}
-.strategy-detail__aside :deep(.el-menu-item) {
-  height: 40px;
-  line-height: 40px;
+  text-align: left;
+  padding: 0 16px;
+  height: 36px;
+  line-height: 36px;
   font-size: 13px;
+  color: #606266;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.strategy-detail__aside-sep {
+
+.sd-nav__item:hover {
+  background: #eef2f7;
+  color: #303133;
+}
+
+.sd-nav__item.is-active {
+  background: #2a64c4;
+  color: #fff;
+  font-weight: 500;
+}
+
+.sd-nav__item--metric {
+  padding-left: 20px;
+  font-size: 12px;
+}
+
+.sd-nav__sep {
   height: 1px;
   margin: 8px 12px;
-  background: var(--el-border-color-lighter);
+  background: #e4e7ed;
 }
-.strategy-detail__main {
+
+.sd-main {
   flex: 1;
   min-width: 0;
-  padding: 16px;
+  padding: 16px 20px;
   overflow: auto;
+  background: #fff;
 }
-.strategy-detail__panel-title {
-  margin: 0 0 12px;
+
+.sd-panel__title {
+  margin: 0 0 14px;
   font-size: 16px;
   font-weight: 600;
+  color: #303133;
 }
-.strategy-detail__live {
-  margin-top: 20px;
+
+.sd-live {
+  margin-top: 24px;
 }
-.strategy-detail__live h5 {
+
+.sd-live h5 {
   margin: 0 0 8px;
   font-size: 14px;
+  font-weight: 600;
 }
-.strategy-detail__code-toolbar {
+
+.sd-table :deep(.el-table__header th) {
+  background: #f5f7fa;
+  color: #606266;
+  font-weight: 500;
+}
+
+.sd-console {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 4px;
+  padding: 12px 14px;
+  min-height: 360px;
+  max-height: 560px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.sd-console pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.sd-console__empty {
+  color: #6a6a6a;
+}
+
+.sd-console--hint {
+  min-height: 120px;
+  color: #9cdcfe;
+}
+
+.sd-code__head {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
-.strategy-detail__code-toolbar .strategy-detail__panel-title {
+
+.sd-code__head .sd-panel__title {
   margin: 0;
+}
+
+.sd-code__path {
+  font-size: 12px;
+  color: #909399;
   margin-right: auto;
 }
-.strategy-detail__code-path {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+
+.sd-code__btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.strategy-detail__editor :deep(textarea) {
+
+.sd-editor :deep(textarea) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
+  background: #fafbfc;
 }
-.strategy-detail__scalar {
+
+.sd-code-history {
+  margin-top: 20px;
+}
+
+.sd-code-history__title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.sd-scalar {
   margin-top: 12px;
   font-size: 13px;
-  color: var(--el-text-color-regular);
+  color: #606266;
+}
+
+@media (max-width: 900px) {
+  .sd-body {
+    flex-direction: column;
+    min-height: 0;
+  }
+  .sd-aside {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e4e7ed;
+  }
+  .sd-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 4px;
+  }
+  .sd-nav__item {
+    width: auto;
+    padding: 0 10px;
+    height: 32px;
+    line-height: 32px;
+  }
+  .sd-nav__sep {
+    width: 100%;
+    height: 1px;
+    margin: 4px 0;
+  }
 }
 </style>
