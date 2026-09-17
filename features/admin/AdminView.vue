@@ -382,6 +382,11 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Plus, QuestionFilled, Refresh, Search } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import ChannelStatusPair from "@/components/ChannelStatusPair.vue";
+import {
+  FALLBACK_AUTO,
+  FALLBACK_DEFAULTS,
+  SIMNOW_INTERFACE_NOTE,
+} from "@/config/simnow";
 import { loginLabel, quoteLabel } from "@/gatewayStatus";
 import { useAuthStore, useTradeStore } from "@/stores";
 
@@ -440,24 +445,6 @@ interface ConnectTestResult {
   login?: { message?: string; ok?: boolean; attempted?: boolean };
 }
 
-const FALLBACK_AUTO = {
-  交易服务器: "182.254.243.31:30001",
-  行情服务器: "182.254.243.31:30011",
-  env: "session",
-  label: "交易时段",
-  windows: "交易时段 08:45–15:30（周一至周五）与夜盘 20:45–02:35；其余时间走 7×24。",
-};
-
-const FALLBACK_DEFAULTS = {
-  account_name: "SimNow",
-  用户名: "",
-  密码: "",
-  经纪商代码: "9999",
-  产品名称: "simnow_client_test",
-  授权编码: "0000000000000000",
-  柜台环境: "实盘",
-};
-
 const route = useRoute();
 const auth = useAuthStore();
 const trade = useTradeStore();
@@ -483,7 +470,7 @@ const accTesting = ref(false);
 const testingId = ref<number | null>(null);
 const testResult = ref<ConnectTestResult | null>(null);
 const autoHint = reactive({ ...FALLBACK_AUTO });
-const interfaceNote = ref("本机仅打包实盘 CTP API，SimNow 走生产前置。");
+const interfaceNote = ref(SIMNOW_INTERFACE_NOTE);
 const formDefaults = reactive({ ...FALLBACK_DEFAULTS });
 const logVisible = ref(false);
 const logLoading = ref(false);

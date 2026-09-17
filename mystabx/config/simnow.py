@@ -1,5 +1,9 @@
-"""SimNow CTP address constants. Never put account or password here."""
+"""SimNow CTP address constants. Never put account or password here.
 
+Backend single source of truth for fronts / connect defaults.
+Frontend offline mirrors live in ``ui/config/simnow.ts`` (FALLBACK_*);
+prefer ``GET /api/admin/connect-defaults`` at runtime so UI matches this module.
+"""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
