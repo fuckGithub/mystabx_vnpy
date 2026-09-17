@@ -33,6 +33,10 @@
 |---|---|
 | ![市场行情](docs/images/ui-market.png) | ![交易下单](docs/images/ui-trade.png) |
 
+| 策略模型 |
+|---|
+| ![策略模型](docs/images/ui-strategy-models.png) |
+
 ## 仓库地址
 
 | 平台 | 地址 | 说明 |
