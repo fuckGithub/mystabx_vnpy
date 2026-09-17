@@ -83,6 +83,8 @@ __pypackages__/
 
 # Environments
 .env
+.env.*
+!.env.ecs.example
 .envrc
 .venv
 env/
@@ -90,6 +92,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# 运维凭据（从 cumustabilis 迁移；本仓库公开勿提交）
+docs/ecs-rds.local.md
+docs/ecs&rds.md
 
 # Type checkers / linters
 .mypy_cache/

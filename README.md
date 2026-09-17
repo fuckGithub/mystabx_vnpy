@@ -155,6 +155,7 @@
 | [09-CTA策略实施规划](docs/09-CTA策略实施规划.md) | CTA 策略 / 回测的实现阶段（阶段 A–E）与设计决策 |
 | [10-VeighNa功能列表](docs/10-VeighNa功能列表.md) | VeighNa 全量功能清单（核心框架 / 接口 / 应用 / 数据层 / 产品线） |
 | [CTP分平台搭建](docs/CTP分平台搭建.md)（[11](docs/11-分平台CTP搭建.md)） | Windows / macOS / Linux：vnpy_ctp 与 SimNow 动态库（`.dll` / `.framework` / `.so`） |
+| [ECS/RDS 连接说明](docs/ecs-rds.example.md) | 阿里云 ECS 公网地址与服务端口（**无密码**）；真实凭据见本机 `docs/ecs-rds.local.md`（gitignore） |
 
 ## 与桌面端的关系
 
