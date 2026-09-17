@@ -26,11 +26,44 @@ case "${OS}" in
     ;;
 esac
 
+# 安全加载 .env：勿 source（MYSQL_PWD 等可含 # &）。用 Python 解析后 export。
 if [[ -f "${ROOT}/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ROOT}/.env"
-  set +a
+  _dotenv_py=""
+  if command -v python3 >/dev/null 2>&1; then
+    _dotenv_py="$(command -v python3)"
+  elif [[ -x "${ROOT}/.venv/bin/python3" ]]; then
+    _dotenv_py="${ROOT}/.venv/bin/python3"
+  elif [[ -x "${ROOT}/.venv/bin/python" ]]; then
+    _dotenv_py="${ROOT}/.venv/bin/python"
+  fi
+  if [[ -n "${_dotenv_py}" ]]; then
+    # shellcheck disable=SC1090
+    eval "$("${_dotenv_py}" -c '
+import pathlib, shlex, sys
+path = pathlib.Path(sys.argv[1])
+try:
+    text = path.read_text(encoding="utf-8")
+except OSError as exc:
+    sys.stderr.write(f"无法读取 .env: {exc}\n")
+    sys.exit(1)
+for raw in text.splitlines():
+    line = raw.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    if line.startswith("export "):
+        line = line[7:].strip()
+    key, _, value = line.partition("=")
+    key = key.strip()
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'\''":
+        value = value[1:-1]
+    if key:
+        print(f"export {key}={shlex.quote(value)}")
+' "${ROOT}/.env")"
+  else
+    echo "警告：未找到 python3，跳过加载 .env（密码含 # & 时请勿改回 source）" >&2
+  fi
+  unset _dotenv_py
 fi
 
 # Linux：系统/nvm 路径。不要把 Homebrew 加进 Linux PATH。
@@ -136,7 +169,7 @@ for arg in "$@"; do
   Linux   服务器默认走生产模式（build + uvicorn）；CTP 用 ./scripts/install_linux.sh
           不要使用 Mac .framework / Homebrew / Xcode 路径
 
-环境变量见仓库根目录 .env.example。
+环境变量见仓库根目录 .env.example（密码含 # & 请加引号；本脚本安全解析 .env）。
 不要把真实 SimNow 密码写入仓库。
 不要对 vnpy 引擎使用 uvicorn --workers（MainEngine 在进程内）。
 EOF

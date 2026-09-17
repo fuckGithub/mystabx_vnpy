@@ -106,7 +106,7 @@ ssh root@47.102.208.231
 
 ## 环境变量（本地覆盖示例）
 
-复制为 `.env.ecs`（已 gitignore）后填写密码：
+复制为 `.env.ecs`（已 gitignore）后填写密码。密码含 `&` `#` 空格时请加引号（如 `MYSQL_PWD='…&…'`）；`deploy_ecs.sh` / 远端 `start.sh` 均安全解析，勿 `source`。
 
 ```bash
 ECS_HOST=47.102.208.231
