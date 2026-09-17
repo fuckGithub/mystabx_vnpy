@@ -101,28 +101,49 @@
       </el-table>
     </div>
 
-    <div v-else class="page-list">
+    <div v-else class="page-list cta-list-page">
       <div class="cta-list-head">
-        <h3 class="page-section-title">策略列表</h3>
+        <h3 class="page-section-title">策略管理</h3>
         <el-input
           v-model="listSearch"
           clearable
-          placeholder="策略名称"
+          placeholder="搜索名称 / 策略类"
           :prefix-icon="Search"
-          style="width: 240px"
+          class="cta-list-search"
         />
       </div>
-      <el-alert class="cta-trial-hint" type="success" :closable="false" show-icon style="margin-bottom: 12px">
-        <template #title>
-          <span class="cta-trial-hint__title">试用流程</span>
-        </template>
-        <ol class="cta-trial-hint__steps">
-          <li>管理员点击「添加策略」，选择带中文名的策略类（如「双均线策略」）</li>
-          <li>填写实例名、从已订阅合约中选择合约，并选择真实通道账户</li>
-          <li>点击名称进入详情；列表中也可「初始化」→「启动」</li>
-        </ol>
-        <p class="cta-trial-hint__note">首次接入或安装依赖后需<strong>重启后端</strong>，前端<strong>硬刷新</strong>（Ctrl/Cmd+Shift+R）。</p>
-      </el-alert>
+
+      <div class="cta-trial-hint" :class="{ 'is-collapsed': !tipsExpanded }">
+        <div class="cta-trial-hint__bar">
+          <div class="cta-trial-hint__bar-main">
+            <el-icon class="cta-trial-hint__icon"><SuccessFilled /></el-icon>
+            <span class="cta-trial-hint__title">试用流程</span>
+            <span v-if="!tipsExpanded" class="cta-trial-hint__summary">
+              添加策略 → 初始化 → 启动；首次接入需重启后端并硬刷新
+            </span>
+          </div>
+          <el-button
+            class="cta-trial-hint__toggle"
+            text
+            type="primary"
+            size="small"
+            @click="tipsExpanded = !tipsExpanded"
+          >
+            {{ tipsExpanded ? "收起" : "展开" }}
+          </el-button>
+        </div>
+        <div v-show="tipsExpanded" class="cta-trial-hint__body">
+          <ol class="cta-trial-hint__steps">
+            <li>管理员点击「添加策略」，选择带中文名的策略类（如「双均线策略」）</li>
+            <li>填写实例名、从已订阅合约中选择合约，并选择真实通道账户</li>
+            <li>点击名称进入详情；列表中也可「初始化」→「启动」</li>
+          </ol>
+          <p class="cta-trial-hint__note">
+            首次接入或安装依赖后需<strong>重启后端</strong>，前端<strong>硬刷新</strong>（Ctrl/Cmd+Shift+R）。
+          </p>
+        </div>
+      </div>
+
       <div class="page-toolbar cta-list-toolbar">
         <el-button type="primary" :icon="Plus" :disabled="!auth.isAdmin" @click="openAdd">添加策略</el-button>
         <el-button :disabled="!auth.isAdmin" @click="batch('init-all')">全部初始化</el-button>
@@ -133,33 +154,35 @@
 
       <el-table
         v-loading="loading"
-        :data="filteredInstances"
+        class="cta-list-table"
+        :data="pagedInstances"
         border
         size="small"
         highlight-current-row
-        style="width: 100%"
         empty-text="暂无策略实例"
       >
-        <el-table-column label="名称" min-width="160" show-overflow-tooltip>
+        <el-table-column label="名称" width="140" show-overflow-tooltip>
           <template #default="{ row }">
             <router-link class="cta-name-link" :to="detailPath(row)">
               {{ row.strategy_name }}
             </router-link>
           </template>
         </el-table-column>
-        <el-table-column label="分类" min-width="160" show-overflow-tooltip>
+        <el-table-column label="策略" min-width="168" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag size="small" type="info" effect="plain">
-              {{ strategyDisplayName(String(row.class_name || ""), String(row.display_name || "") || null) }}
-            </el-tag>
-            <span class="cta-class-code">{{ row.class_name }}</span>
+            <div class="cta-strategy-cell">
+              <span class="cta-strategy-cell__name">
+                {{ strategyDisplayName(String(row.class_name || ""), String(row.display_name || "") || null) }}
+              </span>
+              <span class="cta-strategy-cell__code">{{ row.class_name }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="vt_symbol" label="合约" width="120" show-overflow-tooltip />
-        <el-table-column label="修改时间" width="178" show-overflow-tooltip>
+        <el-table-column prop="vt_symbol" label="合约" width="118" show-overflow-tooltip />
+        <el-table-column label="修改时间" width="168" show-overflow-tooltip>
           <template #default="{ row }">{{ formatUpdatedAt(row.updated_at) }}</template>
         </el-table-column>
-        <el-table-column label="历史回测" width="100" align="center">
+        <el-table-column label="历史回测" width="88" align="center">
           <template #default="{ row }">
             <router-link
               v-if="Number(row.backtest_count || 0) > 0"
@@ -173,30 +196,72 @@
             </router-link>
           </template>
         </el-table-column>
-        <el-table-column label="账户" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">{{ gatewayLabel(row.gateway_name) }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="120" align="center">
+        <el-table-column label="账户" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag size="small" :type="row.trading ? 'success' : row.inited ? 'warning' : 'info'">
-              {{ row.trading ? "交易中" : row.inited ? "已初始化" : "未初始化" }}
+            <span class="cta-account-cell">{{ gatewayLabel(row.gateway_name) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag
+              size="small"
+              effect="light"
+              :type="statusMeta(row).type"
+              class="cta-status-tag"
+            >
+              {{ statusMeta(row).label }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="pos" label="仓位" width="70" align="center" />
-        <el-table-column label="操作" width="280" align="center" header-class-name="table-action-col" class-name="table-action-col">
+        <el-table-column prop="pos" label="仓位" width="64" align="center" />
+        <el-table-column
+          label="操作"
+          width="248"
+          align="center"
+          fixed="right"
+          header-class-name="table-action-col"
+          class-name="table-action-col"
+        >
           <template #default="{ row }">
-            <span class="table-row-actions">
+            <span class="table-row-actions cta-row-actions">
               <el-button type="primary" link @click="$router.push(detailPath(row))">详情</el-button>
               <el-button type="primary" link :disabled="!auth.isAdmin" @click="act(row, 'init')">初始化</el-button>
               <el-button type="primary" link :disabled="!auth.isAdmin || !row.inited" @click="act(row, 'start')">启动</el-button>
               <el-button link :disabled="!auth.isAdmin" @click="act(row, 'stop')">停止</el-button>
-              <el-button type="primary" link :disabled="!auth.isAdmin || row.trading" @click="openEdit(row)">编辑</el-button>
-              <el-button type="danger" link :disabled="!auth.isAdmin || row.trading" @click="remove(row)">移除</el-button>
+              <el-dropdown
+                trigger="click"
+                :disabled="!auth.isAdmin"
+                @command="(cmd: string) => onMoreCommand(cmd, row)"
+              >
+                <el-button type="primary" link :disabled="!auth.isAdmin">
+                  更多
+                  <el-icon class="cta-more-icon"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="edit" :disabled="Boolean(row.trading)">编辑</el-dropdown-item>
+                    <el-dropdown-item command="remove" divided :disabled="Boolean(row.trading)">
+                      <span class="cta-danger-text">移除</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </span>
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="page-pagination">
+        <el-pagination
+          v-model:current-page="listPage"
+          v-model:page-size="listPageSize"
+          :total="filteredInstances.length"
+          :page-sizes="[10, 20, 50]"
+          :background="true"
+          layout="total, sizes, prev, pager, next, jumper"
+          size="small"
+        />
+      </div>
 
       <el-dialog
         v-model="dialogVisible"
@@ -321,11 +386,23 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Plus, Refresh, Search } from "@element-plus/icons-vue";
+import { ArrowDown, Plus, Refresh, Search, SuccessFilled } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import { useAuthStore, useMarketStore, useStrategyStore, useTradeStore } from "@/stores";
 import { contractKey, productName, type ContractRow } from "../market/contracts";
 import { strategyDisplayName } from "./strategyNames";
+
+const TIPS_STORAGE_KEY = "mystabx.strategy.tipsExpanded";
+
+function readTipsExpanded() {
+  try {
+    const raw = localStorage.getItem(TIPS_STORAGE_KEY);
+    if (raw === null) return false;
+    return raw === "1";
+  } catch {
+    return false;
+  }
+}
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -337,6 +414,9 @@ const section = computed(() => String(route.params.section || "cta"));
 const loading = ref(false);
 const saving = ref(false);
 const listSearch = ref("");
+const listPage = ref(1);
+const listPageSize = ref(10);
+const tipsExpanded = ref(readTipsExpanded());
 const dialogVisible = ref(false);
 const editingName = ref("");
 type StrategyClassRow = {
@@ -455,9 +535,38 @@ const filteredInstances = computed(() => {
       String(row.class_name || ""),
       String(row.display_name || "") || null,
     ).toLowerCase();
-    return name.includes(q) || cls.includes(q) || display.includes(q);
+    const symbol = String(row.vt_symbol || "").toLowerCase();
+    const account = gatewayLabel(row.gateway_name).toLowerCase();
+    return (
+      name.includes(q) ||
+      cls.includes(q) ||
+      display.includes(q) ||
+      symbol.includes(q) ||
+      account.includes(q)
+    );
   });
 });
+
+const pagedInstances = computed(() => {
+  const start = (listPage.value - 1) * listPageSize.value;
+  return filteredInstances.value.slice(start, start + listPageSize.value);
+});
+
+function clampListPage() {
+  const maxPage = Math.max(1, Math.ceil(filteredInstances.value.length / listPageSize.value) || 1);
+  if (listPage.value > maxPage) listPage.value = maxPage;
+}
+
+function statusMeta(row: Record<string, unknown>) {
+  if (row.trading) return { label: "交易中", type: "success" as const };
+  if (row.inited) return { label: "已初始化", type: "warning" as const };
+  return { label: "未初始化", type: "info" as const };
+}
+
+function onMoreCommand(cmd: string, row: Record<string, unknown>) {
+  if (cmd === "edit") void openEdit(row);
+  else if (cmd === "remove") void remove(row);
+}
 
 function detailPath(row: Record<string, unknown>) {
   return `/strategy/detail/${encodeURIComponent(String(row.strategy_name || ""))}`;
@@ -766,6 +875,20 @@ watch(section, (s) => {
     void trade.refresh();
   }
   if (s === "logs" || s === "stoporders") void strategy.refresh();
+});
+
+watch(listSearch, () => {
+  listPage.value = 1;
+});
+
+watch([filteredInstances, listPageSize], clampListPage);
+
+watch(tipsExpanded, (expanded) => {
+  try {
+    localStorage.setItem(TIPS_STORAGE_KEY, expanded ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
 });
 </script>
 
