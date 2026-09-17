@@ -1,54 +1,6 @@
 <template>
   <div class="page-shell">
-    <div v-if="section === 'backtest'" class="page-list">
-      <h3 class="page-section-title">策略回测</h3>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="依赖本地 bar / RQData。无历史数据时结果为空属正常（见 docs/09 阶段 B）。"
-        style="margin-bottom: 12px"
-      />
-      <el-form class="page-query" label-width="96px" @submit.prevent>
-        <el-form-item label="策略类">
-          <el-select v-model="btForm.class_name" filterable style="width: 260px">
-            <el-option
-              v-for="c in btClasses"
-              :key="c.class_name"
-              :label="classLabel(c)"
-              :value="c.class_name"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="合约">
-          <el-input v-model="btForm.vt_symbol" placeholder="rb2501.SHFE" style="width: 200px" />
-        </el-form-item>
-        <el-form-item label="周期">
-          <el-input v-model="btForm.interval" style="width: 100px" />
-        </el-form-item>
-        <el-form-item label="开始">
-          <el-input v-model="btForm.start" placeholder="2024-01-01" style="width: 140px" />
-        </el-form-item>
-        <el-form-item label="结束">
-          <el-input v-model="btForm.end" placeholder="2024-06-01" style="width: 140px" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="btRunning" :disabled="!auth.isAdmin" @click="runBacktest">运行回测</el-button>
-          <el-button :icon="Refresh" @click="loadBacktestResult">刷新结果</el-button>
-        </el-form-item>
-      </el-form>
-      <el-table :data="strategy.backtestLogs" size="small" border max-height="180" empty-text="暂无回测日志" style="margin-bottom: 12px">
-        <el-table-column prop="msg" label="日志" min-width="320" show-overflow-tooltip />
-      </el-table>
-      <el-descriptions v-if="btStats" title="统计" :column="3" border size="small">
-        <el-descriptions-item v-for="(val, key) in btStats" :key="String(key)" :label="String(key)">
-          {{ val }}
-        </el-descriptions-item>
-      </el-descriptions>
-      <el-empty v-else description="尚无回测结果" />
-    </div>
-
-    <div v-else-if="section === 'stoporders'" class="page-list">
+    <div v-if="section === 'stoporders'" class="page-list">
       <h3 class="page-section-title">停止报单</h3>
       <el-table :data="strategy.stopOrders" border size="small" empty-text="暂无停止报单">
         <el-table-column prop="stop_orderid" label="编号" min-width="140" show-overflow-tooltip />
@@ -136,7 +88,7 @@
           <ol class="cta-trial-hint__steps">
             <li>管理员点击「添加策略」，选择带中文名的策略类（如「双均线策略」）</li>
             <li>填写实例名、从已订阅合约中选择合约，并选择真实通道账户</li>
-            <li>点击名称进入详情；列表中也可「初始化」→「启动」</li>
+            <li>点击名称或「详情」进入实例详情（回测报告 / 策略回测 IDE）；列表中也可「初始化」→「启动」</li>
           </ol>
           <p class="cta-trial-hint__note">
             首次接入或安装依赖后需<strong>重启后端</strong>，前端<strong>硬刷新</strong>（Ctrl/Cmd+Shift+R）。
@@ -189,13 +141,10 @@
         <el-table-column label="历史回测" width="88" align="center">
           <template #default="{ row }">
             <router-link
-              v-if="Number(row.backtest_count || 0) > 0"
               class="cta-name-link"
-              :to="`/strategy/backtest`"
+              :class="{ 'cta-name-link--muted': !Number(row.backtest_count || 0) }"
+              :to="`${detailPath(row)}?tab=report`"
             >
-              {{ row.backtest_count }}
-            </router-link>
-            <router-link v-else class="cta-name-link cta-name-link--muted" :to="`/strategy/backtest`">
               {{ row.backtest_count ?? 0 }}
             </router-link>
           </template>
@@ -220,7 +169,7 @@
         <el-table-column prop="pos" label="仓位" width="64" align="center" />
         <el-table-column
           label="操作"
-          width="340"
+          width="360"
           align="center"
           fixed="right"
           header-class-name="table-action-col"
@@ -228,13 +177,14 @@
         >
           <template #default="{ row }">
             <span class="table-row-actions cta-row-actions">
-              <el-button size="small" type="primary" plain @click="$router.push(detailPath(row))">
+              <el-button size="small" text type="primary" :icon="View" @click="$router.push(detailPath(row))">
                 详情
               </el-button>
               <el-button
                 size="small"
+                text
                 type="primary"
-                plain
+                :icon="RefreshRight"
                 :disabled="!auth.isAdmin"
                 @click="act(row, 'init')"
               >
@@ -242,8 +192,9 @@
               </el-button>
               <el-button
                 size="small"
+                text
                 type="success"
-                plain
+                :icon="VideoPlay"
                 :disabled="!auth.isAdmin || !row.inited"
                 @click="act(row, 'start')"
               >
@@ -251,8 +202,9 @@
               </el-button>
               <el-button
                 size="small"
+                text
                 type="danger"
-                plain
+                :icon="VideoPause"
                 :disabled="!auth.isAdmin"
                 @click="act(row, 'stop')"
               >
@@ -263,9 +215,8 @@
                 :disabled="!auth.isAdmin"
                 @command="(cmd: string) => onMoreCommand(cmd, row)"
               >
-                <el-button size="small" plain :disabled="!auth.isAdmin">
+                <el-button size="small" text :icon="MoreFilled" :disabled="!auth.isAdmin">
                   更多
-                  <el-icon class="cta-more-icon"><ArrowDown /></el-icon>
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -414,9 +365,19 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { ArrowDown, Plus, Refresh, Search, SuccessFilled } from "@element-plus/icons-vue";
+import {
+  MoreFilled,
+  Plus,
+  Refresh,
+  RefreshRight,
+  Search,
+  SuccessFilled,
+  VideoPause,
+  VideoPlay,
+  View,
+} from "@element-plus/icons-vue";
 import { http } from "@/api";
 import { useAuthStore, useMarketStore, useStrategyStore, useTradeStore } from "@/stores";
 import { contractKey, productName, type ContractRow } from "../market/contracts";
@@ -435,6 +396,7 @@ function readTipsExpanded() {
 }
 
 const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const strategy = useStrategyStore();
 const trade = useTradeStore();
@@ -465,17 +427,6 @@ const form = reactive({
   strategy_name: "",
   vt_symbol: "",
   setting: {} as Record<string, unknown>,
-});
-
-const btClasses = ref<StrategyClassRow[]>([]);
-const btRunning = ref(false);
-const btStats = ref<Record<string, unknown> | null>(null);
-const btForm = reactive({
-  class_name: "",
-  vt_symbol: "rb2501.SHFE",
-  interval: "1m",
-  start: "2024-01-01",
-  end: "2024-06-01",
 });
 
 const logFilterName = ref("");
@@ -849,47 +800,17 @@ async function batch(action: string) {
   }
 }
 
-async function loadBacktestClasses() {
-  try {
-    const { data } = await http.get("/api/backtest/strategies");
-    btClasses.value = Array.isArray(data) ? data : [];
-    if (!btForm.class_name && btClasses.value[0]) btForm.class_name = btClasses.value[0].class_name;
-  } catch {
-    btClasses.value = [];
-  }
-}
-
-async function runBacktest() {
-  btRunning.value = true;
-  try {
-    const { data } = await http.post("/api/backtest/run", { ...btForm, setting: {} });
-    ElMessage.success(data?.note || "回测已启动");
-  } catch (e: unknown) {
-    const err = e as { response?: { data?: { detail?: string } } };
-    ElMessage.error(err.response?.data?.detail || "启动失败");
-  } finally {
-    btRunning.value = false;
-  }
-}
-
-async function loadBacktestResult() {
-  try {
-    const { data } = await http.get("/api/backtest/result");
-    btStats.value = data?.statistics || null;
-    if (data?.empty) ElMessage.info(data?.note || "暂无结果");
-  } catch {
-    btStats.value = null;
-  }
-}
-
 onMounted(async () => {
+  if (section.value === "backtest") {
+    router.replace("/strategy/cta");
+    return;
+  }
   loading.value = true;
   try {
     await Promise.all([
       strategy.refresh(),
       loadClasses(),
       trade.refresh(),
-      loadBacktestClasses(),
       market.loadSubscriptions(),
       market.loadContracts(),
     ]);
@@ -899,7 +820,10 @@ onMounted(async () => {
 });
 
 watch(section, (s) => {
-  if (s === "backtest") void loadBacktestResult();
+  if (s === "backtest") {
+    router.replace("/strategy/cta");
+    return;
+  }
   if (s === "cta" || !s) {
     void strategy.refresh();
     void trade.refresh();

@@ -45,9 +45,9 @@ export const sidebars: Record<string, NavItem[]> = {
   ],
   strategy: [
     { path: "/strategy/cta", title: "策略实例", icon: Cpu },
+    { path: "/strategy/bases", title: "策略基类管理", icon: SetUp },
     { path: "/strategy/logs", title: "策略日志", icon: Notebook },
     { path: "/strategy/stoporders", title: "停止报单", icon: List },
-    { path: "/strategy/backtest", title: "策略回测", icon: TrendCharts },
   ],
   account: [
     { path: "/account/gateways", title: "账户连接", icon: Connection },
