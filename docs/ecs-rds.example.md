@@ -63,7 +63,7 @@ ssh root@47.102.208.231
 | 管理员 | 仅 ECS `.env` 的 `STABX_ADMIN_*`（勿提交；勿用 `admin123`） |
 | 安装 | `./scripts/install_linux.sh`（Web-only；**不装** PySide6 / qdarkstyle） |
 | 服务 | `scripts/mystabx-vnpy.service` → systemd；产品入口 Web，无桌面 Qt |
-| Locale | unit 内 `LANG`/`LC_ALL=zh_CN.utf8`（镜像仅 `*.utf8`，`zh_CN.UTF-8` 会导致 CTP 崩溃循环） |
+| Locale | OS 必有 `zh_CN.gb18030`（`locales-all` / `locale-gen`；vnpy_ctp 硬编码）；unit/`start.sh` 用 `LANG=zh_CN.utf8`（勿用未生成的 `zh_CN.UTF-8` / `en_US.UTF-8`） |
 | 远端路径 | `/stabx/mystabx_vnpy` |
 | 本机部署 | `./scripts/deploy_ecs.sh`（读 `.env.ecs`；rsync 后先停再启） |
 

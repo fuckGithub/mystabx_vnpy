@@ -5,8 +5,9 @@
 # Linux：不假设 Homebrew / Xcode / Mac CTP .framework；不要对 vnpy 使用 --workers。
 set -euo pipefail
 
-# CTP C++ requires a valid locale; invalid LANG crashes after connect.
-# Prefer zh_CN.utf8 on minimal Linux images (often no zh_CN.UTF-8 alias).
+# CTP: vnctptd/vnctpmd hardcode std::locale("zh_CN.GB18030") — that locale MUST
+# exist on the OS (apt install locales-all / locale-gen) or ABRT after CTP connect.
+# Process LANG may be any generated name; zh_CN.utf8 matches ECS (no zh_CN.UTF-8).
 export LANG="${LANG:-zh_CN.utf8}"
 export LC_ALL="${LC_ALL:-zh_CN.utf8}"
 export LC_CTYPE="${LC_CTYPE:-zh_CN.utf8}"

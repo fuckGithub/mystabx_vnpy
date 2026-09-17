@@ -10,8 +10,8 @@ Environment=HOME=/root
 Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=UV_LOCK_TIMEOUT=600
 Environment=STABX_PORT=18080
-# CTP native libs abort if locale name is invalid / missing.
-# ECS image only ships *.utf8 aliases (not zh_CN.UTF-8); use zh_CN.utf8.
+# vnpy_ctp hardcodes std::locale("zh_CN.GB18030") — install locales-all on host.
+# Process LANG: ECS ships *.utf8 (not zh_CN.UTF-8); zh_CN.utf8 is fine.
 Environment=LANG=zh_CN.utf8
 Environment=LC_ALL=zh_CN.utf8
 Environment=LC_CTYPE=zh_CN.utf8

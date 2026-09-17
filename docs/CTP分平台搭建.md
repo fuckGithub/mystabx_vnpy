@@ -9,7 +9,7 @@
 | 路径 | 作用 |
 |---|---|
 | [`scripts/install_macos.sh`](../scripts/install_macos.sh) | macOS：源码编译 + SimNow Mac `.framework` |
-| [`scripts/install_linux.sh`](../scripts/install_linux.sh) | Linux x86_64：源码编译 + Linux `.so` |
+| [`scripts/install_linux.sh`](../scripts/install_linux.sh) | Linux x86_64：优先 PyPI `vnpy_ctp` wheel；Web-only（不装 PySide6）；不可用时才源码 |
 | [`scripts/install_windows.ps1`](../scripts/install_windows.ps1) | Windows：优先 PyPI wheel（自带 `.dll`） |
 | [`scripts/load_simnow_ctp.sh`](../scripts/load_simnow_ctp.sh) | 仅 macOS / Linux：覆盖官方二进制并（仅 Darwin）打补丁 |
 | [`vendor/simnow-ctp/README.md`](../vendor/simnow-ctp/README.md) | 官方组件目录约定（二进制不进 git） |
@@ -25,9 +25,9 @@ CTP API 版权属上海期货信息技术有限公司；SimNow 下载页：<http
 | 项 | Windows | macOS | Linux |
 |---|---|---|---|
 | 安装脚本 | `scripts/install_windows.ps1` | `scripts/install_macos.sh` | `scripts/install_linux.sh` |
-| Python 封装 | `vnpy_ctp` **6.7.7.2** | 同左（源码编译） | 同左（源码编译） |
-| 柜台动态库 | `.dll`（PyPI wheel 自带穿透式实盘库；可选覆盖 `vendor/simnow-ctp/windows/`） | SimNow 官方 Mac **v6.7.13** `.framework` | Linux `.so`（vnpy_ctp 自带，或覆盖 `vendor/simnow-ctp/linux/`） |
-| 推荐安装方式 | `pip install vnpy_ctp`（有 Windows wheel） | 必须本机编译（无可用 Mac wheel 时） | 本机编译 |
+| Python 封装 | `vnpy_ctp` **6.7.7.2** | 同左（源码编译） | 同左（**优先 PyPI wheel**） |
+| 柜台动态库 | `.dll`（PyPI wheel 自带穿透式实盘库；可选覆盖 `vendor/simnow-ctp/windows/`） | SimNow 官方 Mac **v6.7.13** `.framework` | Linux `.so`（wheel 自带，或覆盖 `vendor/simnow-ctp/linux/`） |
+| 推荐安装方式 | `pip install vnpy_ctp`（有 Windows wheel） | 必须本机编译（无可用 Mac wheel 时） | `uv pip install vnpy_ctp`（wheel）；仅无 wheel 时回退源码 |
 | 架构 | x86_64 / AMD64（与 wheel 一致） | Apple Silicon / Intel（跟本机 framework） | **仅 x86_64** |
 | Web 启动 | 见下文「Windows 启动」；或 **WSL2** 走 Linux 路径 | `./start.sh` / `python main.py` | `./start.sh` / `python main.py` |
 | 断开原生会话 | 可 `gateway.close()` | **禁止** `exit()`/`close()`（会 segfault） | 可 `gateway.close()` |
@@ -73,8 +73,11 @@ SimNow CTP **6.7.13** 在 macOS 上对 `TdApi` / `MdApi` 调用 `exit()` / `clos
 Ubuntu / Debian 示例：
 
 ```bash
-sudo apt-get install -y python3 python3-venv python3-dev build-essential git nodejs npm
+sudo apt-get install -y python3 python3-venv python3-dev git nodejs npm locales-all
+# 仅当 PyPI 无 vnpy_ctp wheel、需回退源码时再装：build-essential
 ```
+
+**Locale（必装）**：`vnpy_ctp` 的 `vnctptd` / `vnctpmd` 会 `std::locale("zh_CN.GB18030")`。系统若未生成该 locale，进程会在 CTP 行情/交易「连接成功」后立刻 ABRT（`locale::facet::_S_create_c_locale name not valid`）。最小镜像请装 `locales-all`，或至少 `locale-gen` 出 `zh_CN.gb18030`；systemd 建议同时设 `LANG=zh_CN.utf8`。
 
 可选：系统 TA-Lib（`TA_INCLUDE_PATH` / `TA_LIBRARY_PATH`）；脚本会探测常见路径，不假设 Homebrew。
 
