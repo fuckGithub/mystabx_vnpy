@@ -45,7 +45,7 @@
 
 > 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）。启动任选其一：`python main.py`、`uv run start` 或 `./start.sh`（三者等价，均落到 `./start.sh`）。遗留 Qt 桌面仅 `python main.py --qt`。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
-规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/10](docs/10-VeighNa功能列表.md)）。
+规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/11](docs/11-分平台CTP搭建.md)）。
 
 ## 后端与引擎归属
 
@@ -160,6 +160,7 @@
 | [08-VeighNa-Elite-CTA策略参考](docs/08-VeighNa-Elite-CTA策略参考.md) | VeighNa Elite 官方文档「CTA趋势策略」本地镜像（正文 + 28 张截图） |
 | [09-CTA策略实施规划](docs/09-CTA策略实施规划.md) | CTA 策略 / 回测的实现阶段（阶段 A–E）与设计决策 |
 | [10-VeighNa功能列表](docs/10-VeighNa功能列表.md) | VeighNa 全量功能清单（核心框架 / 接口 / 应用 / 数据层 / 产品线） |
+| [11-分平台CTP搭建](docs/11-分平台CTP搭建.md) | Windows / macOS / Linux：vnpy_ctp 与 SimNow 动态库（`.dll` / `.framework` / `.so`） |
 
 ## 与桌面端的关系
 
@@ -206,9 +207,9 @@ mystabx_vnpy/
 │   ├── styles/                    #   顶栏/侧栏、内页表格、登录、工作台 CSS
 │   └── assets/brand/              #   登录与壳层用的品牌图
 ├── mystabx/                       # 遗留 Qt 桌面（python main.py --qt）
-├── docs/                          # 文档 01–10
-├── scripts/                       # 安装与冒烟
-├── vendor/simnow-ctp/             # SimNow 官方 CTP 对接说明（Mac framework / Linux .so）
+├── docs/                          # 文档 01–11
+├── scripts/                       # 安装与冒烟（含 Windows PowerShell）
+├── vendor/simnow-ctp/             # SimNow 官方 CTP 对接说明（Mac framework / Linux .so / Windows .dll）
 ├── licenses/                      # vn.py / vnpy_ctp 的 MIT 许可原文
 ├── main.py                        # 产品入口 → start.sh；加 --qt 才起桌面
 ├── start.sh                       # 构建 / 托管 SPA + uvicorn
@@ -228,9 +229,9 @@ mystabx_vnpy/
 | `features/admin/` | 用户 CRUD、通道 CRUD/加密、测试联通、操作日志抽屉。 |
 | `ui/` | 路由 / 导航（行情默认 `/market/ticks`）、布局、SSE/WS 客户端、`gatewayStatus`。 |
 | `mystabx/` | 桌面连接框、Mac 主题、官方 MainWindow；与 Web 共用 SimNow 前置逻辑。 |
-| `docs/` | `01` 架构 … `07` 免责声明全文；`08` Elite CTA参考；`09` CTA 实施规划；`10` VeighNa 功能列表。 |
-| `scripts/` | `install_macos.sh` / `install_linux.sh`、`load_simnow_ctp.sh`、`smoke_*.py`。 |
-| `vendor/simnow-ctp/` | 上期技术 CTP 二进制说明（Mac `.framework` / Linux `.so`，gitignore）。 |
+| `docs/` | `01` 架构 … `07` 免责声明全文；`08` Elite CTA参考；`09` CTA 实施规划；`10` VeighNa 功能列表；`11` 分平台 CTP 搭建。 |
+| `scripts/` | `install_macos.sh` / `install_linux.sh` / `install_windows.ps1`、`load_simnow_ctp.sh`、`smoke_*.py`。 |
+| `vendor/simnow-ctp/` | 上期技术 CTP 二进制说明（Mac `.framework` / Linux `.so` / Windows `.dll`，gitignore）。 |
 
 根目录常见文件：`start.sh` 产品启动；`pyproject.toml` / `package.json` / `vite.config.ts`；`.env` / `.env.example`（`.env` 勿提交）；`NOTICE` / `THIRD_PARTY.md`；`ch_schema.sql`（早期 CH 设计稿，运行时以 `core/clickhouse.py` 为准）。
 
@@ -247,42 +248,40 @@ python3 -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-### 2. CTP 网关（`vnpy_ctp`）
+### 2. CTP 网关（`vnpy_ctp`）— 分平台
 
-`pip install -e .` 不会装好可用的 CTP 接口，需按平台另装。
+`pip install -e .` 不会装好可用的 CTP 接口，需按平台另装。完整说明（前置、二进制差异、SimNow、校验）见 **[docs/11-分平台CTP搭建.md](docs/11-分平台CTP搭建.md)**。通道里「柜台环境」固定为「实盘」；SimNow 走生产前置。CTP 二进制版权属上期技术，不进 git（见 `vendor/simnow-ctp/README.md`）。**不要**跨平台混用 `.framework` / `.so` / `.dll`。
 
-**macOS**：Python 封装用 `vnpy_ctp` 6.7.7.2 源码编译；**柜台动态库与头文件用 SimNow 官方 Mac CTP v6.7.13**（测评/生产合并包，本项目 `Create*` 固定生产模式，连看穿式前置）。不要对 `vnpy_ctp` 使用 `pip install -e`。
+| 平台 | 动态库 | 一键安装 |
+|---|---|---|
+| **macOS** | SimNow 官方 Mac **v6.7.13** `.framework`（覆盖到源码树后编译） | `./scripts/install_macos.sh` |
+| **Linux** x86_64 | Linux `.so`（vnpy_ctp 自带，或 `vendor/simnow-ctp/linux/`） | `./scripts/install_linux.sh` |
+| **Windows** | `.dll`（优先 PyPI wheel；可选 `vendor/simnow-ctp/windows/`） | `.\scripts\install_windows.ps1` |
 
-先准备 SimNow 组件（二选一）：
-
-- 本机已有 `/Users/x/Documents/Stabx/simnow-ctp/production/api/macos/*.framework`（默认搜索路径）
-- 或从 [SimNow API 下载](https://www.simnow.com.cn/static/apiDownload.action) 解压到 `vendor/simnow-ctp/macos/`（或设 `STABX_SIMNOW_CTP`）
+**macOS**：Python 封装用 `vnpy_ctp` 6.7.7.2 源码编译；柜台库用 SimNow Mac v6.7.13（测评/生产合并包，本项目 `Create*` 固定生产模式）。不要对 `vnpy_ctp` 使用 `pip install -e`。先准备 framework（`vendor/simnow-ctp/macos/` 或 `STABX_SIMNOW_CTP`，脚本也会搜本机 `/Users/x/Documents/Stabx/simnow-ctp/production/api/macos`），需本机 uv、Homebrew ta-lib：
 
 ```bash
-# 需先有 .venv，以及本机 uv、Homebrew ta-lib（脚本读 /opt/homebrew）
 ./scripts/install_macos.sh
 ```
 
-该脚本会 `uv pip install -e .`，clone `vnpy_ctp` 到 `.deps/vnpy_ctp`，用 `scripts/load_simnow_ctp.sh` 覆盖 6.7.13 framework/头文件，再 `uv pip install .deps/vnpy_ctp`。CTP 二进制版权属上期技术，不进 git（见 `vendor/simnow-ctp/README.md`）。
-
-通道里「柜台环境」固定为「实盘」；SimNow 走生产前置。
-
 **已知限制（macOS）**：SimNow CTP 6.7.13 上对 Md/Td 调用 `exit()`/`close()` 会导致进程崩溃，因此 Web 在 macOS 上「断开」只清本地状态并禁止自动重连，不拆原生会话；真正释放需重启进程。详见上文「通道与连接」。
 
-**Linux**（Ubuntu/Debian 等 x86_64 服务器）：Python 封装同样用 `vnpy_ctp` 6.7.7.2 源码编译；**柜台动态库用 Linux `.so`**（vnpy_ctp 自带，或覆盖 `vendor/simnow-ctp/linux/`）。不要把 Mac `.framework` 或本机 Mac 编译产物拷到服务器，也不要跑 `install_macos.sh`。
-
-系统依赖示例（缺了脚本会报错并提示）：
+**Linux**（Ubuntu/Debian 等 x86_64）：同样源码编译 `vnpy_ctp` 6.7.7.2；用 Linux `.so`，不要跑 `install_macos.sh`、不要拷 Mac framework。系统依赖示例：
 
 ```bash
 sudo apt-get install -y python3 python3-venv python3-dev build-essential git nodejs npm
-```
-
-```bash
 python3 -m venv .venv
 ./scripts/install_linux.sh
 ```
 
-该脚本会创建/使用 `.venv`，`pip`/`uv pip install -e .`，clone `vnpy_ctp`，用 `scripts/load_simnow_ctp.sh` 覆盖 Linux `.so`（若有），再安装 `vnpy_ctp`。**不会**打 Darwin 补丁。可选：从 [SimNow API 下载](https://www.simnow.com.cn/static/apiDownload.action) 解压 Linux 包到 `vendor/simnow-ctp/linux/`（或设 `STABX_SIMNOW_CTP`）。官方 CTP Linux 库仅支持 **x86_64**。
+**Windows**：优先 PyPI `vnpy_ctp==6.7.7.2`（wheel 自带穿透式 `.dll`）。仓库根目录 PowerShell：
+
+```powershell
+python -m venv .venv
+.\scripts\install_windows.ps1
+```
+
+原生 Windows 的 `./start.sh` / `uv run start` 不可用（面向 Linux/macOS）；启动方式见 [docs/11](docs/11-分平台CTP搭建.md)（`uvicorn` 或 **WSL2** 走 Linux 脚本）。可选把 Windows dll 放到 `vendor/simnow-ctp/windows/` 覆盖。
 
 ### 3. 前端依赖
 
@@ -343,10 +342,12 @@ uv run start --dev
 | 场景 | CPU / 内存 / 磁盘 | 系统 | 说明 |
 |---|---|---|---|
 | Mac 本机开发 / 个人 SimNow | 4 核、8 GB 起（16 GB 更稳）、约 20 GB 空闲 | macOS | `.venv`、`node_modules`、编译 `vnpy_ctp` 都占盘；走 `scripts/install_macos.sh`；注意上文 Mac 断开限制 |
+| Windows 本机 / 个人 SimNow | 4 核、8 GB 起、约 20 GB 空闲 | Windows 10/11 x64 | `scripts/install_windows.ps1`（PyPI `.dll`）；或 **WSL2** 走 Linux 脚本；启动见 [docs/11](docs/11-分平台CTP搭建.md) |
 | 个人或 1～2 人 VPS（SimNow 或少量实盘通道） | **2 vCPU / 4 GB / 40 GB SSD** | Linux x86_64，如 Ubuntu 22.04+ | 够跑 Web + 一两个 CTP 连接；出网能访问柜台前置；走 `scripts/install_linux.sh` 再 `./start.sh` |
 | 小团队同时看盘、下单 | **4 vCPU / 8 GB / 80 GB SSD** | 同上 | 仍是单进程，加用户不会水平扩 uvicorn worker |
 
 - **本机 Mac**：适合开发与个人模拟；生产 API / 原生 teardown 限制见上文。
+- **本机 Windows**：CTP 用 `install_windows.ps1` 或 WSL2；不要混用 Mac/Linux 动态库。
 - **Linux 服务器**：适合 7×24 挂着给浏览器用。先 `./scripts/install_linux.sh`，再 `./start.sh`（默认生产：构建 + 单进程 uvicorn）。必须用 Linux 版 `vnpy_ctp`。不要用 `uvicorn --workers`。
 - 磁盘主要给系统、`.venv`、`node_modules`、`dist/`、`.vntrader`（SQLite `stabx_web.db` / 密钥）。ClickHouse 可选：本机 `127.0.0.1:8123` 存近 10 日 Tick；没起来时服务仍可跑，历史交易日分时不可查。
 - **ClickHouse 开机启动**（HTTP `8123`）：Mac Homebrew 用 `brew services start clickhouse`（或 `clickhouse-server`）；Linux 用 `sudo systemctl enable --now clickhouse-server`。本机官方单二进制也可用 LaunchAgent：`launchctl enable gui/$(id -u)/com.stabx.clickhouse`（`RunAtLoad` + `KeepAlive`）。Docker 部署则 `docker update --restart unless-stopped <容器>`。

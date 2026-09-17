@@ -13,7 +13,8 @@ ARCH="$(uname -m)"
 case "${OS}" in
   Linux|Darwin) ;;
   *)
-    echo "不支持的系统：${OS}（仅 Linux / macOS）" >&2
+    echo "不支持的系统：${OS}（./start.sh 仅 Linux / macOS）。" >&2
+    echo "Windows：用 WSL2 + ./scripts/install_linux.sh，或见 docs/11-分平台CTP搭建.md（install_windows.ps1 + uvicorn）。" >&2
     exit 1
     ;;
 esac
