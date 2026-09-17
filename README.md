@@ -11,27 +11,26 @@
 
 ## 社区与交流
 
-交流 Mystabx / vnpy Web 交易台落地实践，请按以下顺序加入：
-
-1. **先加入知识星球**（扫码领新人券注册）
-2. **入星球后再申请加入微信沟通群**（非公开自由加群）
+交流 Mystabx / vnpy Web 交易台落地实践，请按顺序加入：先知识星球，再申请微信沟通群。
 
 <p align="center">
-  <img src="docs/images/mystabx-avatar.png" alt="MyStabx 项目头像" width="120" />
+  <img src="docs/images/mystabx-brand-avatar.jpg" alt="MyStabx 项目头像" width="96" />
 </p>
 
 **① 知识星球**「MyStabx 期货量化交易平台」
 
 提示：长按或扫描下方优惠券二维码领取新人立减券（¥88，有效至 2026/12/31；**限量 100 张，先到先得**），完成注册后即可在星球内交流实践与联调经验。
 
-![MyStabx 知识星球新人优惠券](docs/images/mystabx-zsxq-coupon.png)
+<p align="center">
+  <img src="docs/images/mystabx-zsxq-coupon.png" alt="MyStabx 知识星球新人优惠券" width="360" />
+</p>
 
 **② 微信沟通群**（入星球后申请加入）
 
 提示：沟通群面向星球成员。请先完成上一步加入星球，再在星球内申请入群；下方二维码约 7 天有效（当前至 2026/9/24 前），过期后会刷新，请以本页最新图片为准。
 
 <p align="center">
-  <img src="docs/images/mystabx-wechat-group-qr.jpg" alt="微信群二维码：MyStabx期货量化交易平台" width="360" />
+  <img src="docs/images/mystabx-wechat-invite-qr.jpg" alt="微信群二维码：MyStabx期货量化交易平台" width="400" />
 </p>
 
 ## 支持作者
