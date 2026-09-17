@@ -7,7 +7,7 @@
 | 平台 | 地址 | 说明 |
 |---|---|---|
 | Gitee | https://gitee.com/xjc621105/mystabx_vnpy | 主远程（`origin` fetch） |
-| GitHub | https://github.com/fuckGithub/mystabx_vnpy | 私有镜像 |
+| GitHub | https://github.com/fuckGithub/mystabx_vnpy | 公开开源镜像（MIT） |
 
 本机 `origin` 配置了 **双 push URL**（Gitee + GitHub）：`git push origin` 会同时推送到两个平台。另有独立 remote 名 `github` 指向同一 GitHub 仓库。
 
