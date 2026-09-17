@@ -89,6 +89,8 @@ class StrategyInstance(Base):
     strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     vt_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
     params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Per-instance IDE override; when set, run/backtest compile this instead of class default
+    source_code: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="stopped")
     created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
@@ -278,6 +280,7 @@ def init_db() -> None:
             conn.execute(text("SELECT 1"))
         SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
         Base.metadata.create_all(_engine)
+        _ensure_strategy_instance_source_column()
         _ready = True
         _last_error = None
         logger.info("MySQL ready %s", describe())
@@ -290,6 +293,22 @@ def init_db() -> None:
         logger.exception("MySQL init failed %s", describe())
         raise
 
+
+def _ensure_strategy_instance_source_column() -> None:
+    """Add strategy_instances.source_code on existing DBs (create_all skips new cols)."""
+    if _engine is None:
+        return
+    try:
+        with _engine.connect() as conn:
+            rows = conn.execute(
+                text("SHOW COLUMNS FROM strategy_instances LIKE 'source_code'")
+            ).fetchall()
+            if not rows:
+                conn.execute(text("ALTER TABLE strategy_instances ADD COLUMN source_code TEXT NULL"))
+                conn.commit()
+                logger.info("added strategy_instances.source_code")
+    except Exception:
+        logger.exception("ensure strategy_instances.source_code failed")
 
 def get_session() -> SASession:
     if SessionLocal is None or not _ready:

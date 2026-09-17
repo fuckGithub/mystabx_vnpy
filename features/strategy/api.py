@@ -15,7 +15,7 @@ from core.deps import current_user, require_admin
 from core.runtime import runtime
 from core.serialize import cta_stop_order_payload, cta_strategy_payload
 from core.strategy_names import strategy_display_name
-from core import strategy_store
+from core import strategy_loader, strategy_store
 from mystabx.paths import PROJECT_ROOT
 
 router = APIRouter(prefix="/api/cta", tags=["cta"])
@@ -154,10 +154,38 @@ class StrategySourceBody(BaseModel):
     reload: bool = True
 
 
+def _ensure_from_db(class_name: str, *, strategy_name: str | None = None) -> None:
+    """Compile MySQL source into CTA/backtester engines before init/start."""
+    try:
+        strategy_loader.ensure_class_loaded_from_db(class_name, strategy_name=strategy_name)
+        if strategy_name:
+            strategy_loader.rebind_live_instance(strategy_name, class_name)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"从数据库加载策略失败: {exc}") from exc
+
+
 @router.get("/strategies")
 def list_strategy_classes(user: User = Depends(current_user)) -> list[dict]:
     _ = user
     return _strategy_class_rows(_cta())
+
+
+@router.get("/strategies/template")
+def get_strategy_template(
+    class_name: str = "UserStrategy",
+    user: User = Depends(current_user),
+) -> dict:
+    """Default IDE template inheriting EliteCtaTemplate."""
+    _ = user
+    name = (class_name or "UserStrategy").strip() or "UserStrategy"
+    return {
+        "class_name": name,
+        "content": strategy_loader.default_strategy_source(name),
+        "editable": True,
+        "store": "default",
+        "is_default": True,
+        **strategy_loader.parent_class_info(),
+    }
 
 
 @router.post("/strategies/reload")
@@ -174,44 +202,12 @@ def reload_strategy_classes(user: User = Depends(require_admin)) -> list[dict]:
 
 @router.get("/strategies/{class_name}/source")
 def get_strategy_source(class_name: str, user: User = Depends(current_user)) -> dict:
+    """Load source: MySQL class row → strategies/*.py → default EliteCtaTemplate template."""
     _ = user
-    engine = _cta()
-    path = _resolve_source_path(engine, class_name, for_write=False)
-    editable = str(path.resolve()).startswith(str(_STRATEGIES_DIR)) if path else False
-    # Prefer MySQL (authoritative); fall back to strategies/*.py for CTA load path.
-    stored = strategy_store.get_strategy_source(class_name)
-    if stored and stored.get("content") is not None:
-        return {
-            "class_name": class_name,
-            "file_path": stored.get("file_path") or (str(path.relative_to(PROJECT_ROOT.resolve())) if editable else str(path)),
-            "editable": bool(stored.get("editable", editable)),
-            "updated_at": stored.get("updated_at") or _mtime_iso(path),
-            "content": stored["content"],
-            "store": "mysql",
-        }
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail=f"源文件不存在: {path}")
     try:
-        content = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"读取失败: {exc}") from exc
-    rel = str(path.relative_to(PROJECT_ROOT.resolve())) if editable else str(path)
-    if editable:
-        strategy_store.sync_class_from_file(
-            class_name=class_name,
-            path=path,
-            module=getattr(getattr(engine, "classes", {}).get(class_name), "__module__", "") or "",
-            editable=True,
-            project_root=PROJECT_ROOT,
-        )
-    return {
-        "class_name": class_name,
-        "file_path": rel,
-        "editable": editable,
-        "updated_at": _mtime_iso(path),
-        "content": content,
-        "store": "file",
-    }
+        return strategy_loader.resolve_source_for_class(class_name)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.put("/strategies/{class_name}/source")
@@ -220,37 +216,93 @@ def put_strategy_source(
     body: StrategySourceBody,
     user: User = Depends(require_admin),
 ) -> dict:
+    """Save source to MySQL (authoritative) + materialize file + hot-compile into engines."""
     _ = user
-    engine = _cta()
-    path = _resolve_source_path(engine, class_name, for_write=True)
-    _STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
-    rel = str(path.relative_to(PROJECT_ROOT.resolve()))
     try:
-        path.write_text(body.content, encoding="utf-8")
+        meta = strategy_loader.save_class_source(class_name, body.content)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"写入失败: {exc}") from exc
-    strategy_store.save_strategy_source(
-        class_name=class_name,
-        content=body.content,
-        file_name=path.name,
-        file_path=rel,
-        module=getattr(getattr(engine, "classes", {}).get(class_name), "__module__", "") or "",
-        editable=True,
-    )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"编译失败: {exc}") from exc
+
     reloaded = False
     if body.reload:
         try:
-            engine.load_strategy_class()
+            strategy_loader.ensure_class_loaded_from_db(class_name)
             reloaded = True
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"保存成功但重新加载失败: {exc}") from exc
+            raise HTTPException(status_code=500, detail=f"保存成功但热加载失败: {exc}") from exc
     return {
         "ok": True,
         "class_name": class_name,
-        "file_path": rel,
-        "updated_at": _mtime_iso(path),
+        "file_path": meta.get("file_path"),
+        "updated_at": meta.get("updated_at"),
         "reloaded": reloaded,
         "store": "mysql",
+    }
+
+
+@router.get("/instances/{name}/source")
+def get_instance_source(name: str, user: User = Depends(current_user)) -> dict:
+    """Effective source for an instance (instance override → class → default template)."""
+    _ = user
+    engine = _cta()
+    strategy = engine.strategies.get(name)
+    if strategy is None:
+        raise HTTPException(status_code=404, detail="策略实例不存在")
+    class_name = strategy.__class__.__name__
+    return strategy_loader.resolve_source_for_instance(name, class_name)
+
+
+@router.put("/instances/{name}/source")
+def put_instance_source(
+    name: str,
+    body: StrategySourceBody,
+    user: User = Depends(require_admin),
+) -> dict:
+    """Save instance IDE source to MySQL and sync class source for backtest/init."""
+    _ = user
+    engine = _cta()
+    strategy = engine.strategies.get(name)
+    if strategy is None:
+        raise HTTPException(status_code=404, detail="策略实例不存在")
+    class_name = strategy.__class__.__name__
+    # Ensure meta row exists
+    strategy_store.upsert_instance_meta(
+        strategy_name=name,
+        strategy_class=class_name,
+        vt_symbol=getattr(strategy, "vt_symbol", ""),
+        params=dict(strategy.get_parameters()) if hasattr(strategy, "get_parameters") else {},
+        status="trading" if getattr(strategy, "trading", False) else "stopped",
+        user_id=user.id,
+    )
+    try:
+        meta = strategy_loader.save_instance_source(name, class_name, body.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"保存失败: {exc}") from exc
+
+    reloaded = False
+    if body.reload:
+        try:
+            _ensure_from_db(class_name, strategy_name=name)
+            reloaded = True
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"保存成功但热加载失败: {exc}") from exc
+    return {
+        "ok": True,
+        "strategy_name": name,
+        "class_name": class_name,
+        "updated_at": meta.get("updated_at"),
+        "reloaded": reloaded,
+        "store": "mysql_instance",
     }
 
 
@@ -277,6 +329,11 @@ def add_instance(body: InstanceCreate, user: User = Depends(require_admin)) -> d
     engine = _cta()
     if body.strategy_name in engine.strategies:
         raise HTTPException(status_code=400, detail="策略实例名称已存在")
+    # Prefer DB source before requiring class to already be in memory
+    try:
+        strategy_loader.ensure_class_loaded_from_db(body.class_name)
+    except Exception:
+        pass
     if body.class_name not in engine.classes:
         raise HTTPException(status_code=400, detail=f"找不到策略类 {body.class_name}")
     engine.add_strategy(body.class_name, body.strategy_name, body.vt_symbol, body.setting)
@@ -367,14 +424,20 @@ def remove_instance(name: str, user: User = Depends(require_admin)) -> dict:
 @router.post("/instances/init-all")
 def init_all(user: User = Depends(require_admin)) -> dict:
     _ = user
-    _cta().init_all_strategies()
+    engine = _cta()
+    for s_name, strategy in list(engine.strategies.items()):
+        _ensure_from_db(strategy.__class__.__name__, strategy_name=s_name)
+    engine.init_all_strategies()
     return {"ok": True}
 
 
 @router.post("/instances/start-all")
 def start_all(user: User = Depends(require_admin)) -> dict:
     _ = user
-    _cta().start_all_strategies()
+    engine = _cta()
+    for s_name, strategy in list(engine.strategies.items()):
+        _ensure_from_db(strategy.__class__.__name__, strategy_name=s_name)
+    engine.start_all_strategies()
     return {"ok": True}
 
 
@@ -391,6 +454,8 @@ def init_instance(name: str, user: User = Depends(require_admin)) -> dict:
     engine = _cta()
     if name not in engine.strategies:
         raise HTTPException(status_code=404, detail="策略实例不存在")
+    class_name = engine.strategies[name].__class__.__name__
+    _ensure_from_db(class_name, strategy_name=name)
     engine.init_strategy(name)
     return {"ok": True}
 
@@ -401,6 +466,8 @@ def start_instance(name: str, user: User = Depends(require_admin)) -> dict:
     engine = _cta()
     if name not in engine.strategies:
         raise HTTPException(status_code=404, detail="策略实例不存在")
+    class_name = engine.strategies[name].__class__.__name__
+    _ensure_from_db(class_name, strategy_name=name)
     engine.start_strategy(name)
     return {"ok": True}
 

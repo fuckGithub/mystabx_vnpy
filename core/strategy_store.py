@@ -173,6 +173,52 @@ def materialize_source_to_file(class_name: str, path: Path) -> bool:
         return False
 
 
+def get_instance_source(strategy_name: str) -> dict[str, Any] | None:
+    if not available() or not strategy_name.strip():
+        return None
+    db = get_session()
+    try:
+        row = db.scalar(
+            select(StrategyInstance).where(StrategyInstance.strategy_name == strategy_name.strip())
+        )
+        if row is None or row.source_code is None:
+            return None
+        return {
+            "strategy_name": row.strategy_name,
+            "strategy_class": row.strategy_class,
+            "content": row.source_code,
+            "updated_at": row.updated_at,
+            "file_path": "",
+        }
+    finally:
+        db.close()
+
+
+def save_instance_source(strategy_name: str, content: str) -> dict[str, Any]:
+    if not available() or not strategy_name.strip():
+        return {"strategy_name": strategy_name, "store": "none"}
+    name = strategy_name.strip()
+    db = get_session()
+    try:
+        row = db.scalar(select(StrategyInstance).where(StrategyInstance.strategy_name == name))
+        if row is None:
+            raise ValueError(f"策略实例不存在: {name}")
+        row.source_code = content
+        row.updated_at = _now()
+        db.commit()
+        return {
+            "strategy_name": name,
+            "strategy_class": row.strategy_class,
+            "updated_at": row.updated_at,
+            "store": "mysql",
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def upsert_instance_meta(
     *,
     strategy_name: str,

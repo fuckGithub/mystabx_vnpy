@@ -35,6 +35,7 @@ class BacktestRunBody(BaseModel):
     pricetick: float = 1.0
     capital: float = 1_000_000
     setting: dict = Field(default_factory=dict)
+    strategy_name: str | None = None  # optional: load instance MySQL override
 
 
 def _parse_dt(value: str) -> datetime:
@@ -71,9 +72,21 @@ def list_backtest_strategies(user: User = Depends(current_user)) -> list[dict]:
 @router.post("/run")
 def run_backtest(body: BacktestRunBody, user: User = Depends(require_admin)) -> dict:
     _ = user
+    from core import strategy_loader
+
     engine = _bt()
     if getattr(engine, "thread", None) and engine.thread.is_alive():
         raise HTTPException(status_code=409, detail="回测正在运行")
+    # Always compile latest MySQL source before backtest
+    try:
+        strategy_loader.ensure_class_loaded_from_db(
+            body.class_name,
+            strategy_name=(body.strategy_name or None),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"从数据库加载策略失败: {exc}") from exc
+    if body.class_name not in getattr(engine, "classes", {}):
+        raise HTTPException(status_code=400, detail=f"找不到策略类 {body.class_name}")
     ok = engine.start_backtesting(
         body.class_name,
         body.vt_symbol,
