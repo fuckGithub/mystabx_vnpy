@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
+import re
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -13,12 +17,64 @@ from core.strategy_names import strategy_display_name
 
 router = APIRouter(prefix="/api/cta", tags=["cta"])
 
+_SKIP_CLASSES = {"EliteCtaTemplate", "CtaTemplate", "TargetPosTemplate"}
+
 
 def _cta():
     engine = runtime.cta
     if engine is None:
         raise HTTPException(status_code=503, detail="CTA 引擎未加载（缺少 vnpy_ctastrategy）")
     return engine
+
+
+def _camel_to_snake(name: str) -> str:
+    s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+
+def _strategy_file_meta(engine, class_name: str) -> dict:
+    """Resolve module / source file for a loaded CtaTemplate class (VeighNa-style)."""
+    cls = getattr(engine, "classes", {}).get(class_name)
+    module = getattr(cls, "__module__", "") or "" if cls is not None else ""
+    file_name = ""
+    file_path = ""
+    if cls is not None:
+        try:
+            path = Path(inspect.getfile(cls)).resolve()
+            file_name = path.name
+            cwd = Path.cwd().resolve()
+            try:
+                file_path = str(path.relative_to(cwd))
+            except ValueError:
+                file_path = str(path)
+        except (TypeError, OSError):
+            pass
+    if not file_name and class_name:
+        file_name = f"{_camel_to_snake(class_name)}.py"
+        if not file_path:
+            file_path = f"strategies/{file_name}"
+    return {"module": module, "file_name": file_name, "file_path": file_path}
+
+
+def _strategy_class_rows(engine) -> list[dict]:
+    rows = []
+    for name in engine.get_all_strategy_class_names():
+        if name in _SKIP_CLASSES:
+            continue
+        try:
+            params = engine.get_strategy_class_parameters(name)
+        except Exception:
+            params = {}
+        meta = _strategy_file_meta(engine, name)
+        rows.append(
+            {
+                "class_name": name,
+                "display_name": strategy_display_name(name),
+                "parameters": params,
+                **meta,
+            }
+        )
+    return rows
 
 
 class InstanceCreate(BaseModel):
@@ -35,25 +91,19 @@ class InstanceEdit(BaseModel):
 @router.get("/strategies")
 def list_strategy_classes(user: User = Depends(current_user)) -> list[dict]:
     _ = user
-    engine = _cta()
-    skip = {"EliteCtaTemplate", "CtaTemplate", "TargetPosTemplate"}
-    rows = []
-    for name in engine.get_all_strategy_class_names():
-        if name in skip:
-            continue
-        try:
-            params = engine.get_strategy_class_parameters(name)
-        except Exception:
-            params = {}
-        rows.append(
-            {
-                "class_name": name,
-                "display_name": strategy_display_name(name),
-                "parameters": params,
-            }
-        )
-    return rows
+    return _strategy_class_rows(_cta())
 
+
+@router.post("/strategies/reload")
+def reload_strategy_classes(user: User = Depends(require_admin)) -> list[dict]:
+    """Re-scan strategies/ (+ vnpy built-ins) via CtaEngine.load_strategy_class()."""
+    _ = user
+    engine = _cta()
+    try:
+        engine.load_strategy_class()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"重新加载策略类失败: {exc}") from exc
+    return _strategy_class_rows(engine)
 
 @router.get("/instances")
 def list_instances(user: User = Depends(current_user)) -> list[dict]:

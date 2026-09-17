@@ -182,25 +182,42 @@
       >
         <el-form label-width="110px">
           <el-form-item v-if="!editingName" label="策略类">
-            <el-select
-              v-model="form.class_name"
-              filterable
-              allow-create
-              default-first-option
-              clearable
-              placeholder="选择或输入策略类名"
-              style="width: 100%"
-              @change="onClassChange"
-            >
-              <el-option
-                v-for="c in classes"
-                :key="c.class_name"
-                :label="classLabel(c)"
-                :value="c.class_name"
-              />
-            </el-select>
+            <div class="cta-class-row">
+              <el-select
+                v-model="form.class_name"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                placeholder="选择或输入策略类名（驼峰，如 DoubleMaStrategy）"
+                class="cta-class-select"
+                @change="onClassChange"
+              >
+                <el-option
+                  v-for="c in classes"
+                  :key="c.class_name"
+                  :label="classOptionLabel(c)"
+                  :value="c.class_name"
+                >
+                  <span>{{ classLabel(c) }}</span>
+                  <span class="cta-class-option-meta">{{ c.class_name }}</span>
+                </el-option>
+              </el-select>
+              <el-button
+                :icon="Refresh"
+                :loading="reloadingClasses"
+                :disabled="!auth.isAdmin"
+                title="重新扫描 strategies/ 并热加载"
+                @click="reloadClasses"
+              >
+                刷新类
+              </el-button>
+            </div>
             <p class="page-form-hint">
-              选项来自 CTA 引擎已加载的策略类（`strategies/` 目录扫描，同 VeighNa）；可筛选，也可直接输入类名。
+              选项来自 CTA 引擎已加载的策略类（同 VeighNa：类名驼峰，文件下划线）。可筛选，也可直接输入类名。
+              <template v-if="selectedClassFilePath">
+                · 源码：<code>{{ selectedClassFilePath }}</code>
+              </template>
             </p>
           </el-form-item>
           <el-form-item v-if="!editingName" label="实例名称">
@@ -298,8 +315,12 @@ type StrategyClassRow = {
   class_name: string;
   display_name?: string;
   parameters: Record<string, unknown>;
+  file_name?: string;
+  file_path?: string;
+  module?: string;
 };
 const classes = ref<StrategyClassRow[]>([]);
+const reloadingClasses = ref(false);
 const paramSchema = ref<Record<string, unknown>>({});
 const form = reactive({
   class_name: "",
@@ -400,6 +421,20 @@ function classLabel(row: StrategyClassRow) {
   return strategyDisplayName(row.class_name, row.display_name);
 }
 
+function classOptionLabel(row: StrategyClassRow) {
+  const display = classLabel(row);
+  return display === row.class_name ? row.class_name : `${display}（${row.class_name}）`;
+}
+
+const selectedClassFilePath = computed(() => {
+  const name = String(form.class_name || "").trim();
+  if (!name) return "";
+  const found = classes.value.find((c) => c.class_name === name);
+  if (found?.file_path) return found.file_path;
+  if (found?.file_name) return `strategies/${found.file_name}`;
+  return "";
+});
+
 function formatChannelLabel(g: Record<string, unknown>) {
   const gatewayName = String(g.gateway_name || "").trim();
   const accountName = String(g.account_name || "").trim();
@@ -470,6 +505,23 @@ async function loadClasses() {
     classes.value = Array.isArray(data) ? data : [];
   } catch {
     classes.value = [];
+  }
+}
+
+async function reloadClasses() {
+  if (!auth.isAdmin) return;
+  reloadingClasses.value = true;
+  try {
+    const { data } = await http.post("/api/cta/strategies/reload");
+    classes.value = Array.isArray(data) ? data : [];
+    ElMessage.success(`已重新加载 ${classes.value.length} 个策略类`);
+    if (form.class_name) onClassChange(form.class_name);
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { detail?: string } } };
+    ElMessage.error(err.response?.data?.detail || "重新加载失败");
+    await loadClasses();
+  } finally {
+    reloadingClasses.value = false;
   }
 }
 
@@ -667,5 +719,27 @@ watch(section, (s) => {
   font-size: 12px;
   line-height: 1.5;
   color: var(--el-text-color-secondary);
+}
+.cta-class-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+.cta-class-select {
+  flex: 1;
+  min-width: 0;
+}
+.cta-class-option-meta {
+  float: right;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-left: 12px;
+}
+.page-form-hint code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--el-fill-color);
+  font-size: 12px;
 }
 </style>
