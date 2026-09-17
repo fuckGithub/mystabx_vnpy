@@ -493,7 +493,7 @@ const logTotal = ref(0);
 const logKeyword = ref("");
 const logApplied = ref("");
 const logPage = ref(1);
-const logPageSize = ref(10);
+const logPageSize = ref(50);
 
 const logTitle = computed(() => {
   const row = logAccount.value;
