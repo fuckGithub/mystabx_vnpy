@@ -17,6 +17,7 @@ from core.serialize import cta_stop_order_payload, cta_strategy_payload
 from core.strategy_names import strategy_display_name
 from core import strategy_loader, strategy_store
 from core import base_class_store
+from core import model_store
 from mystabx.paths import PROJECT_ROOT
 
 router = APIRouter(prefix="/api/cta", tags=["cta"])
@@ -102,14 +103,22 @@ def _instance_row(engine, strategy) -> dict:
     row = cta_strategy_payload(strategy)
     class_name = str(row.get("class_name") or "")
     meta = _strategy_file_meta(engine, class_name) if class_name else {}
+    name = str(row.get("strategy_name") or getattr(strategy, "strategy_name", "") or "")
+    binding = model_store.instance_binding(name) if name else {}
+    backtests = model_store.list_backtest_runs(name) if name else []
     row.update(
         {
             "file_name": meta.get("file_name") or "",
             "file_path": meta.get("file_path") or "",
             "updated_at": meta.get("updated_at"),
             "editable": bool(meta.get("editable")),
-            # 尚无按实例持久化回测历史；有全局回测结果时前端可链到回测页
-            "backtest_count": 0,
+            "backtest_count": len(backtests),
+            "model_id": binding.get("model_id"),
+            "model_version_id": binding.get("model_version_id"),
+            "current_version_id": binding.get("current_version_id"),
+            "model": binding.get("model"),
+            "model_version": binding.get("model_version"),
+            "current_version": binding.get("current_version"),
         }
     )
     return row
@@ -136,23 +145,74 @@ def _resolve_source_path(engine, class_name: str, *, for_write: bool) -> Path:
 
 
 class InstanceCreate(BaseModel):
-    class_name: str
+    class_name: str = ""
     strategy_name: str
     vt_symbol: str
     setting: dict = Field(default_factory=dict)
+    model_id: int | None = None
+    model_version_id: int | None = None
 
 
 class InstanceEdit(BaseModel):
     setting: dict = Field(default_factory=dict)
+    model_id: int | None = None
+    model_version_id: int | None = None
+    create_version: bool = True
+    note: str = ""
 
 
 class InstanceRename(BaseModel):
     strategy_name: str
 
 
+class InstancePinBody(BaseModel):
+    model_id: int | None = None
+    model_version_id: int | None = None
+
+
+class InstanceVersionBody(BaseModel):
+    runtime_params: dict | None = None
+    source_code: str | None = None
+    model_id: int | None = None
+    model_version_id: int | None = None
+    note: str = ""
+
+
 class StrategySourceBody(BaseModel):
     content: str
     reload: bool = True
+    create_version: bool = True
+    model_version_id: int | None = None
+    note: str = ""
+
+
+class ModelCreateBody(BaseModel):
+    code: str
+    name: str = ""
+    description: str = ""
+    class_name: str
+    parent_template: str = "EliteCtaTemplate"
+    default_params: dict = Field(default_factory=dict)
+    template_source: str | None = None
+    sort_order: int = 100
+    enabled: bool = True
+    note: str = "初始版本"
+
+
+class ModelMetaBody(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    class_name: str | None = None
+    parent_template: str | None = None
+    enabled: bool | None = None
+    sort_order: int | None = None
+
+
+class ModelVersionBody(BaseModel):
+    params: dict | None = None
+    template_source: str | None = None
+    label: str = ""
+    note: str = ""
 
 
 def _ensure_from_db(class_name: str, *, strategy_name: str | None = None) -> None:
@@ -163,6 +223,25 @@ def _ensure_from_db(class_name: str, *, strategy_name: str | None = None) -> Non
             strategy_loader.rebind_live_instance(strategy_name, class_name)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"从数据库加载策略失败: {exc}") from exc
+
+
+def _apply_pinned_params(name: str, strategy) -> dict:
+    """Apply pinned model-version params onto a live strategy object when possible."""
+    setting = model_store.resolve_pinned_setting(strategy_name=name)
+    if not setting:
+        return setting
+    try:
+        engine = _cta()
+        engine.edit_strategy(name, setting)
+    except Exception:
+        # Best-effort: set attributes directly if edit_strategy rejects (e.g. trading)
+        for key, value in setting.items():
+            if hasattr(strategy, key):
+                try:
+                    setattr(strategy, key, value)
+                except Exception:
+                    pass
+    return setting
 
 
 @router.get("/strategies")
@@ -281,6 +360,109 @@ def remove_base_class(class_name: str, user: User = Depends(require_admin)) -> d
     return {"ok": True}
 
 
+@router.get("/models")
+def list_models(enabled_only: bool = False, user: User = Depends(current_user)) -> list[dict]:
+    _ = user
+    return model_store.list_models(enabled_only=enabled_only)
+
+
+@router.post("/models")
+def create_model(body: ModelCreateBody, user: User = Depends(require_admin)) -> dict:
+    _ = user
+    try:
+        return model_store.create_model(
+            code=body.code,
+            name=body.name,
+            description=body.description,
+            class_name=body.class_name,
+            parent_template=body.parent_template,
+            default_params=body.default_params,
+            template_source=body.template_source,
+            sort_order=body.sort_order,
+            enabled=body.enabled,
+            note=body.note,
+            user_id=user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/models/{model_id}")
+def get_model(model_id: int, user: User = Depends(current_user)) -> dict:
+    _ = user
+    row = model_store.get_model(model_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="模型不存在")
+    return row
+
+
+@router.patch("/models/{model_id}")
+def patch_model(model_id: int, body: ModelMetaBody, user: User = Depends(require_admin)) -> dict:
+    _ = user
+    try:
+        return model_store.update_model_meta(
+            model_id,
+            name=body.name,
+            description=body.description,
+            class_name=body.class_name,
+            parent_template=body.parent_template,
+            enabled=body.enabled,
+            sort_order=body.sort_order,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/models/{model_id}/versions")
+def create_model_version(
+    model_id: int,
+    body: ModelVersionBody,
+    user: User = Depends(require_admin),
+) -> dict:
+    """Param / template changes create a new model version (immutable snapshot)."""
+    _ = user
+    try:
+        return model_store.save_model_version(
+            model_id,
+            params=body.params,
+            template_source=body.template_source,
+            label=body.label,
+            note=body.note,
+            user_id=user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/models/{model_id}/versions")
+def list_model_versions(model_id: int, user: User = Depends(current_user)) -> list[dict]:
+    _ = user
+    if model_store.get_model(model_id) is None:
+        raise HTTPException(status_code=404, detail="模型不存在")
+    return model_store.list_model_versions(model_id)
+
+
+@router.get("/model-versions/{version_id}")
+def get_model_version(version_id: int, user: User = Depends(current_user)) -> dict:
+    _ = user
+    row = model_store.get_model_version(version_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="模型版本不存在")
+    return row
+
+
+@router.delete("/models/{model_id}")
+def delete_model(model_id: int, user: User = Depends(require_admin)) -> dict:
+    _ = user
+    try:
+        model_store.delete_model(model_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
+
+
 @router.post("/strategies/reload")
 def reload_strategy_classes(user: User = Depends(require_admin)) -> list[dict]:
     """Re-scan strategies/ (+ vnpy built-ins) via CtaEngine.load_strategy_class()."""
@@ -357,7 +539,7 @@ def put_instance_source(
     body: StrategySourceBody,
     user: User = Depends(require_admin),
 ) -> dict:
-    """Save instance IDE source to MySQL and sync class source for backtest/init."""
+    """Save instance IDE source to MySQL, pin model version, create instance version."""
     _ = user
     engine = _cta()
     strategy = engine.strategies.get(name)
@@ -380,6 +562,21 @@ def put_instance_source(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"保存失败: {exc}") from exc
 
+    version_row = None
+    if body.create_version:
+        try:
+            runtime = dict(strategy.get_parameters()) if hasattr(strategy, "get_parameters") else {}
+            version_row = model_store.save_instance_version(
+                name,
+                runtime_params=runtime,
+                source_code=body.content,
+                model_version_id=body.model_version_id,
+                note=body.note or "保存源码",
+                user_id=user.id,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"源码已保存但创建实例版本失败: {exc}") from exc
+
     reloaded = False
     if body.reload:
         try:
@@ -396,6 +593,7 @@ def put_instance_source(
         "updated_at": meta.get("updated_at"),
         "reloaded": reloaded,
         "store": "mysql_instance",
+        "instance_version": version_row,
     }
 
 
@@ -422,25 +620,79 @@ def add_instance(body: InstanceCreate, user: User = Depends(require_admin)) -> d
     engine = _cta()
     if body.strategy_name in engine.strategies:
         raise HTTPException(status_code=400, detail="策略实例名称已存在")
+
+    class_name = (body.class_name or "").strip()
+    setting = dict(body.setting or {})
+    model_id = body.model_id
+    model_version_id = body.model_version_id
+
+    if model_id:
+        model = model_store.get_model(model_id)
+        if model is None:
+            raise HTTPException(status_code=400, detail="模型不存在")
+        class_name = class_name or str(model.get("class_name") or "")
+        if model_version_id:
+            mv = model_store.get_model_version(model_version_id)
+            if mv is None or int(mv.get("model_id") or 0) != int(model_id):
+                raise HTTPException(status_code=400, detail="模型版本无效")
+            # Pin snapshot params as base; instance setting overrides
+            base = dict(mv.get("params") or {})
+            base.update(setting)
+            setting = base
+        else:
+            model_version_id = model.get("latest_version_id")
+            base = dict((model.get("latest_version") or {}).get("params") or model.get("default_params") or {})
+            base.update(setting)
+            setting = base
+
+    if not class_name:
+        raise HTTPException(status_code=400, detail="缺少策略类名 / 模型")
+
     # Prefer DB source before requiring class to already be in memory
     try:
-        strategy_loader.ensure_class_loaded_from_db(body.class_name)
+        strategy_loader.ensure_class_loaded_from_db(class_name)
     except Exception:
         pass
-    if body.class_name not in engine.classes:
-        raise HTTPException(status_code=400, detail=f"找不到策略类 {body.class_name}")
-    engine.add_strategy(body.class_name, body.strategy_name, body.vt_symbol, body.setting)
+    if class_name not in engine.classes:
+        raise HTTPException(status_code=400, detail=f"找不到策略类 {class_name}")
+    engine.add_strategy(class_name, body.strategy_name, body.vt_symbol, setting)
     if body.strategy_name not in engine.strategies:
         raise HTTPException(status_code=400, detail="创建策略失败，请查看 CTA 日志")
     strategy_store.upsert_instance_meta(
         strategy_name=body.strategy_name,
-        strategy_class=body.class_name,
+        strategy_class=class_name,
         vt_symbol=body.vt_symbol,
-        params=body.setting,
+        params=setting,
         status="stopped",
         user_id=user.id,
     )
-    return {"ok": True, "strategy_name": body.strategy_name}
+    if model_id:
+        try:
+            model_store.pin_instance_model(
+                body.strategy_name,
+                model_id=model_id,
+                model_version_id=model_version_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        model_store.save_instance_version(
+            body.strategy_name,
+            runtime_params=setting,
+            source_code=None,
+            model_id=model_id,
+            model_version_id=model_version_id,
+            note="创建实例",
+            user_id=user.id,
+        )
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "strategy_name": body.strategy_name,
+        "model_id": model_id,
+        "model_version_id": model_version_id,
+    }
 
 
 @router.patch("/instances/{name}")
@@ -449,18 +701,99 @@ def edit_instance(name: str, body: InstanceEdit, user: User = Depends(require_ad
     engine = _cta()
     if name not in engine.strategies:
         raise HTTPException(status_code=404, detail="策略实例不存在")
-    engine.edit_strategy(name, body.setting)
+    if body.model_id is not None or body.model_version_id is not None:
+        try:
+            model_store.pin_instance_model(
+                name,
+                model_id=body.model_id,
+                model_version_id=body.model_version_id,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    setting = model_store.resolve_pinned_setting(strategy_name=name, runtime_override=body.setting)
+    engine.edit_strategy(name, setting)
     strategy = engine.strategies.get(name)
     if strategy is not None:
         strategy_store.upsert_instance_meta(
             strategy_name=name,
             strategy_class=strategy.__class__.__name__,
             vt_symbol=getattr(strategy, "vt_symbol", ""),
-            params=body.setting,
+            params=setting,
             status="trading" if getattr(strategy, "trading", False) else "stopped",
             user_id=user.id,
         )
-    return {"ok": True}
+        if body.create_version:
+            try:
+                model_store.save_instance_version(
+                    name,
+                    runtime_params=setting,
+                    note=body.note or "更新参数",
+                    user_id=user.id,
+                )
+            except Exception:
+                pass
+    return {"ok": True, "setting": setting}
+
+
+@router.post("/instances/{name}/pin-model")
+def pin_instance_model(name: str, body: InstancePinBody, user: User = Depends(require_admin)) -> dict:
+    _ = user
+    engine = _cta()
+    if name not in engine.strategies:
+        raise HTTPException(status_code=404, detail="策略实例不存在")
+    try:
+        return model_store.pin_instance_model(
+            name,
+            model_id=body.model_id,
+            model_version_id=body.model_version_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/instances/{name}/versions")
+def list_instance_versions(name: str, user: User = Depends(current_user)) -> list[dict]:
+    _ = user
+    return model_store.list_instance_versions(name)
+
+
+@router.post("/instances/{name}/versions")
+def create_instance_version(
+    name: str,
+    body: InstanceVersionBody,
+    user: User = Depends(require_admin),
+) -> dict:
+    engine = _cta()
+    if name not in engine.strategies:
+        raise HTTPException(status_code=404, detail="策略实例不存在")
+    try:
+        return model_store.save_instance_version(
+            name,
+            runtime_params=body.runtime_params,
+            source_code=body.source_code,
+            model_id=body.model_id,
+            model_version_id=body.model_version_id,
+            note=body.note,
+            user_id=user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/instances/{name}/binding")
+def get_instance_binding(name: str, user: User = Depends(current_user)) -> dict:
+    _ = user
+    return model_store.instance_binding(name)
+
+
+@router.get("/instances/{name}/backtests")
+def list_instance_backtests(
+    name: str,
+    instance_version_id: int | None = None,
+    user: User = Depends(current_user),
+) -> list[dict]:
+    _ = user
+    return model_store.list_backtest_runs(name, instance_version_id=instance_version_id)
 
 
 @router.post("/instances/{name}/rename")
@@ -547,10 +880,12 @@ def init_instance(name: str, user: User = Depends(require_admin)) -> dict:
     engine = _cta()
     if name not in engine.strategies:
         raise HTTPException(status_code=404, detail="策略实例不存在")
-    class_name = engine.strategies[name].__class__.__name__
+    strategy = engine.strategies[name]
+    class_name = strategy.__class__.__name__
     _ensure_from_db(class_name, strategy_name=name)
+    _apply_pinned_params(name, engine.strategies.get(name) or strategy)
     engine.init_strategy(name)
-    return {"ok": True}
+    return {"ok": True, "setting": model_store.resolve_pinned_setting(strategy_name=name)}
 
 
 @router.post("/instances/{name}/start")
@@ -559,10 +894,12 @@ def start_instance(name: str, user: User = Depends(require_admin)) -> dict:
     engine = _cta()
     if name not in engine.strategies:
         raise HTTPException(status_code=404, detail="策略实例不存在")
-    class_name = engine.strategies[name].__class__.__name__
+    strategy = engine.strategies[name]
+    class_name = strategy.__class__.__name__
     _ensure_from_db(class_name, strategy_name=name)
+    _apply_pinned_params(name, engine.strategies.get(name) or strategy)
     engine.start_strategy(name)
-    return {"ok": True}
+    return {"ok": True, "setting": model_store.resolve_pinned_setting(strategy_name=name)}
 
 
 @router.post("/instances/{name}/stop")

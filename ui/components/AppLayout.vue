@@ -116,7 +116,9 @@ const activeSidebarPath = computed(() => {
   if (items.some((item) => item.path === route.path)) return route.path;
   // 策略详情 / 基类管理归属侧栏高亮
   if (route.path.startsWith("/strategy/detail/")) return "/strategy/cta";
-  if (route.path.startsWith("/strategy/bases")) return "/strategy/bases";
+  if (route.path.startsWith("/strategy/models") || route.path.startsWith("/strategy/bases")) {
+    return "/strategy/models";
+  }
   return items[0]?.path ?? route.path;
 });
 

@@ -7,7 +7,7 @@ import MarketView from "../features/market/MarketView.vue";
 import TradeView from "../features/trade/TradeView.vue";
 import StrategyView from "../features/strategy/StrategyView.vue";
 import StrategyDetailView from "../features/strategy/StrategyDetailView.vue";
-import StrategyBaseClassesView from "../features/strategy/StrategyBaseClassesView.vue";
+import StrategyModelsView from "../features/strategy/StrategyModelsView.vue";
 import AccountView from "../features/account/AccountView.vue";
 import AdminView from "../features/admin/AdminView.vue";
 import AppLayout from "./components/AppLayout.vue";
@@ -29,7 +29,8 @@ const router = createRouter({
         { path: "trade/:section", component: TradeView },
         { path: "strategy", redirect: "/strategy/cta" },
         { path: "strategy/backtest", redirect: "/strategy/cta" },
-        { path: "strategy/bases", component: StrategyBaseClassesView },
+        { path: "strategy/bases", redirect: "/strategy/models" },
+        { path: "strategy/models", component: StrategyModelsView },
         { path: "strategy/detail/:name", component: StrategyDetailView },
         { path: "strategy/:section", component: StrategyView },
         { path: "account", redirect: "/account/gateways" },

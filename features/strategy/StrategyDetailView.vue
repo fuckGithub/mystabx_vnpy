@@ -344,6 +344,46 @@
       <!-- 参数配置 -->
       <section v-else class="sd-main sd-settings-pane">
         <el-form label-width="120px" class="sd-settings-form" @submit.prevent>
+          <el-form-item label="策略模型">
+            <el-select
+              v-model="selectedModelId"
+              clearable
+              filterable
+              placeholder="选择模型"
+              style="width: 100%"
+              :disabled="!auth.isAdmin"
+              @change="onModelPick"
+            >
+              <el-option
+                v-for="m in models"
+                :key="m.id"
+                :label="`${m.name}（${m.code}）`"
+                :value="m.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="模型版本">
+            <el-select
+              v-model="selectedModelVersionId"
+              clearable
+              filterable
+              placeholder="钉住的模型版本"
+              style="width: 100%"
+              :disabled="!auth.isAdmin || !selectedModelId"
+              @change="onModelVersionPick"
+            >
+              <el-option
+                v-for="v in modelVersions"
+                :key="v.id"
+                :label="`${v.label || 'v' + v.version_no} · #${v.id}`"
+                :value="v.id"
+              />
+            </el-select>
+            <p class="sd-hint">
+              保存实例时会钉住所选模型版本；实盘初始化/启动与回测按钉住版本参数加载。
+            </p>
+          </el-form-item>
+          <el-divider content-position="left">运行参数</el-divider>
           <el-form-item v-for="(val, key) in settingForm" :key="String(key)" :label="String(key)">
             <el-input v-model="settingForm[key]" size="small" />
           </el-form-item>
@@ -351,10 +391,37 @@
             <el-empty description="暂无可编辑参数" :image-size="72" />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" :disabled="!auth.isAdmin" @click="saveSettings">保存参数</el-button>
+            <el-button type="primary" :disabled="!auth.isAdmin" @click="saveSettings">保存参数并建版本</el-button>
             <el-button :loading="compiling" :disabled="!auth.isAdmin" @click="compileSave">编译源码</el-button>
           </el-form-item>
         </el-form>
+
+        <div class="sd-version-block">
+          <h4>实例版本历史</h4>
+          <el-table :data="instanceVersions" size="small" border empty-text="暂无实例版本">
+            <el-table-column prop="version_no" label="#" width="48" />
+            <el-table-column prop="model_version_id" label="模型版本" width="90" />
+            <el-table-column label="运行参数" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">{{ formatJson(row.runtime_params) }}</template>
+            </el-table-column>
+            <el-table-column prop="note" label="备注" min-width="100" show-overflow-tooltip />
+            <el-table-column prop="created_at" label="时间" width="160" />
+          </el-table>
+        </div>
+
+        <div class="sd-version-block">
+          <h4>回测记录（按实例版本）</h4>
+          <el-table :data="backtestRuns" size="small" border empty-text="暂无回测记录">
+            <el-table-column prop="id" label="ID" width="64" />
+            <el-table-column prop="instance_version_id" label="实例版本" width="90" />
+            <el-table-column prop="model_version_id" label="模型版本" width="90" />
+            <el-table-column prop="status" label="状态" width="80" />
+            <el-table-column label="运行配置" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">{{ formatJson(row.run_params) }}</template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="时间" width="160" />
+          </el-table>
+        </div>
       </section>
     </div>
 
@@ -378,6 +445,21 @@ type BaseClassRow = {
   display_name: string;
   enabled?: boolean;
 };
+type ModelRow = {
+  id: number;
+  code: string;
+  name: string;
+  class_name: string;
+  latest_version_id?: number | null;
+  default_params?: Record<string, unknown>;
+};
+type ModelVersionRow = {
+  id: number;
+  model_id: number;
+  version_no: number;
+  label: string;
+  params?: Record<string, unknown>;
+};
 
 const route = useRoute();
 const router = useRouter();
@@ -399,6 +481,12 @@ const editorFontSize = ref(13);
 const settingForm = reactive<Record<string, string>>({});
 const baseClasses = ref<BaseClassRow[]>([]);
 const selectedParent = ref("EliteCtaTemplate");
+const models = ref<ModelRow[]>([]);
+const modelVersions = ref<ModelVersionRow[]>([]);
+const selectedModelId = ref<number | null>(null);
+const selectedModelVersionId = ref<number | null>(null);
+const instanceVersions = ref<Record<string, unknown>[]>([]);
+const backtestRuns = ref<Record<string, unknown>[]>([]);
 /** Bottom console share of the right column (default ~38%). */
 const consoleHeightPct = ref(38);
 
@@ -718,6 +806,67 @@ async function onParentChange(parent: string) {
   }
 }
 
+function formatJson(value: unknown) {
+  if (!value || typeof value !== "object") return "—";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "—";
+  }
+}
+
+async function loadModels() {
+  try {
+    const { data } = await http.get("/api/cta/models", { params: { enabled_only: true } });
+    models.value = Array.isArray(data) ? data : [];
+  } catch {
+    models.value = [];
+  }
+}
+
+async function loadModelVersions(modelId: number | null) {
+  if (!modelId) {
+    modelVersions.value = [];
+    return;
+  }
+  try {
+    const { data } = await http.get(`/api/cta/models/${modelId}/versions`);
+    modelVersions.value = Array.isArray(data) ? data : [];
+  } catch {
+    modelVersions.value = [];
+  }
+}
+
+async function loadVersionHistory() {
+  const n = name.value;
+  if (!n) return;
+  try {
+    const [vRes, bRes] = await Promise.all([
+      http.get(`/api/cta/instances/${encodeURIComponent(n)}/versions`),
+      http.get(`/api/cta/instances/${encodeURIComponent(n)}/backtests`),
+    ]);
+    instanceVersions.value = Array.isArray(vRes.data) ? vRes.data : [];
+    backtestRuns.value = Array.isArray(bRes.data) ? bRes.data : [];
+  } catch {
+    instanceVersions.value = [];
+    backtestRuns.value = [];
+  }
+}
+
+async function onModelPick(modelId: number | null) {
+  selectedModelVersionId.value = null;
+  await loadModelVersions(modelId);
+  if (modelId) {
+    const m = models.value.find((x) => x.id === modelId);
+    if (m?.latest_version_id) selectedModelVersionId.value = m.latest_version_id;
+    if (m?.class_name) btForm.class_name = m.class_name;
+  }
+}
+
+async function onModelVersionPick(_vid: number | null) {
+  /* pin applied on saveSettings / saveSource */
+}
+
 async function loadInstance() {
   const n = name.value;
   if (!n) return;
@@ -726,6 +875,10 @@ async function loadInstance() {
     instance.value = data;
     btForm.class_name = String(data?.class_name || "");
     if (data?.vt_symbol) btForm.vt_symbol = String(data.vt_symbol);
+    selectedModelId.value = data?.model_id != null ? Number(data.model_id) : null;
+    selectedModelVersionId.value =
+      data?.model_version_id != null ? Number(data.model_version_id) : null;
+    await loadModelVersions(selectedModelId.value);
     syncSettingForm();
   } catch {
     const found = strategy.instances.find((r) => String(r.strategy_name) === n) || null;
@@ -788,14 +941,24 @@ async function saveSource() {
   if (!n) return;
   savingCode.value = true;
   try {
+    if (selectedModelVersionId.value != null) {
+      await http.post(`/api/cta/instances/${encodeURIComponent(n)}/pin-model`, {
+        model_id: selectedModelId.value,
+        model_version_id: selectedModelVersionId.value,
+      });
+    }
     const { data } = await http.put(`/api/cta/instances/${encodeURIComponent(n)}/source`, {
       content: source.content,
       reload: true,
+      create_version: true,
+      note: "保存源码",
+      model_version_id: selectedModelVersionId.value,
     });
     source.store = String(data?.store ?? "mysql_instance");
     source.updated_at = data?.updated_at ?? source.updated_at;
     source.is_default = false;
     ElMessage.success(data?.reloaded ? "已保存到 MySQL 并热加载" : "已保存到 MySQL");
+    await loadVersionHistory();
   } catch (e: unknown) {
     const err = e as { response?: { data?: { detail?: string } } };
     ElMessage.error(err.response?.data?.detail || "保存失败");
@@ -829,9 +992,22 @@ async function saveSettings() {
     setting[k] = v.trim() !== "" && Number.isFinite(num) && String(num) === v.trim() ? num : v;
   }
   try {
-    await http.patch(`/api/cta/instances/${encodeURIComponent(n)}`, { setting });
-    ElMessage.success("参数已更新");
+    if (selectedModelId.value != null || selectedModelVersionId.value != null) {
+      await http.post(`/api/cta/instances/${encodeURIComponent(n)}/pin-model`, {
+        model_id: selectedModelId.value,
+        model_version_id: selectedModelVersionId.value,
+      });
+    }
+    await http.patch(`/api/cta/instances/${encodeURIComponent(n)}`, {
+      setting,
+      model_id: selectedModelId.value,
+      model_version_id: selectedModelVersionId.value,
+      create_version: true,
+      note: "保存运行参数",
+    });
+    ElMessage.success("参数已更新并创建实例版本");
     await loadInstance();
+    await loadVersionHistory();
   } catch (e: unknown) {
     const err = e as { response?: { data?: { detail?: string } } };
     ElMessage.error(err.response?.data?.detail || "保存参数失败");
@@ -949,9 +1125,10 @@ function stopConsoleResize() {
 async function refreshAll() {
   loading.value = true;
   try {
-    await Promise.all([strategy.refresh(), loadInstance(), loadBaseClasses()]);
+    await Promise.all([strategy.refresh(), loadInstance(), loadBaseClasses(), loadModels()]);
     await loadSource();
     await loadBacktest();
+    await loadVersionHistory();
   } finally {
     loading.value = false;
   }

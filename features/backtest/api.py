@@ -72,7 +72,7 @@ def list_backtest_strategies(user: User = Depends(current_user)) -> list[dict]:
 @router.post("/run")
 def run_backtest(body: BacktestRunBody, user: User = Depends(require_admin)) -> dict:
     _ = user
-    from core import strategy_loader
+    from core import model_store, strategy_loader
 
     engine = _bt()
     if getattr(engine, "thread", None) and engine.thread.is_alive():
@@ -87,6 +87,15 @@ def run_backtest(body: BacktestRunBody, user: User = Depends(require_admin)) -> 
         raise HTTPException(status_code=400, detail=f"从数据库加载策略失败: {exc}") from exc
     if body.class_name not in getattr(engine, "classes", {}):
         raise HTTPException(status_code=400, detail=f"找不到策略类 {body.class_name}")
+
+    # Prefer pinned model-version params when running against an instance
+    setting = dict(body.setting or {})
+    if body.strategy_name:
+        setting = model_store.resolve_pinned_setting(
+            strategy_name=body.strategy_name,
+            runtime_override=setting,
+        )
+
     ok = engine.start_backtesting(
         body.class_name,
         body.vt_symbol,
@@ -98,14 +107,70 @@ def run_backtest(body: BacktestRunBody, user: User = Depends(require_admin)) -> 
         body.size,
         body.pricetick,
         body.capital,
-        body.setting,
+        setting,
     )
     if not ok:
         raise HTTPException(status_code=400, detail="启动回测失败（可能已有任务在跑）")
+
+    binding = model_store.instance_binding(body.strategy_name) if body.strategy_name else {}
+    run_meta = None
+    if body.strategy_name:
+        try:
+            run_meta = model_store.record_backtest_run(
+                strategy_name=body.strategy_name,
+                instance_version_id=binding.get("current_version_id"),
+                model_version_id=binding.get("model_version_id"),
+                run_params={
+                    "class_name": body.class_name,
+                    "vt_symbol": body.vt_symbol,
+                    "interval": body.interval,
+                    "start": body.start,
+                    "end": body.end,
+                    "capital": body.capital,
+                    "setting": setting,
+                },
+                statistics={},
+                status="running",
+                note="回测已启动",
+            )
+        except Exception:
+            run_meta = None
+
     return {
         "ok": True,
+        "setting": setting,
+        "backtest_run": run_meta,
         "note": "若本地无历史 bar / 未配置 RQData，回测结果为空属正常；请先完成数据入库（P1-2）。",
     }
+
+
+@router.post("/persist-result")
+def persist_backtest_result(
+    strategy_name: str,
+    user: User = Depends(require_admin),
+) -> dict:
+    """Snapshot current backtester statistics onto the instance's current version."""
+    from core import model_store
+
+    _ = user
+    engine = _bt()
+    stats = engine.get_result_statistics() or {}
+    if not isinstance(stats, dict):
+        try:
+            stats = dict(stats)
+        except Exception:
+            stats = {"raw": str(stats)}
+    binding = model_store.instance_binding(strategy_name)
+    row = model_store.record_backtest_run(
+        strategy_name=strategy_name,
+        instance_version_id=binding.get("current_version_id"),
+        model_version_id=binding.get("model_version_id"),
+        run_params={},
+        statistics=stats,
+        status="done" if stats else "empty",
+        note="回测结果快照",
+    )
+    return row
 
 
 @router.get("/status")

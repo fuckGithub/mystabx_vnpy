@@ -91,9 +91,93 @@ class StrategyInstance(Base):
     params: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Per-instance IDE override; when set, run/backtest compile this instead of class default
     source_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Pinned product model + version (see strategy_models / strategy_model_versions)
+    model_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    model_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    current_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="stopped")
     created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
+class StrategyModel(Base):
+    """Product-level strategy model (双均线 / 布林带…) — not a low-level CTA parent class."""
+
+    __tablename__ = "strategy_models"
+    __table_args__ = (UniqueConstraint("code", name="uq_strategy_models_code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    class_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    parent_template: Mapped[str] = mapped_column(String(128), nullable=False, default="EliteCtaTemplate")
+    default_params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    template_source: Mapped[str | None] = mapped_column(Text, nullable=True)
+    latest_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
+class StrategyModelVersion(Base):
+    """Immutable snapshot of model params (± template source) created on each model change."""
+
+    __tablename__ = "strategy_model_versions"
+    __table_args__ = (
+        UniqueConstraint("model_id", "version_no", name="uq_strategy_model_versions_model_ver"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    model_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    label: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    template_source: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
+class StrategyInstanceVersion(Base):
+    """Instance version: runtime params + source + pinned model version."""
+
+    __tablename__ = "strategy_instance_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "strategy_name",
+            "version_no",
+            name="uq_strategy_instance_versions_name_ver",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    model_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    model_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    runtime_params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
+class StrategyBacktestRun(Base):
+    """Backtest run linked to an instance version (and its pinned model version)."""
+
+    __tablename__ = "strategy_backtest_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    instance_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    model_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    run_params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    statistics: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="done")
+    note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
 class StrategyClass(Base):
@@ -298,12 +382,19 @@ def init_db() -> None:
         SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
         Base.metadata.create_all(_engine)
         _ensure_strategy_instance_source_column()
+        _ensure_strategy_instance_model_columns()
         try:
             from core import base_class_store
 
             base_class_store.ensure_defaults()
         except Exception:
             logger.exception("seed strategy_base_classes on init failed")
+        try:
+            from core import model_store
+
+            model_store.ensure_defaults()
+        except Exception:
+            logger.exception("seed strategy_models on init failed")
         _ready = True
         _last_error = None
         logger.info("MySQL ready %s", describe())
@@ -332,6 +423,30 @@ def _ensure_strategy_instance_source_column() -> None:
                 logger.info("added strategy_instances.source_code")
     except Exception:
         logger.exception("ensure strategy_instances.source_code failed")
+
+
+def _ensure_strategy_instance_model_columns() -> None:
+    """Add model pin / current version columns on existing strategy_instances tables."""
+    if _engine is None:
+        return
+    cols = (
+        ("model_id", "INT NULL"),
+        ("model_version_id", "INT NULL"),
+        ("current_version_id", "INT NULL"),
+    )
+    try:
+        with _engine.connect() as conn:
+            for name, ddl in cols:
+                rows = conn.execute(
+                    text(f"SHOW COLUMNS FROM strategy_instances LIKE '{name}'")
+                ).fetchall()
+                if not rows:
+                    conn.execute(text(f"ALTER TABLE strategy_instances ADD COLUMN {name} {ddl}"))
+                    logger.info("added strategy_instances.%s", name)
+            conn.commit()
+    except Exception:
+        logger.exception("ensure strategy_instances model columns failed")
+
 
 def get_session() -> SASession:
     if SessionLocal is None or not _ready:
