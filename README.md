@@ -45,7 +45,7 @@
 
 > 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）。启动任选其一：`python main.py`、`uv run start` 或 `./start.sh`（三者等价，均落到 `./start.sh`）。遗留 Qt 桌面仅 `python main.py --qt`。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
 
-规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/11](docs/11-分平台CTP搭建.md)）。
+规划文档见下文「文档索引」（[docs/01](docs/01-架构与功能规划.md)–[docs/11](docs/CTP分平台搭建.md)）。
 
 ## 后端与引擎归属
 
@@ -160,7 +160,7 @@
 | [08-VeighNa-Elite-CTA策略参考](docs/08-VeighNa-Elite-CTA策略参考.md) | VeighNa Elite 官方文档「CTA趋势策略」本地镜像（正文 + 28 张截图） |
 | [09-CTA策略实施规划](docs/09-CTA策略实施规划.md) | CTA 策略 / 回测的实现阶段（阶段 A–E）与设计决策 |
 | [10-VeighNa功能列表](docs/10-VeighNa功能列表.md) | VeighNa 全量功能清单（核心框架 / 接口 / 应用 / 数据层 / 产品线） |
-| [11-分平台CTP搭建](docs/11-分平台CTP搭建.md) | Windows / macOS / Linux：vnpy_ctp 与 SimNow 动态库（`.dll` / `.framework` / `.so`） |
+| [CTP分平台搭建](docs/CTP分平台搭建.md)（[11](docs/11-分平台CTP搭建.md)） | Windows / macOS / Linux：vnpy_ctp 与 SimNow 动态库（`.dll` / `.framework` / `.so`） |
 
 ## 与桌面端的关系
 
@@ -229,7 +229,7 @@ mystabx_vnpy/
 | `features/admin/` | 用户 CRUD、通道 CRUD/加密、测试联通、操作日志抽屉。 |
 | `ui/` | 路由 / 导航（行情默认 `/market/ticks`）、布局、SSE/WS 客户端、`gatewayStatus`。 |
 | `mystabx/` | 桌面连接框、Mac 主题、官方 MainWindow；与 Web 共用 SimNow 前置逻辑。 |
-| `docs/` | `01` 架构 … `07` 免责声明全文；`08` Elite CTA参考；`09` CTA 实施规划；`10` VeighNa 功能列表；`11` 分平台 CTP 搭建。 |
+| `docs/` | `01` 架构 … `07` 免责声明全文；`08` Elite CTA参考；`09` CTA 实施规划；`10` VeighNa 功能列表；[CTP分平台搭建](docs/CTP分平台搭建.md)。 |
 | `scripts/` | `install_macos.sh` / `install_linux.sh` / `install_windows.ps1`、`load_simnow_ctp.sh`、`smoke_*.py`。 |
 | `vendor/simnow-ctp/` | 上期技术 CTP 二进制说明（Mac `.framework` / Linux `.so` / Windows `.dll`，gitignore）。 |
 
@@ -250,7 +250,7 @@ python3 -m venv .venv
 
 ### 2. CTP 网关（`vnpy_ctp`）— 分平台
 
-`pip install -e .` 不会装好可用的 CTP 接口，需按平台另装。完整说明（前置、二进制差异、SimNow、校验）见 **[docs/11-分平台CTP搭建.md](docs/11-分平台CTP搭建.md)**。通道里「柜台环境」固定为「实盘」；SimNow 走生产前置。CTP 二进制版权属上期技术，不进 git（见 `vendor/simnow-ctp/README.md`）。**不要**跨平台混用 `.framework` / `.so` / `.dll`。
+`pip install -e .` 不会装好可用的 CTP 接口，需按平台另装。完整说明（前置、二进制差异、SimNow、校验）见 **[docs/CTP分平台搭建.md](docs/CTP分平台搭建.md)**。通道里「柜台环境」固定为「实盘」；SimNow 走生产前置。CTP 二进制版权属上期技术，不进 git（见 `vendor/simnow-ctp/README.md`）。**不要**跨平台混用 `.framework` / `.so` / `.dll`。
 
 | 平台 | 动态库 | 一键安装 |
 |---|---|---|
@@ -281,7 +281,7 @@ python -m venv .venv
 .\scripts\install_windows.ps1
 ```
 
-原生 Windows 的 `./start.sh` / `uv run start` 不可用（面向 Linux/macOS）；启动方式见 [docs/11](docs/11-分平台CTP搭建.md)（`uvicorn` 或 **WSL2** 走 Linux 脚本）。可选把 Windows dll 放到 `vendor/simnow-ctp/windows/` 覆盖。
+原生 Windows 的 `./start.sh` / `uv run start` 不可用（面向 Linux/macOS）；启动方式见 [docs/CTP分平台搭建.md](docs/CTP分平台搭建.md)（`uvicorn` 或 **WSL2** 走 Linux 脚本）。可选把 Windows dll 放到 `vendor/simnow-ctp/windows/` 覆盖。
 
 ### 3. 前端依赖
 
@@ -342,7 +342,7 @@ uv run start --dev
 | 场景 | CPU / 内存 / 磁盘 | 系统 | 说明 |
 |---|---|---|---|
 | Mac 本机开发 / 个人 SimNow | 4 核、8 GB 起（16 GB 更稳）、约 20 GB 空闲 | macOS | `.venv`、`node_modules`、编译 `vnpy_ctp` 都占盘；走 `scripts/install_macos.sh`；注意上文 Mac 断开限制 |
-| Windows 本机 / 个人 SimNow | 4 核、8 GB 起、约 20 GB 空闲 | Windows 10/11 x64 | `scripts/install_windows.ps1`（PyPI `.dll`）；或 **WSL2** 走 Linux 脚本；启动见 [docs/11](docs/11-分平台CTP搭建.md) |
+| Windows 本机 / 个人 SimNow | 4 核、8 GB 起、约 20 GB 空闲 | Windows 10/11 x64 | `scripts/install_windows.ps1`（PyPI `.dll`）；或 **WSL2** 走 Linux 脚本；启动见 [docs/CTP分平台搭建.md](docs/CTP分平台搭建.md) |
 | 个人或 1～2 人 VPS（SimNow 或少量实盘通道） | **2 vCPU / 4 GB / 40 GB SSD** | Linux x86_64，如 Ubuntu 22.04+ | 够跑 Web + 一两个 CTP 连接；出网能访问柜台前置；走 `scripts/install_linux.sh` 再 `./start.sh` |
 | 小团队同时看盘、下单 | **4 vCPU / 8 GB / 80 GB SSD** | 同上 | 仍是单进程，加用户不会水平扩 uvicorn worker |
 
