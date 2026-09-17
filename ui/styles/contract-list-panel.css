@@ -71,7 +71,7 @@
 }
 .board-row:hover { background: var(--dash-surface-soft); }
 .board-row.active { background: var(--dash-primary-soft); }
-.board-row.subscribed { box-shadow: inset 3px 0 0 var(--primary, #409eff); }
+.board-row.subscribed { box-shadow: inset 3px 0 0 var(--contract-bar, var(--primary, #409eff)); }
 .board-row__main {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) 64px 52px;

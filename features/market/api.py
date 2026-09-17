@@ -19,7 +19,7 @@ from features.market.subscriptions import (
     list_user_subscriptions,
     upsert_subscription,
 )
-from features.market.tick_buffer import session_ticks
+from features.market.tick_buffer import normalize_live_tick, session_ticks
 
 router = APIRouter(tags=["market"])
 
@@ -128,7 +128,7 @@ def list_session_ticks(
     # drop them when gateway_name differs (reconnect / renamed account) — that
     # left the UI with a single OMS snapshot and a flat 分时 line.
     mem = session_ticks(symbol, exchange, td) if td == current else []
-    oms = _oms_ticks(symbol, exchange, gws) if td == current else []
+    oms = [normalize_live_tick(row) for row in _oms_ticks(symbol, exchange, gws)] if td == current else []
     ch_rows = query_ticks(symbol, exchange, td)
     ch_ok = ch_rows is not None
     return {

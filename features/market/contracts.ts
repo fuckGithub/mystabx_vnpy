@@ -163,3 +163,48 @@ export function groupContracts(
   }
   return groups;
 }
+
+/** Stable, distinct accent colors for subscribed contract list bars. */
+const CONTRACT_BAR_PALETTE = [
+  "#1677ff",
+  "#13c2c2",
+  "#52c41a",
+  "#fa8c16",
+  "#eb2f96",
+  "#722ed1",
+  "#2f54eb",
+  "#a0d911",
+  "#fa541c",
+  "#8978ff",
+  "#08979c",
+  "#d4b106",
+  "#c41d7f",
+  "#1d39c4",
+  "#d4380d",
+];
+
+function hashContractKey(key: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i += 1) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Deterministic per vt_symbol / contract key; unique among the given set. */
+export function contractBarColors(keys: string[]): Record<string, string> {
+  const unique = [...new Set(keys.map((k) => String(k || "").trim()).filter(Boolean))].sort();
+  const used = new Set<number>();
+  const out: Record<string, string> = {};
+  const n = CONTRACT_BAR_PALETTE.length;
+  for (const key of unique) {
+    let idx = hashContractKey(key) % n;
+    for (let step = 0; step < n && used.has(idx); step += 1) {
+      idx = (idx + 1) % n;
+    }
+    used.add(idx);
+    out[key] = CONTRACT_BAR_PALETTE[idx];
+  }
+  return out;
+}

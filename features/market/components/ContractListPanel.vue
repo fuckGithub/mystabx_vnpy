@@ -40,6 +40,7 @@
             subscribed: isSubscribed(row),
             'board-row--no-sub': !allowSubscribe,
           }"
+          :style="barStyle(row)"
         >
           <button type="button" class="board-row__main" @click="emit('select', row)">
             <span class="board-row__id">
@@ -76,7 +77,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import InstrumentCell from "@/components/InstrumentCell.vue";
-import { contractKey, groupContracts, productName, type BoardTab, type ContractRow } from "../contracts";
+import {
+  contractBarColors,
+  contractKey,
+  groupContracts,
+  productName,
+  type BoardTab,
+  type ContractRow,
+} from "../contracts";
 import { finitePrice, fmtPct, fmtPriceOrDash, pnlClass, quoteChangePct } from "../../workbench/liveMap";
 
 const props = withDefaults(
@@ -113,8 +121,25 @@ const tab = ref<BoardTab>("all");
 const subscribedSet = computed(() => new Set(Object.keys(props.subscribedKeys || {})));
 const groups = computed(() => groupContracts(props.contracts, tab.value, props.ticks, subscribedSet.value));
 
+const barColorByKey = computed(() => {
+  const keys = new Set<string>();
+  for (const key of Object.keys(props.subscribedKeys || {})) keys.add(key);
+  for (const group of groups.value) {
+    for (const row of group.rows) {
+      if (props.subscribedKeys?.[contractKey(row)]) keys.add(contractKey(row));
+    }
+  }
+  return contractBarColors([...keys]);
+});
+
 function rowKey(row: ContractRow) {
   return contractKey(row);
+}
+
+function barStyle(row: ContractRow) {
+  if (!isSubscribed(row)) return undefined;
+  const color = barColorByKey.value[rowKey(row)];
+  return color ? { "--contract-bar": color } : undefined;
 }
 
 function isSubscribed(row: ContractRow) {

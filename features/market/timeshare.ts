@@ -174,6 +174,17 @@ function snapToSessionMinute(mins: number, windows: Window[]): number {
   return windows[windows.length - 1].end - 1;
 }
 
+/**
+ * Live only: SimNow / OMS sometimes stamp a not-yet-elapsed axis minute
+ * (e.g. 00:19 while wall clock is still 21:19). Plotting there leaves the
+ * early 夜盘 empty and parks volume/MACD mid-panel. Pin those to "now".
+ */
+function liveBucketMinute(mins: number, nowMins: number, windows: Window[]): number {
+  const snapped = inWindows(mins, windows) ? mins : snapToSessionMinute(mins, windows);
+  if (slotElapsed(snapped, nowMins, windows)) return snapped;
+  return snapToSessionMinute(nowMins, windows);
+}
+
 function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; nextCum: number } {
   const cum = Number(tick.volume);
   const lastVol = Number(tick.last_volume ?? tick.lastVolume);
@@ -318,6 +329,9 @@ export function aggregateTimeshare(
   const buckets = new Map<number, MinuteBucket>();
   let prevCum = 0;
   const orphans: { price: number; volume: number; oi: number | null; dt: Date | null }[] = [];
+  const nowMins = clockMinutes(new Date());
+  const bucketMins = (mins: number) =>
+    live ? liveBucketMinute(mins, nowMins, windows) : snapToSessionMinute(mins, windows);
 
   const sorted = ticks.map((tick, idx) => ({ tick, idx })).sort((a, b) => {
     const da = parseTickDate(a.tick.datetime)?.getTime() ?? 0;
@@ -340,23 +354,17 @@ export function aggregateTimeshare(
       // inSession uses clock only — SimNow often stamps the wrong calendar day
       // but a valid session HH:mm; still plot those on today's axis.
       if (inSession || inRange) {
-        putBucket(
-          buckets,
-          inSession ? mins : snapToSessionMinute(mins, windows),
-          price,
-          delta,
-          oi,
-        );
+        putBucket(buckets, bucketMins(inSession ? mins : snapToSessionMinute(mins, windows)), price, delta, oi);
         continue;
       }
       // Live after-hours / mid-break quotes: pin to nearest session minute
       // (e.g. 17:xx → 14:59) so the curve keeps the latest last_price.
       if (live) {
-        putBucket(buckets, snapToSessionMinute(mins, windows), price, delta, oi);
+        putBucket(buckets, bucketMins(mins), price, delta, oi);
         continue;
       }
     } else if (live) {
-      putBucket(buckets, snapToSessionMinute(clockMinutes(new Date()), windows), price, delta, oi);
+      putBucket(buckets, bucketMins(nowMins), price, delta, oi);
       continue;
     }
     orphans.push({ price, volume: delta, oi, dt });
@@ -364,14 +372,21 @@ export function aggregateTimeshare(
 
   if (buckets.size === 0 && orphans.length) {
     for (const row of orphans) {
-      const clock = row.dt
-        ? snapToSessionMinute(clockMinutes(row.dt), windows)
-        : snapToSessionMinute(clockMinutes(new Date()), windows);
+      const clock = row.dt ? bucketMins(clockMinutes(row.dt)) : bucketMins(nowMins);
       putBucket(buckets, clock, row.price, row.volume, row.oi);
     }
   }
 
-  const nowMins = clockMinutes(new Date());
+  // Live tape may only contribute one OMS snapshot — still anchor last_price at "now"
+  // so 分时 is not blank while the right-hand quote panel updates.
+  if (live && buckets.size === 0) {
+    for (let i = sorted.length - 1; i >= 0; i -= 1) {
+      const price = tickLastPrice(sorted[i].tick);
+      if (price == null) continue;
+      putBucket(buckets, bucketMins(nowMins), price, 0, tickOpenInterest(sorted[i].tick));
+      break;
+    }
+  }
   const points: TimesharePoint[] = [];
   let lastPrice: number | null = null;
   let lastOi: number | null = null;
@@ -435,6 +450,43 @@ export function sliceHalfDay(points: TimesharePoint[], now = new Date()): Timesh
     if (afternoon) return p.session === "day" && p.ts >= 13 * 60;
     return p.session === "night" || (p.session === "day" && p.ts < 13 * 60);
   });
+}
+
+/**
+ * Live 分时: drop leading idle slots and unelapsed future slots so 价/量/MACD
+ * start at the left edge of the pane instead of sitting mid-axis.
+ */
+export function focusLiveTimeshare(
+  points: TimesharePoint[],
+  exchange: string,
+  now = new Date(),
+): TimesharePoint[] {
+  if (!points.length) return points;
+  const windows = sessionWindows(exchange);
+  const nowMins = clockMinutes(now);
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < points.length; i += 1) {
+    const p = points[i];
+    if (p.session === "break") continue;
+    if (!slotElapsed(p.ts, nowMins, windows)) continue;
+    const active = p.price != null || (p.volume || 0) > 0;
+    if (active && first < 0) first = i;
+    if (first >= 0) last = i;
+  }
+  if (first < 0) {
+    for (let i = 0; i < points.length; i += 1) {
+      const p = points[i];
+      if (p.session === "break") continue;
+      if (!slotElapsed(p.ts, nowMins, windows)) continue;
+      if (first < 0) first = i;
+      last = i;
+    }
+    if (first < 0) return points;
+  }
+  const sliced = points.slice(first, last + 1);
+  if (!sliced.length) return points;
+  return sliced.map((p, i) => (i === 0 ? { ...p, dayStart: true } : p));
 }
 
 export function stitchTimeshareDays(

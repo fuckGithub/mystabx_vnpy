@@ -58,6 +58,7 @@ import { fetchHistoryBars, type ChartPeriod, type HistoryBar } from "./history";
 import {
   aggregateTimeshare,
   currentTradeDate,
+  focusLiveTimeshare,
   recentTradeDates,
   sessionHint,
   sliceHalfDay,
@@ -201,7 +202,11 @@ const timesharePoints = computed<TimesharePoint[]>(() => {
   }));
   const priced = days.filter((d) => d.points.some((p) => p.price != null));
   const stitched = stitchTimeshareDays(priced.length ? priced : days.slice(-1));
-  return daySpan.value === "half" ? sliceHalfDay(stitched) : stitched;
+  const scoped = daySpan.value === "half" ? sliceHalfDay(stitched) : stitched;
+  if (viewingCurrent.value && daySpan.value !== "half" && spanCount(daySpan.value) === 1) {
+    return focusLiveTimeshare(scoped, ex);
+  }
+  return scoped;
 });
 
 const chartMarks = computed(() => {

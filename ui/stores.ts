@@ -198,7 +198,8 @@ export const useMarketStore = defineStore("market", () => {
     const key = `${exchange.toUpperCase()}.${symbol.toUpperCase()}`;
     const merged = new Map<string, Record<string, unknown>>();
     for (const row of [...(sessionTicks[key] || []), ...rows]) {
-      merged.set(tickSeriesId(row), row);
+      const live = withLiveTickStamp(row);
+      merged.set(tickSeriesId(live), live);
     }
     const sorted = [...merged.values()].sort((a, b) =>
       String(a.datetime || "").localeCompare(String(b.datetime || "")),
@@ -206,8 +207,9 @@ export const useMarketStore = defineStore("market", () => {
     sessionTicks[key] = sorted;
     const last = sorted[sorted.length - 1];
     if (last) {
-      const tickKey = `${last.exchange}.${last.symbol}.${last.gateway_name}`;
-      ticks[tickKey] = last;
+      const stamped = withLiveTickStamp(last);
+      const tickKey = `${stamped.exchange}.${stamped.symbol}.${stamped.gateway_name}`;
+      ticks[tickKey] = stamped;
     }
   }
 
