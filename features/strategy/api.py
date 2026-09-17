@@ -15,6 +15,7 @@ from core.deps import current_user, require_admin
 from core.runtime import runtime
 from core.serialize import cta_stop_order_payload, cta_strategy_payload
 from core.strategy_names import strategy_display_name
+from core import strategy_store
 from mystabx.paths import PROJECT_ROOT
 
 router = APIRouter(prefix="/api/cta", tags=["cta"])
@@ -176,20 +177,40 @@ def get_strategy_source(class_name: str, user: User = Depends(current_user)) -> 
     _ = user
     engine = _cta()
     path = _resolve_source_path(engine, class_name, for_write=False)
+    editable = str(path.resolve()).startswith(str(_STRATEGIES_DIR)) if path else False
+    # Prefer MySQL (authoritative); fall back to strategies/*.py for CTA load path.
+    stored = strategy_store.get_strategy_source(class_name)
+    if stored and stored.get("content") is not None:
+        return {
+            "class_name": class_name,
+            "file_path": stored.get("file_path") or (str(path.relative_to(PROJECT_ROOT.resolve())) if editable else str(path)),
+            "editable": bool(stored.get("editable", editable)),
+            "updated_at": stored.get("updated_at") or _mtime_iso(path),
+            "content": stored["content"],
+            "store": "mysql",
+        }
     if not path.is_file():
         raise HTTPException(status_code=404, detail=f"源文件不存在: {path}")
     try:
         content = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"读取失败: {exc}") from exc
-    editable = str(path.resolve()).startswith(str(_STRATEGIES_DIR))
     rel = str(path.relative_to(PROJECT_ROOT.resolve())) if editable else str(path)
+    if editable:
+        strategy_store.sync_class_from_file(
+            class_name=class_name,
+            path=path,
+            module=getattr(getattr(engine, "classes", {}).get(class_name), "__module__", "") or "",
+            editable=True,
+            project_root=PROJECT_ROOT,
+        )
     return {
         "class_name": class_name,
         "file_path": rel,
         "editable": editable,
         "updated_at": _mtime_iso(path),
         "content": content,
+        "store": "file",
     }
 
 
@@ -203,10 +224,19 @@ def put_strategy_source(
     engine = _cta()
     path = _resolve_source_path(engine, class_name, for_write=True)
     _STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
+    rel = str(path.relative_to(PROJECT_ROOT.resolve()))
     try:
         path.write_text(body.content, encoding="utf-8")
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"写入失败: {exc}") from exc
+    strategy_store.save_strategy_source(
+        class_name=class_name,
+        content=body.content,
+        file_name=path.name,
+        file_path=rel,
+        module=getattr(getattr(engine, "classes", {}).get(class_name), "__module__", "") or "",
+        editable=True,
+    )
     reloaded = False
     if body.reload:
         try:
@@ -217,9 +247,10 @@ def put_strategy_source(
     return {
         "ok": True,
         "class_name": class_name,
-        "file_path": str(path.relative_to(PROJECT_ROOT.resolve())),
+        "file_path": rel,
         "updated_at": _mtime_iso(path),
         "reloaded": reloaded,
+        "store": "mysql",
     }
 
 
@@ -251,6 +282,14 @@ def add_instance(body: InstanceCreate, user: User = Depends(require_admin)) -> d
     engine.add_strategy(body.class_name, body.strategy_name, body.vt_symbol, body.setting)
     if body.strategy_name not in engine.strategies:
         raise HTTPException(status_code=400, detail="创建策略失败，请查看 CTA 日志")
+    strategy_store.upsert_instance_meta(
+        strategy_name=body.strategy_name,
+        strategy_class=body.class_name,
+        vt_symbol=body.vt_symbol,
+        params=body.setting,
+        status="stopped",
+        user_id=user.id,
+    )
     return {"ok": True, "strategy_name": body.strategy_name}
 
 
@@ -261,6 +300,16 @@ def edit_instance(name: str, body: InstanceEdit, user: User = Depends(require_ad
     if name not in engine.strategies:
         raise HTTPException(status_code=404, detail="策略实例不存在")
     engine.edit_strategy(name, body.setting)
+    strategy = engine.strategies.get(name)
+    if strategy is not None:
+        strategy_store.upsert_instance_meta(
+            strategy_name=name,
+            strategy_class=strategy.__class__.__name__,
+            vt_symbol=getattr(strategy, "vt_symbol", ""),
+            params=body.setting,
+            status="trading" if getattr(strategy, "trading", False) else "stopped",
+            user_id=user.id,
+        )
     return {"ok": True}
 
 
@@ -290,6 +339,15 @@ def rename_instance(name: str, body: InstanceRename, user: User = Depends(requir
     engine.add_strategy(class_name, new_name, vt_symbol, setting)
     if new_name not in engine.strategies:
         raise HTTPException(status_code=500, detail="重命名失败：新实例未创建成功")
+    strategy_store.rename_instance_meta(name, new_name)
+    strategy_store.upsert_instance_meta(
+        strategy_name=new_name,
+        strategy_class=class_name,
+        vt_symbol=vt_symbol,
+        params=setting,
+        status="stopped",
+        user_id=user.id,
+    )
     return {"ok": True, "strategy_name": new_name}
 
 
@@ -302,6 +360,7 @@ def remove_instance(name: str, user: User = Depends(require_admin)) -> dict:
     ok = engine.remove_strategy(name)
     if not ok:
         raise HTTPException(status_code=400, detail="移除失败（请先停止策略）")
+    strategy_store.delete_instance_meta(name)
     return {"ok": True}
 
 

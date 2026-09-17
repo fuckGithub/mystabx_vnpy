@@ -1,15 +1,34 @@
-"""SQLite business store: users / accounts / sessions (docs/02, docs/03)."""
+"""MySQL business store: users / accounts / sessions / subscriptions / logs / strategies.
+
+Hot-path tick / 分时 stay in ClickHouse. `.vntrader/` is only for vnpy CTP session
+files and JSON settings — not for app business tables.
+"""
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote_plus
 
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, create_engine, select
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+    select,
+    text,
+)
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session as SASession, mapped_column, sessionmaker
 
 from core.config import settings
+
+logger = logging.getLogger("stabx.db")
 
 SHANGHAI = timezone(timedelta(hours=8))
 
@@ -26,12 +45,12 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_admin: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
 class Account(Base):
@@ -39,44 +58,64 @@ class Account(Base):
     __table_args__ = (UniqueConstraint("user_id", "account_name", name="uq_accounts_user_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    gateway_name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    gateway_type: Mapped[str] = mapped_column(String, nullable=False, default="CTP")
-    account_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    connect_settings: Mapped[str] = mapped_column(String, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    gateway_name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    gateway_type: Mapped[str] = mapped_column(String(32), nullable=False, default="CTP")
+    account_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    connect_settings: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     auto_connect: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
 class Session(Base):
     __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    refresh_token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    expires_at: Mapped[str] = mapped_column(String, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    refresh_token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    expires_at: Mapped[str] = mapped_column(String(32), nullable=False)
     revoked: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class StrategyInstance(Base):
+    """Strategy instance metadata (CTA runtime state may still live in .vntrader JSON)."""
+
     __tablename__ = "strategy_instances"
+    __table_args__ = (UniqueConstraint("strategy_name", name="uq_strategy_instances_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    gateway_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    strategy_class: Mapped[str] = mapped_column(String, nullable=False)
-    vt_symbol: Mapped[str] = mapped_column(String, nullable=False)
-    params: Mapped[str | None] = mapped_column(String, nullable=True)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="stopped")
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    gateway_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    strategy_class: Mapped[str] = mapped_column(String(128), nullable=False)
+    strategy_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    vt_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="stopped")
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
+class StrategyClass(Base):
+    """Strategy class meta + source code (authoritative for editable strategies/)."""
+
+    __tablename__ = "strategy_classes"
+
+    class_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    display_name: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    file_name: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    file_path: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    module: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    source_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    editable: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
 class Watchlist(Base):
     __tablename__ = "watchlists"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    vt_symbol: Mapped[str] = mapped_column(String, primary_key=True)
+    vt_symbol: Mapped[str] = mapped_column(String(64), primary_key=True)
 
 
 class MarketSubscription(Base):
@@ -94,22 +133,38 @@ class MarketSubscription(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    gateway_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    symbol: Mapped[str] = mapped_column(String, nullable=False)
-    exchange: Mapped[str] = mapped_column(String, nullable=False)
-    name: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    gateway_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    exchange: Mapped[str] = mapped_column(String(16), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
+class Instrument(Base):
+    """Contract / instrument display names."""
+
+    __tablename__ = "instruments"
+    __table_args__ = (
+        UniqueConstraint("symbol", "exchange", name="uq_instruments_symbol_exchange"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    exchange: Mapped[str] = mapped_column(String(16), nullable=False)
+    name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    product: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
 class AlertRule(Base):
     __tablename__ = "alert_rules"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)
-    condition: Mapped[str] = mapped_column(String, nullable=False)
-    channel: Mapped[str] = mapped_column(String, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    condition: Mapped[str] = mapped_column(Text, nullable=False)
+    channel: Mapped[str] = mapped_column(String(64), nullable=False)
     enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
@@ -117,10 +172,10 @@ class BacktestMeta(Base):
     __tablename__ = "backtest_meta"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    params: Mapped[str] = mapped_column(String, nullable=False)
-    result_path: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    params: Mapped[str] = mapped_column(Text, nullable=False)
+    result_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
 class ChannelOpLog(Base):
@@ -128,86 +183,120 @@ class ChannelOpLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     account_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
-    gateway_name: Mapped[str] = mapped_column(String, nullable=False, default="")
-    action: Mapped[str] = mapped_column(String, nullable=False)
-    result: Mapped[str] = mapped_column(String, nullable=False, default="success")
-    message: Mapped[str] = mapped_column(String, nullable=False, default="")
+    gateway_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    result: Mapped[str] = mapped_column(String(32), nullable=False, default="success")
+    message: Mapped[str] = mapped_column(String(2000), nullable=False, default="")
     operator_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    operator_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[str] = mapped_column(String, nullable=False, default=_now)
+    operator_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 
 _engine: Engine | None = None
 SessionLocal: sessionmaker[SASession] | None = None
+_ready = False
+_last_error: str | None = None
+
+
+def configured() -> bool:
+    return bool(settings.mysql_host and settings.mysql_user and settings.mysql_database)
+
+
+def available() -> bool:
+    return _ready
+
+
+def status(*, refresh: bool = False) -> dict[str, Any]:
+    if refresh and configured() and not _ready:
+        init_db()
+    payload: dict[str, Any] = {
+        "ok": _ready,
+        "state": "ok" if _ready else ("unconfigured" if not configured() else "down"),
+        "host": settings.mysql_host or "",
+        "port": settings.mysql_port,
+        "database": settings.mysql_database,
+        "user": settings.mysql_user,
+        "backend": "mysql",
+    }
+    if not _ready and _last_error:
+        payload["error"] = _last_error
+    return payload
+
+
+def describe() -> str:
+    return (
+        f"{settings.mysql_host}:{settings.mysql_port} "
+        f"database={settings.mysql_database} user={settings.mysql_user}"
+    )
+
+
+def _server_url() -> str:
+    user = quote_plus(settings.mysql_user)
+    pwd = quote_plus(settings.mysql_password or "")
+    return (
+        f"mysql+pymysql://{user}:{pwd}@{settings.mysql_host}:{settings.mysql_port}"
+        f"/?charset=utf8mb4"
+    )
+
+
+def _db_url() -> str:
+    user = quote_plus(settings.mysql_user)
+    pwd = quote_plus(settings.mysql_password or "")
+    db = quote_plus(settings.mysql_database)
+    return (
+        f"mysql+pymysql://{user}:{pwd}@{settings.mysql_host}:{settings.mysql_port}"
+        f"/{db}?charset=utf8mb4"
+    )
 
 
 def init_db() -> None:
-    global _engine, SessionLocal
-    settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-    _engine = create_engine(
-        f"sqlite:///{settings.sqlite_path}",
-        connect_args={"check_same_thread": False},
-    )
-    with _engine.connect() as conn:
-        conn.exec_driver_sql("PRAGMA journal_mode=WAL")
-    SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
-    Base.metadata.create_all(_engine)
-    _ensure_account_name_unique()
-    _ensure_account_auto_connect()
-    _bootstrap_admin()
-    _ensure_market_subscriptions_ready()
-
-
-def _ensure_market_subscriptions_ready() -> None:
-    """Confirm market_subscriptions exists (create_all); helps diagnose deploy wipe issues."""
-    if _engine is None:
-        return
-    with _engine.connect() as conn:
-        row = conn.exec_driver_sql(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='market_subscriptions'"
-        ).fetchone()
-        if not row:
-            # create_all should have made it; force once more for safety
-            MarketSubscription.__table__.create(bind=_engine, checkfirst=True)
-        conn.exec_driver_sql("PRAGMA wal_checkpoint(PASSIVE)")
-
-
-def _ensure_account_auto_connect() -> None:
-    """SQLite create_all will not add columns to an existing accounts table."""
-    if _engine is None:
-        return
-    with _engine.begin() as conn:
-        cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(accounts)").fetchall()]
-        if "auto_connect" not in cols:
-            conn.exec_driver_sql(
-                "ALTER TABLE accounts ADD COLUMN auto_connect INTEGER NOT NULL DEFAULT 0"
-            )
-
-
-def _ensure_account_name_unique() -> None:
-    """Add (user_id, account_name) unique index when the table has no leftover dupes."""
-    if _engine is None:
-        return
-    with _engine.begin() as conn:
-        dupes = conn.exec_driver_sql(
-            """
-            SELECT 1 FROM accounts
-            GROUP BY user_id, COALESCE(account_name, '')
-            HAVING COUNT(*) > 1
-            LIMIT 1
-            """
-        ).fetchone()
-        if dupes:
-            return
-        conn.exec_driver_sql(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_user_name "
-            "ON accounts (user_id, account_name)"
+    """Create MySQL database + tables. Raises if MySQL is required but unreachable."""
+    global _engine, SessionLocal, _ready, _last_error
+    if not configured():
+        _ready = False
+        _last_error = "STABX_MYSQL_HOST / MYSQL_HOST not set"
+        raise RuntimeError(
+            "MySQL is required (STABX_MYSQL_HOST or MYSQL_HOST). "
+            "Business tables no longer use SQLite."
         )
+    try:
+        db_name = settings.mysql_database
+        if not db_name.replace("_", "").isalnum():
+            raise ValueError(f"invalid MySQL database name: {db_name}")
+
+        server = create_engine(_server_url(), pool_pre_ping=True, pool_recycle=3600)
+        with server.connect() as conn:
+            conn.execute(
+                text(
+                    f"CREATE DATABASE IF NOT EXISTS `{db_name}` "
+                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                )
+            )
+            conn.commit()
+        server.dispose()
+
+        _engine = create_engine(_db_url(), pool_pre_ping=True, pool_recycle=3600)
+        with _engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        SessionLocal = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
+        Base.metadata.create_all(_engine)
+        _ready = True
+        _last_error = None
+        logger.info("MySQL ready %s", describe())
+        _migrate_from_legacy_sqlite_if_empty()
+        _bootstrap_admin()
+    except Exception as exc:
+        _ready = False
+        _last_error = str(exc)
+        _engine = None
+        SessionLocal = None
+        logger.exception("MySQL init failed %s", describe())
+        raise
 
 
 def get_session() -> SASession:
-    if SessionLocal is None:
-        raise RuntimeError("database is not initialized")
+    if SessionLocal is None or not _ready:
+        raise RuntimeError("database is not initialized (MySQL)")
     return SessionLocal()
 
 
@@ -243,6 +332,219 @@ def _bootstrap_admin() -> None:
             )
         )
         db.commit()
+        logger.info("bootstrapped admin user %s", settings.admin_username)
+    finally:
+        db.close()
+
+
+def _legacy_sqlite_path() -> Path:
+    return Path(settings.sqlite_path)
+
+
+def _migrate_from_legacy_sqlite_if_empty() -> None:
+    """One-shot import from former `.vntrader/stabx_web.db` when MySQL users table is empty."""
+    path = _legacy_sqlite_path()
+    if not path.is_file():
+        return
+    db = get_session()
+    try:
+        if db.scalar(select(User.id).limit(1)) is not None:
+            return
+    finally:
+        db.close()
+
+    logger.info("migrating legacy SQLite %s → MySQL %s", path, settings.mysql_database)
+    try:
+        src = sqlite3.connect(str(path))
+        src.row_factory = sqlite3.Row
+    except sqlite3.Error as exc:
+        logger.warning("cannot open legacy SQLite: %s", exc)
+        return
+
+    def _rows(table: str) -> list[sqlite3.Row]:
+        try:
+            return list(src.execute(f"SELECT * FROM {table}"))
+        except sqlite3.Error:
+            return []
+
+    mysql = get_session()
+    try:
+        # users first (preserve ids where possible via explicit insert)
+        for row in _rows("users"):
+            mysql.add(
+                User(
+                    id=int(row["id"]),
+                    username=row["username"],
+                    password_hash=row["password_hash"],
+                    display_name=row["display_name"],
+                    status=int(row["status"] if row["status"] is not None else 1),
+                    is_admin=int(row["is_admin"] if row["is_admin"] is not None else 0),
+                    created_at=row["created_at"] or _now(),
+                )
+            )
+        mysql.flush()
+
+        for row in _rows("accounts"):
+            keys = row.keys()
+            mysql.add(
+                Account(
+                    id=int(row["id"]),
+                    user_id=int(row["user_id"]),
+                    gateway_name=row["gateway_name"],
+                    gateway_type=row["gateway_type"] or "CTP",
+                    account_name=row["account_name"],
+                    connect_settings=row["connect_settings"] or "",
+                    status=int(row["status"] if row["status"] is not None else 1),
+                    auto_connect=int(row["auto_connect"]) if "auto_connect" in keys and row["auto_connect"] is not None else 0,
+                    created_at=row["created_at"] or _now(),
+                )
+            )
+
+        for row in _rows("sessions"):
+            mysql.add(
+                Session(
+                    id=int(row["id"]),
+                    user_id=int(row["user_id"]),
+                    refresh_token=row["refresh_token"],
+                    expires_at=row["expires_at"],
+                    revoked=int(row["revoked"] if row["revoked"] is not None else 0),
+                )
+            )
+
+        for row in _rows("market_subscriptions"):
+            mysql.add(
+                MarketSubscription(
+                    id=int(row["id"]),
+                    user_id=int(row["user_id"]),
+                    gateway_name=row["gateway_name"],
+                    symbol=row["symbol"],
+                    exchange=row["exchange"],
+                    name=row["name"],
+                    created_at=row["created_at"] or _now(),
+                )
+            )
+
+        for row in _rows("channel_op_logs"):
+            mysql.add(
+                ChannelOpLog(
+                    id=int(row["id"]),
+                    account_id=row["account_id"],
+                    gateway_name=row["gateway_name"] or "",
+                    action=row["action"],
+                    result=row["result"] or "success",
+                    message=(row["message"] or "")[:2000],
+                    operator_id=row["operator_id"],
+                    operator_name=row["operator_name"],
+                    created_at=row["created_at"] or _now(),
+                )
+            )
+
+        for row in _rows("watchlists"):
+            mysql.add(Watchlist(user_id=int(row["user_id"]), vt_symbol=row["vt_symbol"]))
+
+        for row in _rows("alert_rules"):
+            mysql.add(
+                AlertRule(
+                    id=int(row["id"]),
+                    user_id=int(row["user_id"]),
+                    type=row["type"],
+                    condition=row["condition"],
+                    channel=row["channel"],
+                    enabled=int(row["enabled"] if row["enabled"] is not None else 1),
+                )
+            )
+
+        for row in _rows("backtest_meta"):
+            mysql.add(
+                BacktestMeta(
+                    id=int(row["id"]),
+                    user_id=int(row["user_id"]),
+                    params=row["params"],
+                    result_path=row["result_path"],
+                    created_at=row["created_at"] or _now(),
+                )
+            )
+
+        for row in _rows("strategy_instances"):
+            keys = row.keys()
+            mysql.add(
+                StrategyInstance(
+                    id=int(row["id"]),
+                    user_id=int(row["user_id"]) if row["user_id"] is not None else None,
+                    gateway_name=row["gateway_name"],
+                    strategy_class=row["strategy_class"],
+                    strategy_name=(row["strategy_name"] if "strategy_name" in keys else "") or "",
+                    vt_symbol=row["vt_symbol"],
+                    params=row["params"],
+                    status=row["status"] or "stopped",
+                    created_at=row["created_at"] or _now(),
+                    updated_at=_now(),
+                )
+            )
+
+        mysql.commit()
+        for table in (
+            "users",
+            "accounts",
+            "sessions",
+            "market_subscriptions",
+            "channel_op_logs",
+            "alert_rules",
+            "backtest_meta",
+            "strategy_instances",
+            "instruments",
+        ):
+            max_id = mysql.execute(text(f"SELECT IFNULL(MAX(id), 0) FROM `{table}`")).scalar() or 0
+            mysql.execute(text(f"ALTER TABLE `{table}` AUTO_INCREMENT = {int(max_id) + 1}"))
+        mysql.commit()
+        logger.info("legacy SQLite migration complete")
+    except Exception:
+        mysql.rollback()
+        logger.exception("legacy SQLite → MySQL migration failed")
+        raise
+    finally:
+        mysql.close()
+        src.close()
+
+
+def upsert_instrument(*, symbol: str, exchange: str, name: str, product: str | None = None) -> None:
+    if not name.strip():
+        return
+    sym = symbol.strip()
+    ex = exchange.strip().upper()
+    nm = name.strip()
+    db = get_session()
+    try:
+        row = db.scalar(
+            select(Instrument).where(Instrument.symbol == sym, Instrument.exchange == ex)
+        )
+        if row is None:
+            db.add(
+                Instrument(symbol=sym, exchange=ex, name=nm, product=product, updated_at=_now())
+            )
+        else:
+            row.name = nm
+            if product:
+                row.product = product
+            row.updated_at = _now()
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("upsert instrument failed %s.%s", sym, ex)
+    finally:
+        db.close()
+
+
+def lookup_instrument_name(symbol: str, exchange: str) -> str | None:
+    db = get_session()
+    try:
+        row = db.scalar(
+            select(Instrument).where(
+                Instrument.symbol == symbol.strip(),
+                Instrument.exchange == exchange.strip().upper(),
+            )
+        )
+        return (row.name or "").strip() or None if row else None
     finally:
         db.close()
 

@@ -97,7 +97,7 @@ const listContracts = computed(() => {
     const key = contractKey(row);
     if (key && market.subscribedKeys[key]) byKey.set(key, row);
   }
-  // Restored SQLite rows must appear even before OMS contract query returns.
+  // Restored MySQL subscription rows must appear even before OMS contract query returns.
   for (const sub of market.subscriptions) {
     const row = sub as ContractRow;
     const key = contractKey(row);

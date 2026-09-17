@@ -114,7 +114,7 @@ echo "安装 Web 依赖（不含桌面 Qt / PySide6）..."
   "python-multipart>=0.0.12" \
   "httpx>=0.27" \
   "orjson>=3.10" \
-  "vnpy_sqlite"
+  "pymysql>=1.1"
 
 echo "安装 vnpy 非 Qt 运行时依赖（wheels）..."
 "${PIP[@]}" install \

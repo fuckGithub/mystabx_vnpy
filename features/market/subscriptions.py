@@ -1,29 +1,21 @@
-"""Persist and restore CTP market-data subscriptions (SQLite)."""
+"""Persist and restore CTP market-data subscriptions (MySQL)."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
 from vnpy.trader.constant import Exchange
 from vnpy.trader.object import SubscribeRequest
 
-from core.db import MarketSubscription, get_session
+from core.db import MarketSubscription, get_session, lookup_instrument_name, upsert_instrument
 from core.runtime import runtime
 
 logger = logging.getLogger(__name__)
 
 # Gateways whose MD login already triggered a restore in this process.
 _restored_gateways: set[str] = set()
-
-
-def _checkpoint_sqlite(db) -> None:
-    """Flush WAL into the main DB file so rows survive abrupt process/file replace."""
-    try:
-        db.execute(text("PRAGMA wal_checkpoint(PASSIVE)"))
-    except Exception:
-        logger.debug("sqlite wal_checkpoint skipped", exc_info=True)
 
 
 def vt_symbol_of(symbol: str, exchange: str) -> str:
@@ -44,6 +36,9 @@ def subscription_to_dict(row: MarketSubscription) -> dict[str, Any]:
 
 
 def lookup_contract_name(symbol: str, exchange: str, gateway_name: str = "") -> str | None:
+    cached = lookup_instrument_name(symbol, exchange)
+    if cached:
+        return cached
     want_sym = symbol.upper()
     want_ex = exchange.upper()
     try:
@@ -60,6 +55,7 @@ def lookup_contract_name(symbol: str, exchange: str, gateway_name: str = "") -> 
             continue
         name = str(getattr(contract, "name", "") or "").strip()
         if name:
+            upsert_instrument(symbol=symbol, exchange=exchange, name=name)
             return name
     return None
 
@@ -95,13 +91,12 @@ def upsert_subscription(
                 name=resolved,
             )
             db.add(row)
-        elif resolved and not (row.name or "").strip():
-            row.name = resolved
         elif resolved:
             row.name = resolved
         db.commit()
         db.refresh(row)
-        _checkpoint_sqlite(db)
+        if resolved:
+            upsert_instrument(symbol=sym, exchange=ex, name=resolved)
         return row
     finally:
         db.close()
@@ -128,7 +123,6 @@ def delete_subscription(
             )
         )
         db.commit()
-        _checkpoint_sqlite(db)
         return bool(result.rowcount)
     finally:
         db.close()
@@ -163,7 +157,7 @@ def clear_restored(gateway_name: str) -> None:
 
 
 def restore_gateway_subscriptions(gateway_name: str, *, force: bool = False) -> int:
-    """Re-subscribe persisted contracts via MainEngine after MD login."""
+    """Re-subscribe persisted contracts via MainEngine after MD login (from MySQL)."""
     gw = (gateway_name or "").strip()
     if not gw:
         return 0
@@ -173,7 +167,6 @@ def restore_gateway_subscriptions(gateway_name: str, *, force: bool = False) -> 
     if not rows:
         _restored_gateways.add(gw)
         return 0
-    # Deduplicate by symbol.exchange (multiple users may share one gateway row set).
     seen: set[tuple[str, str]] = set()
     ok = 0
     for row in rows:

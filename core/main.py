@@ -21,7 +21,8 @@ ensure_project_trader_dir()
 from core.clickhouse import describe as clickhouse_describe  # noqa: E402
 from core.clickhouse import init_clickhouse, status as clickhouse_status  # noqa: E402
 from core.config import settings  # noqa: E402
-from core.db import Account, User, account_to_dict, get_session, init_db  # noqa: E402
+from core.db import Account, User, account_to_dict, describe as mysql_describe  # noqa: E402
+from core.db import get_session, init_db, status as mysql_status  # noqa: E402
 from core.deps import decode_token, get_user_by_id, user_public, visible_gateways  # noqa: E402
 from core.engine import build_headless_engines  # noqa: E402
 from core.events import bind_events  # noqa: E402
@@ -55,6 +56,7 @@ def _load_accounts() -> list[dict]:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    logger.info("MySQL ready %s", mysql_describe())
     where = clickhouse_describe()
     if init_clickhouse():
         logger.info("ClickHouse reachable %s", where)
@@ -147,6 +149,7 @@ def health() -> dict:
         "ws": hub.snapshot_counts(),
         "sse": sse_hub.snapshot_counts(),
         "clickhouse": clickhouse_status(refresh=True),
+        "mysql": mysql_status(refresh=True),
         "metrics": metrics.snapshot(thresholds=settings.metric_thresholds()),
     }
 

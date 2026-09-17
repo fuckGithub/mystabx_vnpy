@@ -1,4 +1,4 @@
-"""Per-channel operation logs in SQLite. Never persist passwords or auth codes."""
+"""Per-channel operation logs in MySQL. Never persist passwords or auth codes."""
 
 from __future__ import annotations
 
@@ -122,7 +122,7 @@ def list_channel_logs(
         total = len(rows)
         start = (page - 1) * page_size
         items = [_log_dict(row) for row in rows[start : start + page_size]]
-        return {"items": items, "total": total, "page": page, "page_size": page_size}
+        return {"items": items, "total": total, "page": page, "page_size": page_size, "store": "mysql"}
     finally:
         db.close()
 

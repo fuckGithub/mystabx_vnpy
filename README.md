@@ -101,7 +101,7 @@
 | **交易下单** | `/trade/order`、`/trade/orders` | 下单面板（二次确认）；活动委托、撤单 |
 | **策略** | `/strategy/cta` 等 | 开源 `vnpy_ctastrategy` CTA：实例生命周期（管理员写 / 用户读）、停止单、策略日志；`/strategy/backtest` 最小回测（无 bar / RQData 时结果为空） |
 | **资金持仓** | `/account/gateways` 等 | **账户连接**表与管理端通道列表风格对齐：交易/行情双状态、自动连接、连接 / 测试联通 / 断开；另有资金、持仓、成交 |
-| **系统管理** | `/admin/users`、`/admin/accounts` | 管理员：用户 CRUD；通道 CRUD、保存后加密、**测试联通**、**操作日志**（SQLite `channel_op_logs`，列表「日志」抽屉） |
+| **系统管理** | `/admin/users`、`/admin/accounts` | 管理员：用户 CRUD；通道 CRUD、保存后加密、**测试联通**、**操作日志**（MySQL `channel_op_logs`，列表「日志」抽屉） |
 
 **CTA 策略（开源 vnpy，非 Elite）**
 
@@ -119,8 +119,9 @@
 
 **存储**
 
-- **SQLite**（默认 `.vntrader/stabx_web.db`）：用户、通道（含 `auto_connect`）、会话、行情订阅（`market_subscriptions`）、通道操作日志等；通道密钥 Fernet 加密。ClickHouse 只存 Tick，不存订阅。
-- **ClickHouse** 只存 Tick：库表 `mystabx_vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。根目录 `ch_schema.sql` 是早期设计稿，运行时建表以 `core/clickhouse.py` 为准。
+- **MySQL**（RDS，库名默认 `mystabx_vnpy`）：用户、通道（含 `auto_connect`）、会话、行情订阅、通道操作日志、合约名称、策略类元数据/源码、策略实例元数据等；通道密钥 Fernet 加密。环境变量 `STABX_MYSQL_*`（兼容 `MYSQL_*`）。
+- **ClickHouse** 只存 Tick / 分时热路径：库表 `mystabx_vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。
+- **`.vntrader/`**：仅给 vnpy 用（CTP 会话目录、`web_keys.json`、CTA `cta_strategy_*.json` 等），**不再**存放业务 SQLite。旧 `stabx_web.db` 仅在首次启动时一次性迁入 MySQL。
 
 技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。Docker、RQData 历史行情仍非产品能力。
 
@@ -134,7 +135,7 @@
 | 用户规模 | 局域网 / 小团队多用户 |
 | 前端技术栈 | Vue 3 + Vite + TypeScript + Element Plus + ECharts |
 | 后端技术栈 | FastAPI + Uvicorn，进程内 headless 启动 **vnpy**（非自研引擎） |
-| 数据存储 | SQLite（用户/通道/会话/操作日志）+ ClickHouse（仅 Tick，默认 10 天） |
+| 数据存储 | **MySQL**（用户/通道/会话/订阅/日志/策略元数据）+ **ClickHouse**（仅 Tick，默认 10 天）；`.vntrader` 仅 vnpy 会话/JSON |
 | 账户模型 | 每用户独立 CTP 账户（多 gateway 实例） |
 | 权限模型 | 用户级隔离 + 一个管理员标志（无复杂 RBAC） |
 | 目录组织 | 功能域优先：`features/ + core/ + ui/`（不按 backend/frontend 分层） |
@@ -145,7 +146,7 @@
 | 文档 | 内容 |
 |---|---|
 | [01-架构与功能规划](docs/01-架构与功能规划.md) | 总体架构、技术栈、功能模块 |
-| [02-数据存储方案](docs/02-数据存储方案.md) | 设计稿：存储分层；实现以 SQLite 用户库 + CH Tick 为准 |
+| [02-数据存储方案](docs/02-数据存储方案.md) | 设计稿：存储分层；实现以 **MySQL 业务库** + CH Tick 为准（应用侧已弃用 SQLite） |
 | [03-账户隔离与权限](docs/03-账户隔离与权限.md) | 多 gateway、用户级隔离、管理员、后端伪代码 |
 | [04-WebSocket消息协议](docs/04-WebSocket消息协议.md) | 消息 envelope 与字段级 payload |
 | [05-前端方案与目录结构](docs/05-前端方案与目录结构.md) | 轻量化前端、功能域目录、依赖清单 |
@@ -177,11 +178,12 @@ mystabx_vnpy/
 │   ├── engine.py                  #   无界面      MainEngine / EventEngine
 │   ├── runtime.py                 #   进程内单例：引擎、OMS、网关管理器
 │   ├── gateways.py                #   多账户 CtpGateway；td/md 状态；自动连接/重连；测试联通
-│   ├── channel_log.py             #   通道操作日志写入 SQLite（脱敏）
+│   ├── channel_log.py             #   通道操作日志写入 MySQL（脱敏）
 │   ├── events.py                  #   vnpy 事件转到 WebSocket；Tick 同时入内存与 CH 队列
 │   ├── ws.py                      #   WebSocket：Tick / 委托 / 持仓等实时推送
 │   ├── sse.py                     #   SSE：工作台账号登录与资金（gateway / account）
-│   ├── db.py                      #   SQLite：users / accounts / sessions / channel_op_logs 等
+│   ├── db.py                      #   MySQL：users / accounts / sessions / subscriptions / logs / strategies
+│   ├── strategy_store.py          #   策略类源码与实例元数据（MySQL）
 │   ├── clickhouse.py              #   ClickHouse：仅 market_tick，TTL 10 天，不可用时软失败
 │   ├── config.py                  #   读 .env 与本机密钥
 │   ├── deps.py                    #   登录用户 / 管理员依赖
@@ -295,7 +297,7 @@ cp .env.example .env
 
 按需改端口等。不要把真实 SimNow / CTP 密码或 InvestorID 写进仓库或脚本；账户密钥只走 Web **通道配置** 或本机 `.vntrader`。
 
-首次引导管理员（仅当 SQLite 里还没有该用户时写入）默认用户名是 **`admin`**；未设 `STABX_ADMIN_PASSWORD` 时代码回退 `admin123`。**ECS / 生产必须在 `.env` 设强随机密码**（勿提交）。
+首次引导管理员（仅当 MySQL `users` 里还没有该用户时写入）默认用户名是 **`admin`**；未设 `STABX_ADMIN_PASSWORD` 时代码回退 `admin123`。**ECS / 生产必须在 `.env` 设强随机密码**（勿提交）。
 
 ### 5. 启动
 
@@ -363,7 +365,7 @@ cp .env.ecs.example .env.ecs   # 填写 ECS_PASSWORD 等
 - **本机 Mac**：适合开发与个人模拟；生产 API / 原生 teardown 限制见上文。
 - **本机 Windows**：CTP 用 `install_windows.ps1` 或 WSL2；不要混用 Mac/Linux 动态库。
 - **Linux 服务器**：适合 7×24 挂着给浏览器用。先 `./scripts/install_linux.sh`，再 `./start.sh`（默认生产：构建 + 单进程 uvicorn）。必须用 Linux 版 `vnpy_ctp`。不要用 `uvicorn --workers`。
-- 磁盘主要给系统、`.venv`、`node_modules`、`dist/`、`.vntrader`（SQLite `stabx_web.db` / 密钥）。ClickHouse 可选：本机 `127.0.0.1:8123` 存近 10 日 Tick；没起来时服务仍可跑，历史交易日分时不可查。
+- 磁盘主要给系统、`.venv`、`node_modules`、`dist/`、`.vntrader`（vnpy CTP 会话 / 密钥 / CTA JSON，**不含**业务 SQLite）。业务数据在 RDS MySQL；ClickHouse 可选：本机或 ECS `127.0.0.1:8123` 存近 10 日 Tick。
 - **ClickHouse 开机启动**（HTTP `8123`）：Mac Homebrew 用 `brew services start clickhouse`（或 `clickhouse-server`）；Linux 用 `sudo systemctl enable --now clickhouse-server`。本机官方单二进制也可用 LaunchAgent：`launchctl enable gui/$(id -u)/com.stabx.clickhouse`（`RunAtLoad` + `KeepAlive`）。Docker 部署则 `docker update --restart unless-stopped <容器>`。
 - 安全：监听 `0.0.0.0` 时用防火墙或反向代理限制来源；改默认管理员密码；`.env` 不要提交。
 
@@ -416,7 +418,8 @@ cp .env.ecs.example .env.ecs   # 填写 ECS_PASSWORD 等
 | `STABX_SIMNOW_USER` | （空） | 本机新建通道预填资金账号，只写 `.env` |
 | `STABX_SIMNOW_PASSWORD` | （空） | 本机新建通道预填密码，只写 `.env`，勿提交 |
 | `STABX_JWT_SECRET` | 自动生成 | JWT 密钥；缺省写入 `.vntrader/web_keys.json` |
-| `STABX_SQLITE_PATH` | `.vntrader/stabx_web.db` | 业务库：用户、通道、会话、行情订阅、操作日志 |
+| `STABX_MYSQL_HOST` 等 | （必需） | 业务 MySQL；兼容 `MYSQL_HOST` / `MYSQL_PWD` / `MYSQL_DB`；库默认 `mystabx_vnpy` |
+| `STABX_SQLITE_PATH` | `.vntrader/stabx_web.db` | **仅一次性迁移**旧业务库 → MySQL；运行时不再写 SQLite |
 | `STABX_CLICKHOUSE_URL` | `http://127.0.0.1:8123` | Tick 库 HTTP 口；不可用时软失败 |
 | `STABX_CLICKHOUSE_TICK_TTL_DAYS` | `10` | ClickHouse Tick 保留天数 |
 | `STABX_METRIC_T2T_P99_MS` | `50` | `/health` → `metrics.alerts`：Tick-2-Trade p99 告警阈值（毫秒） |

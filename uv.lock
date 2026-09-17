@@ -662,11 +662,11 @@ dependencies = [
     { name = "httpx" },
     { name = "orjson" },
     { name = "pyjwt" },
+    { name = "pymysql" },
     { name = "python-multipart" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "vnpy" },
-    { name = "vnpy-sqlite" },
 ]
 
 [package.metadata]
@@ -677,11 +677,11 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "orjson", specifier = ">=3.10" },
     { name = "pyjwt", specifier = ">=2.9" },
+    { name = "pymysql", specifier = ">=1.1" },
     { name = "python-multipart", specifier = ">=0.0.12" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
     { name = "vnpy", specifier = ">=4.0.0,<5" },
-    { name = "vnpy-sqlite" },
 ]
 
 [[package]]
@@ -1150,15 +1150,6 @@ wheels = [
 ]
 
 [[package]]
-name = "peewee"
-version = "4.4.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/46/98/919cd14a0115c4e81093d723faff2ed03145966c61c5c8dac13104d4d94f/peewee-4.4.0.tar.gz", hash = "sha256:ea3b013d2366d09bb0bd7b6223f0e3e34125caad5d4dfc23525c668c8aad7026", size = 817279, upload-time = "2026-08-23T11:43:40.093Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/28/1ed7ca6ec0b45d0209346fb82d7145a5abf8fd9bdca6bcb75cb868601f43/peewee-4.4.0-py3-none-any.whl", hash = "sha256:c4d6bc13d9a9b22fe691f695f5a5d716645b4bd5387fef27b9cb53ef14fae1e1", size = 191247, upload-time = "2026-08-23T11:43:38.979Z" },
-]
-
-[[package]]
 name = "platformdirs"
 version = "4.11.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1330,6 +1321,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
+]
+
+[[package]]
+name = "pymysql"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/78/528a2e2d133fb925590a1e21c07ae308d9a1ca74c6c9250e0c9fa789d40c/pymysql-1.2.1.tar.gz", hash = "sha256:707ac743d0e3bde3f1a8210ce5ecb1814fd40a0bbb04a17c9e8a9553836a4a4a", size = 50350, upload-time = "2026-09-17T08:32:52.318Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/e2/d6bc8488f21017fedd90b3339d1f1c1dbf141cac204e423d72bdbe224f25/pymysql-1.2.1-py3-none-any.whl", hash = "sha256:cdf7e7f5cf4de6aa221bed3982d8090badcb5975daa9534328255f95bf4035c9", size = 46600, upload-time = "2026-09-17T08:32:51.071Z" },
 ]
 
 [[package]]
@@ -2210,18 +2210,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ae/ff/9c986f504acb6cdfa1c379c8697202d5f257406f9928f5503fd03cf6e50c/vnpy-4.0.0.tar.gz", hash = "sha256:7c6b36dc0b40d58745235fc29b563a9f25646c82b9c224b2af61d5d75ce069b3", size = 154609, upload-time = "2025-04-10T00:58:25.634Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7c/23/a3cf142fa0a455f564fc1df42c2fb315fde99b1b41cc981fd92b84c685c0/vnpy-4.0.0-py3-none-any.whl", hash = "sha256:9460ce0fecb4451edb5c2c999ebf24ffaa45651fb97d7dcfff8a00c49970a97c", size = 181995, upload-time = "2025-04-10T00:58:22.747Z" },
-]
-
-[[package]]
-name = "vnpy-sqlite"
-version = "1.1.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "peewee" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/87/76/39b4c7207ed8603354530ac1228f6ad8073db8fcb1a200c5b5b4b02bebff/vnpy_sqlite-1.1.3.tar.gz", hash = "sha256:ed7d76f255b1acd335f479bb8a5ff14931eeec436147ef275ed834208bfd592c", size = 6592, upload-time = "2025-10-02T14:42:21.39Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/13/81/5acf1010985d725e0733c40f591f89a60cf752311ef22e6bb06f37d19af0/vnpy_sqlite-1.1.3-py3-none-any.whl", hash = "sha256:50f80c45737ef9a491aeebb9bfac0cec57f087461b6d7867838ef678cfbe67bb", size = 6482, upload-time = "2025-10-02T14:42:20.118Z" },
 ]
 
 [[package]]

@@ -67,6 +67,7 @@ class Settings:
     def __init__(self) -> None:
         keys = _load_or_create_keys()
         self.project_root = PROJECT_ROOT
+        # Legacy path only: one-shot migrate old stabx_web.db → MySQL on first boot.
         self.sqlite_path = Path(
             os.environ.get("STABX_SQLITE_PATH", str(TRADER_FOLDER / "stabx_web.db"))
         )
@@ -86,6 +87,27 @@ class Settings:
         self.clickhouse_password = os.environ.get("STABX_CLICKHOUSE_PASSWORD", "")
         self.clickhouse_database = os.environ.get("STABX_CLICKHOUSE_DATABASE", "mystabx_vnpy")
         self.clickhouse_tick_ttl_days = int(os.environ.get("STABX_CLICKHOUSE_TICK_TTL_DAYS", "10"))
+        # MySQL（低频业务：订阅 / 通道日志 / 策略元数据与源码）。兼容 MYSQL_*（.env.ecs）。
+        self.mysql_host = (
+            os.environ.get("STABX_MYSQL_HOST") or os.environ.get("MYSQL_HOST") or ""
+        ).strip()
+        self.mysql_port = int(
+            os.environ.get("STABX_MYSQL_PORT") or os.environ.get("MYSQL_PORT") or "3306"
+        )
+        self.mysql_user = (
+            os.environ.get("STABX_MYSQL_USER") or os.environ.get("MYSQL_USER") or "root"
+        ).strip()
+        self.mysql_password = (
+            os.environ.get("STABX_MYSQL_PASSWORD")
+            or os.environ.get("MYSQL_PWD")
+            or os.environ.get("MYSQL_PASSWORD")
+            or ""
+        )
+        self.mysql_database = (
+            os.environ.get("STABX_MYSQL_DATABASE")
+            or os.environ.get("MYSQL_DB")
+            or "mystabx_vnpy"
+        ).strip() or "mystabx_vnpy"
         self.host = os.environ.get("STABX_HOST", "0.0.0.0")
         self.port = int(os.environ.get("STABX_PORT", "18080"))
         raw_origins = os.environ.get(
