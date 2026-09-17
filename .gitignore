@@ -128,6 +128,9 @@ atlassian-ide-plugin.xml
 # Cursor 本地配置与规则（不提交）
 .cursor/
 
+# VS Code 本机工作区配置（不提交）
+.vscode/
+
 # 前端构建（含 ui/node_modules 符号链接，供 IDE 在 Vite root 下解析依赖）
 node_modules/
 ui/node_modules
