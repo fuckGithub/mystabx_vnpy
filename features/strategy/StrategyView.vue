@@ -1,7 +1,7 @@
 <template>
   <div class="page-shell">
     <div v-if="section === 'backtest'" class="page-list">
-      <h3 class="page-section-title">CTA 回测</h3>
+      <h3 class="page-section-title">策略回测</h3>
       <el-alert
         type="info"
         :closable="false"
@@ -49,8 +49,8 @@
     </div>
 
     <div v-else-if="section === 'stoporders'" class="page-list">
-      <h3 class="page-section-title">停止单</h3>
-      <el-table :data="strategy.stopOrders" border size="small" empty-text="暂无停止单">
+      <h3 class="page-section-title">停止委托</h3>
+      <el-table :data="strategy.stopOrders" border size="small" empty-text="暂无停止委托">
         <el-table-column prop="stop_orderid" label="编号" min-width="140" show-overflow-tooltip />
         <el-table-column prop="strategy_name" label="策略" width="120" />
         <el-table-column prop="vt_symbol" label="合约" width="120" />
@@ -102,7 +102,7 @@
     </div>
 
     <div v-else class="page-list">
-      <h3 class="page-section-title">CTA 实例</h3>
+      <h3 class="page-section-title">策略实例</h3>
       <el-alert class="cta-trial-hint" type="success" :closable="false" show-icon style="margin-bottom: 12px">
         <template #title>
           <span class="cta-trial-hint__title">试用流程</span>

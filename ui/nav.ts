@@ -44,10 +44,10 @@ export const sidebars: Record<string, NavItem[]> = {
     { path: "/trade/orders", title: "委托列表", icon: Document },
   ],
   strategy: [
-    { path: "/strategy/cta", title: "CTA实例", icon: Cpu },
+    { path: "/strategy/cta", title: "策略实例", icon: Cpu },
     { path: "/strategy/logs", title: "策略日志", icon: Notebook },
-    { path: "/strategy/stoporders", title: "停止单", icon: List },
-    { path: "/strategy/backtest", title: "回测", icon: TrendCharts },
+    { path: "/strategy/stoporders", title: "停止委托", icon: List },
+    { path: "/strategy/backtest", title: "策略回测", icon: TrendCharts },
   ],
   account: [
     { path: "/account/gateways", title: "账户连接", icon: Connection },
