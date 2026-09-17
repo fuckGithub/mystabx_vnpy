@@ -67,10 +67,6 @@ class Settings:
     def __init__(self) -> None:
         keys = _load_or_create_keys()
         self.project_root = PROJECT_ROOT
-        # Legacy path only: one-shot migrate old stabx_web.db → MySQL on first boot.
-        self.sqlite_path = Path(
-            os.environ.get("STABX_SQLITE_PATH", str(TRADER_FOLDER / "stabx_web.db"))
-        )
         self.jwt_secret = os.environ.get("STABX_JWT_SECRET", keys["jwt_secret"])
         self.jwt_algorithm = "HS256"
         self.access_expire_minutes = int(os.environ.get("STABX_ACCESS_MINUTES", "60"))

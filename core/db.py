@@ -7,9 +7,7 @@ files and JSON settings — not for app business tables.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -283,7 +281,6 @@ def init_db() -> None:
         _ready = True
         _last_error = None
         logger.info("MySQL ready %s", describe())
-        _migrate_from_legacy_sqlite_if_empty()
         _bootstrap_admin()
     except Exception as exc:
         _ready = False
@@ -335,176 +332,6 @@ def _bootstrap_admin() -> None:
         logger.info("bootstrapped admin user %s", settings.admin_username)
     finally:
         db.close()
-
-
-def _legacy_sqlite_path() -> Path:
-    return Path(settings.sqlite_path)
-
-
-def _migrate_from_legacy_sqlite_if_empty() -> None:
-    """One-shot import from former `.vntrader/stabx_web.db` when MySQL users table is empty."""
-    path = _legacy_sqlite_path()
-    if not path.is_file():
-        return
-    db = get_session()
-    try:
-        if db.scalar(select(User.id).limit(1)) is not None:
-            return
-    finally:
-        db.close()
-
-    logger.info("migrating legacy SQLite %s → MySQL %s", path, settings.mysql_database)
-    try:
-        src = sqlite3.connect(str(path))
-        src.row_factory = sqlite3.Row
-    except sqlite3.Error as exc:
-        logger.warning("cannot open legacy SQLite: %s", exc)
-        return
-
-    def _rows(table: str) -> list[sqlite3.Row]:
-        try:
-            return list(src.execute(f"SELECT * FROM {table}"))
-        except sqlite3.Error:
-            return []
-
-    mysql = get_session()
-    try:
-        # users first (preserve ids where possible via explicit insert)
-        for row in _rows("users"):
-            mysql.add(
-                User(
-                    id=int(row["id"]),
-                    username=row["username"],
-                    password_hash=row["password_hash"],
-                    display_name=row["display_name"],
-                    status=int(row["status"] if row["status"] is not None else 1),
-                    is_admin=int(row["is_admin"] if row["is_admin"] is not None else 0),
-                    created_at=row["created_at"] or _now(),
-                )
-            )
-        mysql.flush()
-
-        for row in _rows("accounts"):
-            keys = row.keys()
-            mysql.add(
-                Account(
-                    id=int(row["id"]),
-                    user_id=int(row["user_id"]),
-                    gateway_name=row["gateway_name"],
-                    gateway_type=row["gateway_type"] or "CTP",
-                    account_name=row["account_name"],
-                    connect_settings=row["connect_settings"] or "",
-                    status=int(row["status"] if row["status"] is not None else 1),
-                    auto_connect=int(row["auto_connect"]) if "auto_connect" in keys and row["auto_connect"] is not None else 0,
-                    created_at=row["created_at"] or _now(),
-                )
-            )
-
-        for row in _rows("sessions"):
-            mysql.add(
-                Session(
-                    id=int(row["id"]),
-                    user_id=int(row["user_id"]),
-                    refresh_token=row["refresh_token"],
-                    expires_at=row["expires_at"],
-                    revoked=int(row["revoked"] if row["revoked"] is not None else 0),
-                )
-            )
-
-        for row in _rows("market_subscriptions"):
-            mysql.add(
-                MarketSubscription(
-                    id=int(row["id"]),
-                    user_id=int(row["user_id"]),
-                    gateway_name=row["gateway_name"],
-                    symbol=row["symbol"],
-                    exchange=row["exchange"],
-                    name=row["name"],
-                    created_at=row["created_at"] or _now(),
-                )
-            )
-
-        for row in _rows("channel_op_logs"):
-            mysql.add(
-                ChannelOpLog(
-                    id=int(row["id"]),
-                    account_id=row["account_id"],
-                    gateway_name=row["gateway_name"] or "",
-                    action=row["action"],
-                    result=row["result"] or "success",
-                    message=(row["message"] or "")[:2000],
-                    operator_id=row["operator_id"],
-                    operator_name=row["operator_name"],
-                    created_at=row["created_at"] or _now(),
-                )
-            )
-
-        for row in _rows("watchlists"):
-            mysql.add(Watchlist(user_id=int(row["user_id"]), vt_symbol=row["vt_symbol"]))
-
-        for row in _rows("alert_rules"):
-            mysql.add(
-                AlertRule(
-                    id=int(row["id"]),
-                    user_id=int(row["user_id"]),
-                    type=row["type"],
-                    condition=row["condition"],
-                    channel=row["channel"],
-                    enabled=int(row["enabled"] if row["enabled"] is not None else 1),
-                )
-            )
-
-        for row in _rows("backtest_meta"):
-            mysql.add(
-                BacktestMeta(
-                    id=int(row["id"]),
-                    user_id=int(row["user_id"]),
-                    params=row["params"],
-                    result_path=row["result_path"],
-                    created_at=row["created_at"] or _now(),
-                )
-            )
-
-        for row in _rows("strategy_instances"):
-            keys = row.keys()
-            mysql.add(
-                StrategyInstance(
-                    id=int(row["id"]),
-                    user_id=int(row["user_id"]) if row["user_id"] is not None else None,
-                    gateway_name=row["gateway_name"],
-                    strategy_class=row["strategy_class"],
-                    strategy_name=(row["strategy_name"] if "strategy_name" in keys else "") or "",
-                    vt_symbol=row["vt_symbol"],
-                    params=row["params"],
-                    status=row["status"] or "stopped",
-                    created_at=row["created_at"] or _now(),
-                    updated_at=_now(),
-                )
-            )
-
-        mysql.commit()
-        for table in (
-            "users",
-            "accounts",
-            "sessions",
-            "market_subscriptions",
-            "channel_op_logs",
-            "alert_rules",
-            "backtest_meta",
-            "strategy_instances",
-            "instruments",
-        ):
-            max_id = mysql.execute(text(f"SELECT IFNULL(MAX(id), 0) FROM `{table}`")).scalar() or 0
-            mysql.execute(text(f"ALTER TABLE `{table}` AUTO_INCREMENT = {int(max_id) + 1}"))
-        mysql.commit()
-        logger.info("legacy SQLite migration complete")
-    except Exception:
-        mysql.rollback()
-        logger.exception("legacy SQLite → MySQL migration failed")
-        raise
-    finally:
-        mysql.close()
-        src.close()
 
 
 def upsert_instrument(*, symbol: str, exchange: str, name: str, product: str | None = None) -> None:

@@ -121,7 +121,7 @@
 
 - **MySQL**（RDS，库名默认 `mystabx_vnpy`）：用户、通道（含 `auto_connect`）、会话、行情订阅、通道操作日志、合约名称、策略类元数据/源码、策略实例元数据等；通道密钥 Fernet 加密。环境变量 `STABX_MYSQL_*`（兼容 `MYSQL_*`）。
 - **ClickHouse** 只存 Tick / 分时热路径：库表 `mystabx_vnpy.market_tick`，默认 TTL ~10 天；进程不可用时软失败，当日分时仍走内存。
-- **`.vntrader/`**：仅给 vnpy 用（CTP 会话目录、`web_keys.json`、CTA `cta_strategy_*.json` 等），**不再**存放业务 SQLite。旧 `stabx_web.db` 仅在首次启动时一次性迁入 MySQL。
+- **`.vntrader/`**：仅给 vnpy 用（CTP 会话目录、`web_keys.json`、CTA `cta_strategy_*.json` 等），**不再**存放业务 SQLite。
 
 技术栈：Vue 3 + Vite + TypeScript + Element Plus + ECharts；FastAPI + Uvicorn。Docker、RQData 历史行情仍非产品能力。
 
@@ -419,7 +419,6 @@ cp .env.ecs.example .env.ecs   # 填写 ECS_PASSWORD 等
 | `STABX_SIMNOW_PASSWORD` | （空） | 本机新建通道预填密码，只写 `.env`，勿提交 |
 | `STABX_JWT_SECRET` | 自动生成 | JWT 密钥；缺省写入 `.vntrader/web_keys.json` |
 | `STABX_MYSQL_HOST` 等 | （必需） | 业务 MySQL；兼容 `MYSQL_HOST` / `MYSQL_PWD` / `MYSQL_DB`；库默认 `mystabx_vnpy` |
-| `STABX_SQLITE_PATH` | `.vntrader/stabx_web.db` | **仅一次性迁移**旧业务库 → MySQL；运行时不再写 SQLite |
 | `STABX_CLICKHOUSE_URL` | `http://127.0.0.1:8123` | Tick 库 HTTP 口；不可用时软失败 |
 | `STABX_CLICKHOUSE_TICK_TTL_DAYS` | `10` | ClickHouse Tick 保留天数 |
 | `STABX_METRIC_T2T_P99_MS` | `50` | `/health` → `metrics.alerts`：Tick-2-Trade p99 告警阈值（毫秒） |
