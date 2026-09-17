@@ -53,6 +53,17 @@ ssh root@47.102.208.231
 | API | `http://47.102.208.231:8848/nacos/` |
 | Console | `http://47.102.208.231:18080/` |
 
+## ClickHouse（ECS 本机 · 官方 deb）
+
+> 你给的 [源码构建文档](https://clickhouse.com/docs/zh/resources/develop-contribute/build/build) 面向贡献者；文档写明若不改源码应装预构建包。本机仅约 3.5 GB 内存，源码编译不现实，已按 [Debian/Ubuntu 安装](https://clickhouse.com/docs/zh/install/debian_ubuntu) 装好。
+
+| 字段 | 值 |
+|------|-----|
+| HTTP | `http://127.0.0.1:8123`（机内；`/ping` → `Ok.`） |
+| 用户 / 密码 | `default` / 空（对齐 mystabx 默认） |
+| 库 | `vnpy`（已 `CREATE DATABASE`） |
+| 服务 | `systemctl status clickhouse-server` |
+
 ## 环境变量（本地覆盖示例）
 
 复制为 `.env.ecs`（已 gitignore）后填写密码：
