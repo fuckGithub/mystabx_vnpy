@@ -1021,11 +1021,23 @@ async function loadBacktest() {
       http.get("/api/backtest/result"),
       http.get("/api/backtest/trades"),
     ]);
+    const wasRunning = btRunning.value;
     btRunning.value = Boolean(statusRes.data?.running);
     btHasResult.value = Boolean(statusRes.data?.has_result);
     btStats.value = (resultRes.data?.statistics as Record<string, unknown>) || null;
     btDaily.value = Array.isArray(resultRes.data?.daily_results) ? resultRes.data.daily_results : [];
     btTrades.value = Array.isArray(tradesRes.data) ? tradesRes.data : [];
+    // When a run finishes, snapshot stats onto the current instance version
+    if (wasRunning && !btRunning.value && name.value) {
+      try {
+        await http.post("/api/backtest/persist-result", null, {
+          params: { strategy_name: name.value },
+        });
+        await loadVersionHistory();
+      } catch {
+        /* best-effort */
+      }
+    }
   } catch {
     btStats.value = null;
     btDaily.value = [];

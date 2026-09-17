@@ -746,6 +746,7 @@ def pin_instance_model(name: str, body: InstancePinBody, user: User = Depends(re
             name,
             model_id=body.model_id,
             model_version_id=body.model_version_id,
+            clear=body.model_id is None and body.model_version_id is None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
