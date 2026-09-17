@@ -161,9 +161,13 @@
         highlight-current-row
         empty-text="暂无策略实例"
       >
-        <el-table-column label="名称" width="140" show-overflow-tooltip>
+        <el-table-column label="名称" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
-            <router-link class="cta-name-link" :to="detailPath(row)">
+            <router-link
+              class="cta-name-link"
+              :to="detailPath(row)"
+              :title="String(row.strategy_name || '')"
+            >
               {{ row.strategy_name }}
             </router-link>
           </template>
@@ -216,7 +220,7 @@
         <el-table-column prop="pos" label="仓位" width="64" align="center" />
         <el-table-column
           label="操作"
-          width="248"
+          width="340"
           align="center"
           fixed="right"
           header-class-name="table-action-col"
@@ -224,16 +228,42 @@
         >
           <template #default="{ row }">
             <span class="table-row-actions cta-row-actions">
-              <el-button type="primary" link @click="$router.push(detailPath(row))">详情</el-button>
-              <el-button type="primary" link :disabled="!auth.isAdmin" @click="act(row, 'init')">初始化</el-button>
-              <el-button type="primary" link :disabled="!auth.isAdmin || !row.inited" @click="act(row, 'start')">启动</el-button>
-              <el-button link :disabled="!auth.isAdmin" @click="act(row, 'stop')">停止</el-button>
+              <el-button size="small" type="primary" plain @click="$router.push(detailPath(row))">
+                详情
+              </el-button>
+              <el-button
+                size="small"
+                type="primary"
+                plain
+                :disabled="!auth.isAdmin"
+                @click="act(row, 'init')"
+              >
+                初始化
+              </el-button>
+              <el-button
+                size="small"
+                type="success"
+                plain
+                :disabled="!auth.isAdmin || !row.inited"
+                @click="act(row, 'start')"
+              >
+                启动
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+                plain
+                :disabled="!auth.isAdmin"
+                @click="act(row, 'stop')"
+              >
+                停止
+              </el-button>
               <el-dropdown
                 trigger="click"
                 :disabled="!auth.isAdmin"
                 @command="(cmd: string) => onMoreCommand(cmd, row)"
               >
-                <el-button type="primary" link :disabled="!auth.isAdmin">
+                <el-button size="small" plain :disabled="!auth.isAdmin">
                   更多
                   <el-icon class="cta-more-icon"><ArrowDown /></el-icon>
                 </el-button>

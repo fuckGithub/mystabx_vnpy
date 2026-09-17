@@ -120,9 +120,15 @@
 }
 
 .cta-name-link {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--el-color-primary);
   text-decoration: none;
   font-weight: 500;
+  line-height: 1.4;
 }
 
 .cta-name-link:hover {
@@ -170,12 +176,20 @@
 }
 
 .cta-row-actions {
-  gap: 2px;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .cta-row-actions :deep(.el-button) {
   margin-left: 0;
-  padding: 0 6px;
+  padding: 5px 10px;
+  height: 28px;
+  font-weight: 500;
+}
+
+.cta-row-actions :deep(.el-dropdown) {
+  display: inline-flex;
+  vertical-align: middle;
 }
 
 .cta-more-icon {
