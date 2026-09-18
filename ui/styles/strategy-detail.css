@@ -360,7 +360,14 @@
 }
 
 .sd-bt-symbol {
-  width: 140px;
+  width: 220px;
+}
+
+.sd-bt-symbol__vt {
+  float: right;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-left: 12px;
 }
 
 .sd-kpi {

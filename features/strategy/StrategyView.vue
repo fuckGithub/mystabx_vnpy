@@ -400,7 +400,7 @@ import {
 } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import { useAuthStore, useMarketStore, useStrategyStore, useTradeStore } from "@/stores";
-import { contractKey, productName, type ContractRow } from "../market/contracts";
+import { listSubscribedContractOptions } from "../market/contracts";
 import { strategyDisplayName } from "./strategyNames";
 
 const TIPS_STORAGE_KEY = "mystabx.strategy.tipsExpanded";
@@ -491,34 +491,9 @@ const channelLabelByGateway = computed(() => {
   return map;
 });
 
-const subscribedContractOptions = computed(() => {
-  const byVt = new Map<string, { vt_symbol: string; name: string; label: string }>();
-
-  const upsert = (row: ContractRow, vtHint = "") => {
-    const symbol = String(row.symbol || "").trim();
-    const exchange = String(row.exchange || "").trim().toUpperCase();
-    if (!symbol || !exchange) return;
-    const vt = String(row.vt_symbol || vtHint || `${symbol}.${exchange}`).trim();
-    if (!vt) return;
-    const rawName = String(row.name || "").trim();
-    const name =
-      rawName && rawName.toUpperCase() !== symbol.toUpperCase()
-        ? rawName
-        : productName(row) || symbol;
-    const label = name && name !== vt ? `${name}（${vt}）` : vt;
-    if (!byVt.has(vt)) byVt.set(vt, { vt_symbol: vt, name, label });
-  };
-
-  for (const row of market.contracts) {
-    if (!market.subscribedKeys[contractKey(row)]) continue;
-    upsert(row as ContractRow);
-  }
-  for (const row of market.subscriptions) {
-    upsert(row as ContractRow, String(row.vt_symbol || ""));
-  }
-
-  return Array.from(byVt.values()).sort((a, b) => a.label.localeCompare(b.label, "zh"));
-});
+const subscribedContractOptions = computed(() =>
+  listSubscribedContractOptions(market.contracts, market.subscriptions as never[], market.subscribedKeys),
+);
 
 const logStrategyOptions = computed(() => {
   const names = new Set<string>();

@@ -98,7 +98,24 @@
             <el-option label="小时" value="1h" />
             <el-option label="日线" value="d" />
           </el-select>
-          <el-input v-model="btForm.vt_symbol" size="small" placeholder="合约" class="sd-bt-symbol" />
+          <el-select
+            v-model="btForm.vt_symbol"
+            size="small"
+            filterable
+            clearable
+            class="sd-bt-symbol"
+            :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+          >
+            <el-option
+              v-for="opt in subscribedContractOptions"
+              :key="opt.vt_symbol"
+              :label="opt.label"
+              :value="opt.vt_symbol"
+            >
+              <span>{{ opt.name }}</span>
+              <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
+            </el-option>
+          </el-select>
           <el-button
             type="primary"
             size="small"
@@ -233,7 +250,24 @@
               <el-option label="小时" value="1h" />
               <el-option label="日线" value="d" />
             </el-select>
-            <el-input v-model="btForm.vt_symbol" size="small" placeholder="合约" class="sd-bt-symbol" />
+            <el-select
+            v-model="btForm.vt_symbol"
+            size="small"
+            filterable
+            clearable
+            class="sd-bt-symbol"
+            :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+          >
+            <el-option
+              v-for="opt in subscribedContractOptions"
+              :key="opt.vt_symbol"
+              :label="opt.label"
+              :value="opt.vt_symbol"
+            >
+              <span>{{ opt.name }}</span>
+              <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
+            </el-option>
+          </el-select>
             <el-button
               type="primary"
               size="small"
@@ -262,8 +296,30 @@
       <section v-else class="sd-settings">
         <el-form label-width="120px" class="sd-settings-form" style="max-width: 720px">
           <el-divider content-position="left">订阅合约</el-divider>
-          <el-form-item label="合约 vt_symbol">
-            <el-input v-model="btForm.vt_symbol" placeholder="rb2501.SHFE" />
+          <el-form-item label="合约">
+            <el-select
+              v-model="btForm.vt_symbol"
+              filterable
+              clearable
+              style="width: 100%"
+              :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+            >
+              <el-option
+                v-for="opt in subscribedContractOptions"
+                :key="opt.vt_symbol"
+                :label="opt.label"
+                :value="opt.vt_symbol"
+              >
+                <span>{{ opt.name }}</span>
+                <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
+              </el-option>
+            </el-select>
+            <p class="sd-hint">
+              <template v-if="subscribedContractOptions.length">
+                显示合约名称；提交值为 vt_symbol。选项仅来自已订阅合约。
+              </template>
+              <template v-else>请先去「行情中心」订阅合约。</template>
+            </p>
           </el-form-item>
           <el-divider content-position="left">基础配置</el-divider>
           <el-form-item label="周期">
@@ -316,8 +372,9 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { http } from "@/api";
-import { useAuthStore, useStrategyStore } from "@/stores";
+import { useAuthStore, useMarketStore, useStrategyStore } from "@/stores";
 import PythonCodeEditor from "@/components/PythonCodeEditor.vue";
+import { listSubscribedContractOptions } from "../market/contracts";
 
 type MainTab = "backtest" | "report" | "code" | "settings";
 type SubTab = "overview" | "daily" | "trades" | "logs";
@@ -346,6 +403,7 @@ type VersionRow = {
 
 const auth = useAuthStore();
 const strategy = useStrategyStore();
+const market = useMarketStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -368,7 +426,7 @@ const baseConfig = reactive({
 });
 const btRange = ref<[string, string] | null>(null);
 const btForm = reactive({
-  vt_symbol: "rb2501.SHFE",
+  vt_symbol: "",
   interval: "1m",
   capital: 1_000_000,
 });
@@ -418,6 +476,19 @@ const subTab = computed<SubTab>(() => {
 });
 
 const showSubnav = computed(() => mainTab.value === "backtest" || mainTab.value === "report");
+
+const subscribedContractOptions = computed(() => {
+  const opts = listSubscribedContractOptions(
+    market.contracts,
+    market.subscriptions as never[],
+    market.subscribedKeys,
+  );
+  const current = String(btForm.vt_symbol || "").trim();
+  if (current && !opts.some((o) => o.vt_symbol === current)) {
+    opts.unshift({ vt_symbol: current, name: current, label: `${current}（未在订阅列表）` });
+  }
+  return opts;
+});
 
 const consoleLines = computed(() => {
   const lines = [...localLogs.value];
@@ -532,7 +603,10 @@ function collectParams(): Record<string, unknown> {
 function applyModel(data: ModelRow, keepVersion = false) {
   model.value = data;
   sourceContent.value = String(data.template_source || "");
-  btForm.vt_symbol = String(data.vt_symbol || "rb2501.SHFE");
+  btForm.vt_symbol = String(data.vt_symbol || "").trim();
+  if (!btForm.vt_symbol && subscribedContractOptions.value.length) {
+    btForm.vt_symbol = subscribedContractOptions.value[0].vt_symbol;
+  }
   const cfg = (data.base_config || {}) as Record<string, number | string>;
   baseConfig.interval = String(cfg.interval || "1m");
   baseConfig.capital = Number(cfg.capital ?? 1_000_000);
@@ -692,6 +766,12 @@ async function runBacktest() {
     ElMessage.warning("请选择回测区间");
     return;
   }
+  if (!btForm.vt_symbol) {
+    ElMessage.warning(
+      subscribedContractOptions.value.length ? "请选择已订阅合约" : "请先去行情中心订阅合约",
+    );
+    return;
+  }
   // Save draft so DB has latest 合约/参数/配置/源码 before run loads them
   const ok = await saveDraft();
   if (!ok) return;
@@ -768,8 +848,15 @@ onMounted(async () => {
   start.setMonth(start.getMonth() - 1);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   btRange.value = [fmt(start), fmt(end)];
-  await loadModel();
-  await loadBacktest();
+  await Promise.all([market.loadContracts(), market.loadSubscriptions(), loadModel(), loadBacktest()]);
+  if (
+    btForm.vt_symbol &&
+    !subscribedContractOptions.value.some((o) => o.vt_symbol === btForm.vt_symbol)
+  ) {
+    // keep model-saved symbol even if not subscribed (show as selected value); user can re-pick
+  } else if (!btForm.vt_symbol && subscribedContractOptions.value.length) {
+    btForm.vt_symbol = subscribedContractOptions.value[0].vt_symbol;
+  }
 });
 
 onUnmounted(() => {

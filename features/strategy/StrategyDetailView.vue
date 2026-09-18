@@ -99,7 +99,24 @@
             <el-option label="小时" value="1h" />
             <el-option label="日线" value="d" />
           </el-select>
-          <el-input v-model="btForm.vt_symbol" size="small" placeholder="合约" class="sd-bt-symbol" />
+          <el-select
+            v-model="btForm.vt_symbol"
+            size="small"
+            filterable
+            clearable
+            class="sd-bt-symbol"
+            :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+          >
+            <el-option
+              v-for="opt in subscribedContractOptions"
+              :key="opt.vt_symbol"
+              :label="opt.label"
+              :value="opt.vt_symbol"
+            >
+              <span>{{ opt.name }}</span>
+              <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
+            </el-option>
+          </el-select>
           <el-button
             type="primary"
             size="small"
@@ -248,7 +265,24 @@
               <el-option label="小时" value="1h" />
               <el-option label="日线" value="d" />
             </el-select>
-            <el-input v-model="btForm.vt_symbol" size="small" placeholder="合约" class="sd-bt-symbol" />
+            <el-select
+            v-model="btForm.vt_symbol"
+            size="small"
+            filterable
+            clearable
+            class="sd-bt-symbol"
+            :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+          >
+            <el-option
+              v-for="opt in subscribedContractOptions"
+              :key="opt.vt_symbol"
+              :label="opt.label"
+              :value="opt.vt_symbol"
+            >
+              <span>{{ opt.name }}</span>
+              <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
+            </el-option>
+          </el-select>
             <el-button
               type="primary"
               size="small"
@@ -428,8 +462,9 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { http } from "@/api";
-import { useAuthStore, useStrategyStore } from "@/stores";
+import { useAuthStore, useMarketStore, useStrategyStore } from "@/stores";
 import PythonCodeEditor from "@/components/PythonCodeEditor.vue";
+import { listSubscribedContractOptions } from "../market/contracts";
 
 type MainTab = "backtest" | "report" | "code" | "settings";
 type SubTab = "overview" | "daily" | "trades" | "logs" | "vars";
@@ -458,6 +493,7 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const strategy = useStrategyStore();
+const market = useMarketStore();
 
 const loading = ref(false);
 const savingCode = ref(false);
@@ -490,7 +526,7 @@ const btHasResult = ref(false);
 const btRange = ref<[string, string] | null>(["2024-01-01", "2024-06-01"]);
 const btForm = reactive({
   class_name: "",
-  vt_symbol: "rb2501.SHFE",
+  vt_symbol: "",
   interval: "1m",
   capital: 1_000_000,
 });
@@ -541,6 +577,19 @@ const subTab = computed<SubTab>(() => {
 });
 
 const showSubnav = computed(() => mainTab.value === "backtest" || mainTab.value === "report");
+
+const subscribedContractOptions = computed(() => {
+  const opts = listSubscribedContractOptions(
+    market.contracts,
+    market.subscriptions as never[],
+    market.subscribedKeys,
+  );
+  const current = String(btForm.vt_symbol || "").trim();
+  if (current && !opts.some((o) => o.vt_symbol === current)) {
+    opts.unshift({ vt_symbol: current, name: current, label: `${current}（未在订阅列表）` });
+  }
+  return opts;
+});
 
 const storeLabel = computed(() => {
   const s = source.store;
@@ -1117,10 +1166,20 @@ function stopConsoleResize() {
 async function refreshAll() {
   loading.value = true;
   try {
-    await Promise.all([strategy.refresh(), loadInstance(), loadBaseClasses(), loadModels()]);
+    await Promise.all([
+      strategy.refresh(),
+      market.loadContracts(),
+      market.loadSubscriptions(),
+      loadInstance(),
+      loadBaseClasses(),
+      loadModels(),
+    ]);
     await loadSource();
     await loadBacktest();
     await loadVersionHistory();
+    if (!btForm.vt_symbol && subscribedContractOptions.value.length) {
+      btForm.vt_symbol = subscribedContractOptions.value[0].vt_symbol;
+    }
   } finally {
     loading.value = false;
   }

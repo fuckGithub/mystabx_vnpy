@@ -208,3 +208,51 @@ export function contractBarColors(keys: string[]): Record<string, string> {
   }
   return out;
 }
+
+export type SubscribedContractOption = {
+  vt_symbol: string;
+  name: string;
+  label: string;
+};
+
+/** Options for strategy/model pickers: only already-subscribed contracts, label shows Chinese name. */
+export function listSubscribedContractOptions(
+  contracts: ContractRow[],
+  subscriptions: ContractRow[],
+  subscribedKeys: Record<string, true> | ReadonlySet<string> | Record<string, unknown>,
+): SubscribedContractOption[] {
+  const byVt = new Map<string, SubscribedContractOption>();
+  const keySet =
+    subscribedKeys instanceof Set
+      ? subscribedKeys
+      : new Set(
+          Object.entries(subscribedKeys || {})
+            .filter(([, v]) => Boolean(v))
+            .map(([k]) => k),
+        );
+
+  const upsert = (row: ContractRow, vtHint = "") => {
+    const symbol = String(row.symbol || "").trim();
+    const exchange = String(row.exchange || "").trim().toUpperCase();
+    if (!symbol || !exchange) return;
+    const vt = String(row.vt_symbol || vtHint || `${symbol}.${exchange}`).trim();
+    if (!vt) return;
+    const rawName = String(row.name || "").trim();
+    const name =
+      rawName && rawName.toUpperCase() !== symbol.toUpperCase()
+        ? rawName
+        : productName(row) || symbol;
+    const label = name && name !== vt ? `${name}（${vt}）` : vt;
+    if (!byVt.has(vt)) byVt.set(vt, { vt_symbol: vt, name, label });
+  };
+
+  for (const row of contracts) {
+    if (!keySet.has(contractKey(row))) continue;
+    upsert(row);
+  }
+  for (const row of subscriptions) {
+    upsert(row, String(row.vt_symbol || ""));
+  }
+
+  return Array.from(byVt.values()).sort((a, b) => a.label.localeCompare(b.label, "zh"));
+}
