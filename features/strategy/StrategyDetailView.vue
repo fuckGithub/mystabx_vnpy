@@ -410,10 +410,14 @@
             </p>
           </el-form-item>
           <el-divider content-position="left">运行参数</el-divider>
-          <el-form-item v-for="(val, key) in settingForm" :key="String(key)" :label="String(key)">
-            <el-input v-model="settingForm[key]" size="small" />
+          <el-form-item v-for="item in settingEntries" :key="item.key">
+            <template #label>
+              <span>{{ item.label }}</span>
+              <span class="sd-param-key" style="margin-left: 6px">{{ item.key }}</span>
+            </template>
+            <el-input v-model="settingForm[item.key]" size="small" />
           </el-form-item>
-          <el-form-item v-if="!Object.keys(settingForm).length">
+          <el-form-item v-if="!settingEntries.length">
             <el-empty description="暂无可编辑参数" :image-size="72" />
           </el-form-item>
           <el-form-item>
@@ -465,6 +469,7 @@ import { http } from "@/api";
 import { useAuthStore, useMarketStore, useStrategyStore } from "@/stores";
 import PythonCodeEditor from "@/components/PythonCodeEditor.vue";
 import { listSubscribedContractOptions } from "../market/contracts";
+import { paramLabelZh } from "./paramLabels";
 
 type MainTab = "backtest" | "report" | "code" | "settings";
 type SubTab = "overview" | "daily" | "trades" | "logs" | "vars";
@@ -590,6 +595,13 @@ const subscribedContractOptions = computed(() => {
   }
   return opts;
 });
+
+const settingEntries = computed(() =>
+  Object.keys(settingForm).map((key) => ({
+    key,
+    label: paramLabelZh(key),
+  })),
+);
 
 const storeLabel = computed(() => {
   const s = source.store;

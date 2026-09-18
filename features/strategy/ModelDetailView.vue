@@ -294,74 +294,111 @@
 
       <!-- 模型参数 -->
       <section v-else class="sd-settings">
-        <el-form label-width="120px" class="sd-settings-form" style="max-width: 720px">
-          <el-divider content-position="left">订阅合约</el-divider>
-          <el-form-item label="合约">
-            <el-select
-              v-model="btForm.vt_symbol"
-              filterable
-              clearable
-              style="width: 100%"
-              :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
-            >
-              <el-option
-                v-for="opt in subscribedContractOptions"
-                :key="opt.vt_symbol"
-                :label="opt.label"
-                :value="opt.vt_symbol"
+        <div class="sd-settings-layout">
+          <header class="sd-settings-hero">
+            <div>
+              <h4>模型参数</h4>
+              <p>配置订阅合约、回测基础项与策略运行参数。保存草稿不升版本；「保存为新版本」才会生成版本号。</p>
+            </div>
+            <div class="sd-settings-hero__actions">
+              <el-button type="primary" :loading="saving" :disabled="!auth.isAdmin" @click="saveDraft">
+                保存参数（不升版本）
+              </el-button>
+              <el-button
+                type="success"
+                :loading="savingVersion"
+                :disabled="!auth.isAdmin"
+                @click="saveAsNewVersion"
               >
-                <span>{{ opt.name }}</span>
-                <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
-              </el-option>
-            </el-select>
-            <p class="sd-hint">
-              <template v-if="subscribedContractOptions.length">
-                显示合约名称；提交值为 vt_symbol。选项仅来自已订阅合约。
-              </template>
-              <template v-else>请先去「行情中心」订阅合约。</template>
-            </p>
-          </el-form-item>
-          <el-divider content-position="left">基础配置</el-divider>
-          <el-form-item label="周期">
-            <el-select v-model="baseConfig.interval" style="width: 200px">
-              <el-option label="1m" value="1m" />
-              <el-option label="1h" value="1h" />
-              <el-option label="d" value="d" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="初始资金">
-            <el-input-number v-model="baseConfig.capital" :min="1000" :step="10000" />
-          </el-form-item>
-          <el-form-item label="手续费率">
-            <el-input-number v-model="baseConfig.rate" :step="0.0001" :precision="6" />
-          </el-form-item>
-          <el-form-item label="滑点">
-            <el-input-number v-model="baseConfig.slippage" :step="0.1" />
-          </el-form-item>
-          <el-form-item label="合约乘数">
-            <el-input-number v-model="baseConfig.size" :min="1" :step="1" />
-          </el-form-item>
-          <el-form-item label="最小变动">
-            <el-input-number v-model="baseConfig.pricetick" :step="0.1" />
-          </el-form-item>
-          <el-divider content-position="left">策略参数</el-divider>
-          <el-form-item v-for="(val, key) in settingForm" :key="key" :label="String(key)">
-            <el-input v-model="settingForm[key]" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="saving" :disabled="!auth.isAdmin" @click="saveDraft">
-              保存参数（不升版本）
-            </el-button>
-            <el-button
-              type="success"
-              :loading="savingVersion"
-              :disabled="!auth.isAdmin"
-              @click="saveAsNewVersion"
-            >
-              保存为新版本
-            </el-button>
-          </el-form-item>
-        </el-form>
+                保存为新版本
+              </el-button>
+            </div>
+          </header>
+
+          <div class="sd-settings-grid">
+            <article class="sd-settings-card">
+              <div class="sd-settings-card__head">
+                <span class="sd-settings-card__title">订阅合约</span>
+                <span class="sd-settings-card__sub">仅可从已订阅合约中选择</span>
+              </div>
+              <el-form label-position="top" class="sd-settings-form">
+                <el-form-item label="合约名称">
+                  <el-select
+                    v-model="btForm.vt_symbol"
+                    filterable
+                    clearable
+                    style="width: 100%"
+                    :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+                  >
+                    <el-option
+                      v-for="opt in subscribedContractOptions"
+                      :key="opt.vt_symbol"
+                      :label="opt.label"
+                      :value="opt.vt_symbol"
+                    >
+                      <span>{{ opt.name }}</span>
+                      <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
+                    </el-option>
+                  </el-select>
+                  <p class="sd-hint">
+                    <template v-if="subscribedContractOptions.length">
+                      列表展示中文合约名，提交值为交易代码（如 rb2501.SHFE）。
+                    </template>
+                    <template v-else>请先去「行情中心」订阅合约。</template>
+                  </p>
+                </el-form-item>
+              </el-form>
+            </article>
+
+            <article class="sd-settings-card">
+              <div class="sd-settings-card__head">
+                <span class="sd-settings-card__title">基础配置</span>
+                <span class="sd-settings-card__sub">回测与运行共用</span>
+              </div>
+              <el-form label-position="top" class="sd-settings-form sd-settings-form--grid">
+                <el-form-item label="K 线周期">
+                  <el-select v-model="baseConfig.interval" style="width: 100%">
+                    <el-option label="1 分钟" value="1m" />
+                    <el-option label="1 小时" value="1h" />
+                    <el-option label="日线" value="d" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="初始资金">
+                  <el-input-number v-model="baseConfig.capital" :min="1000" :step="10000" controls-position="right" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="手续费率">
+                  <el-input-number v-model="baseConfig.rate" :step="0.0001" :precision="6" controls-position="right" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="滑点">
+                  <el-input-number v-model="baseConfig.slippage" :step="0.1" controls-position="right" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="合约乘数">
+                  <el-input-number v-model="baseConfig.size" :min="1" :step="1" controls-position="right" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="最小变动价位">
+                  <el-input-number v-model="baseConfig.pricetick" :step="0.1" controls-position="right" style="width: 100%" />
+                </el-form-item>
+              </el-form>
+            </article>
+
+            <article class="sd-settings-card sd-settings-card--wide">
+              <div class="sd-settings-card__head">
+                <span class="sd-settings-card__title">策略参数</span>
+                <span class="sd-settings-card__sub">来自策略类 parameters，按中文名展示</span>
+              </div>
+              <el-form v-if="settingEntries.length" label-position="top" class="sd-settings-form sd-settings-form--grid">
+                <el-form-item v-for="item in settingEntries" :key="item.key">
+                  <template #label>
+                    <span class="sd-param-label">{{ item.label }}</span>
+                    <span class="sd-param-key">{{ item.key }}</span>
+                  </template>
+                  <el-input v-model="settingForm[item.key]" />
+                </el-form-item>
+              </el-form>
+              <p v-else class="sd-hint">当前模型暂无策略参数字段。</p>
+            </article>
+          </div>
+        </div>
       </section>
     </div>
   </div>
@@ -375,6 +412,7 @@ import { http } from "@/api";
 import { useAuthStore, useMarketStore, useStrategyStore } from "@/stores";
 import PythonCodeEditor from "@/components/PythonCodeEditor.vue";
 import { listSubscribedContractOptions } from "../market/contracts";
+import { paramLabelZh } from "./paramLabels";
 
 type MainTab = "backtest" | "report" | "code" | "settings";
 type SubTab = "overview" | "daily" | "trades" | "logs";
@@ -489,6 +527,13 @@ const subscribedContractOptions = computed(() => {
   }
   return opts;
 });
+
+const settingEntries = computed(() =>
+  Object.keys(settingForm).map((key) => ({
+    key,
+    label: paramLabelZh(key),
+  })),
+);
 
 const consoleLines = computed(() => {
   const lines = [...localLogs.value];

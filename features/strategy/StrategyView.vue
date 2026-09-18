@@ -402,6 +402,7 @@ import { http } from "@/api";
 import { useAuthStore, useMarketStore, useStrategyStore, useTradeStore } from "@/stores";
 import { listSubscribedContractOptions } from "../market/contracts";
 import { strategyDisplayName } from "./strategyNames";
+import { paramLabelZh } from "./paramLabels";
 
 const TIPS_STORAGE_KEY = "mystabx.strategy.tipsExpanded";
 
