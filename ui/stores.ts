@@ -197,9 +197,11 @@ export const useMarketStore = defineStore("market", () => {
   function replaceSessionTicks(symbol: string, exchange: string, rows: Record<string, unknown>[]) {
     const key = `${exchange.toUpperCase()}.${symbol.toUpperCase()}`;
     const merged = new Map<string, Record<string, unknown>>();
+    // Keep original datetimes for bulk/history merges. Re-stamping every row older
+    // than 2 minutes to "now" collapses a whole 交易日 into one minute → 分时 only
+    // shows a single blue dot while tooltip/tape still have last_price.
     for (const row of [...(sessionTicks[key] || []), ...rows]) {
-      const live = withLiveTickStamp(row);
-      merged.set(tickSeriesId(live), live);
+      merged.set(tickSeriesId(row), row);
     }
     const sorted = [...merged.values()].sort((a, b) =>
       String(a.datetime || "").localeCompare(String(b.datetime || "")),
@@ -207,6 +209,7 @@ export const useMarketStore = defineStore("market", () => {
     sessionTicks[key] = sorted;
     const last = sorted[sorted.length - 1];
     if (last) {
+      // Live quote board only: stamp a frozen OMS snapshot so 盘口 keeps moving.
       const stamped = withLiveTickStamp(last);
       const tickKey = `${stamped.exchange}.${stamped.symbol}.${stamped.gateway_name}`;
       ticks[tickKey] = stamped;

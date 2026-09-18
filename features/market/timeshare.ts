@@ -175,13 +175,16 @@ function snapToSessionMinute(mins: number, windows: Window[]): number {
 }
 
 /**
- * Live only: SimNow / OMS sometimes stamp a not-yet-elapsed axis minute
- * (e.g. 00:19 while wall clock is still 21:19). Plotting there leaves the
- * early 夜盘 empty and parks volume/MACD mid-panel. Pin those to "now".
+ * Live only: pin night-wrap phantoms (e.g. 00:19 while wall is still 21:19).
+ * Do NOT remap later same-session minutes (e.g. 14:xx while wall is 10:xx) onto
+ * "now" — that piles the whole tape into one bucket and leaves a single blue dot.
  */
 function liveBucketMinute(mins: number, nowMins: number, windows: Window[]): number {
   const snapped = inWindows(mins, windows) ? mins : snapToSessionMinute(mins, windows);
   if (slotElapsed(snapped, nowMins, windows)) return snapped;
+  const nightWrap = nowMins >= 21 * 60 && snapped < 3 * 60;
+  if (nightWrap) return snapToSessionMinute(nowMins, windows);
+  if (inWindows(snapped, windows)) return snapped;
   return snapToSessionMinute(nowMins, windows);
 }
 
@@ -453,8 +456,11 @@ export function sliceHalfDay(points: TimesharePoint[], now = new Date()): Timesh
 }
 
 /**
- * Live 分时: drop leading idle slots and unelapsed future slots so 价/量/MACD
- * start at the left edge of the pane instead of sitting mid-axis.
+ * Live 分时: drop leading idle slots (before first price) and unelapsed future
+ * slots so 价/量/MACD start flush at the left edge of the pane.
+ *
+ * Start from the first *price* (not volume-only) so a lone late volume/OI bar
+ * cannot leave a huge empty left gutter under the price pane.
  */
 export function focusLiveTimeshare(
   points: TimesharePoint[],
@@ -464,27 +470,28 @@ export function focusLiveTimeshare(
   if (!points.length) return points;
   const windows = sessionWindows(exchange);
   const nowMins = clockMinutes(now);
-  let first = -1;
-  let last = -1;
+  let firstPrice = -1;
+  let lastElapsed = -1;
   for (let i = 0; i < points.length; i += 1) {
     const p = points[i];
     if (p.session === "break") continue;
     if (!slotElapsed(p.ts, nowMins, windows)) continue;
-    const active = p.price != null || (p.volume || 0) > 0;
-    if (active && first < 0) first = i;
-    if (first >= 0) last = i;
+    lastElapsed = i;
+    if (p.price != null && firstPrice < 0) firstPrice = i;
   }
+  if (lastElapsed < 0) return points;
+  let first = firstPrice;
   if (first < 0) {
-    for (let i = 0; i < points.length; i += 1) {
+    for (let i = 0; i <= lastElapsed; i += 1) {
       const p = points[i];
       if (p.session === "break") continue;
       if (!slotElapsed(p.ts, nowMins, windows)) continue;
-      if (first < 0) first = i;
-      last = i;
+      first = i;
+      break;
     }
-    if (first < 0) return points;
   }
-  const sliced = points.slice(first, last + 1);
+  if (first < 0) return points;
+  const sliced = points.slice(first, lastElapsed + 1);
   if (!sliced.length) return points;
   return sliced.map((p, i) => (i === 0 ? { ...p, dayStart: true } : p));
 }

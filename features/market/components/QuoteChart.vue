@@ -252,11 +252,13 @@ function render() {
   chart.setOption(klineOption(c), opts);
 }
 
-/** Price / volume / MACD panes; mid band (≈52–62%) holds time labels + 持仓量 caption. */
+/** Shared inset so price / volume / MACD plot left edges stay flush (no sub-pane gutter). */
+const GRID_LEFT = 56;
+const GRID_RIGHT = 56;
 const grids = [
-  { left: 56, right: 56, top: 10, height: "42%" },
-  { left: 56, right: 56, top: "62%", height: "12%" },
-  { left: 56, right: 56, top: "80%", height: "14%" },
+  { left: GRID_LEFT, right: GRID_RIGHT, top: 10, height: "42%", containLabel: false },
+  { left: GRID_LEFT, right: GRID_RIGHT, top: "62%", height: "12%", containLabel: false },
+  { left: GRID_LEFT, right: GRID_RIGHT, top: "80%", height: "14%", containLabel: false },
 ];
 
 function stackedXAxis(labels: string[], formatter?: (value: string, i: number) => string, interval?: (i: number) => boolean) {
@@ -462,7 +464,8 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         data: prices,
         showSymbol: lastIdx >= 0,
         symbolSize: (_v: unknown, params: { dataIndex?: number }) => (params.dataIndex === lastIdx ? 6 : 0),
-        connectNulls: false,
+        // Carry-forward already fills elapsed minutes; connect across rare gaps / break slots.
+        connectNulls: true,
         lineStyle: { width: 1.4, color: c.price },
         itemStyle: { color: c.price },
         z: 3,
@@ -482,7 +485,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         yAxisIndex: 0,
         data: avgs,
         showSymbol: false,
-        connectNulls: false,
+        connectNulls: true,
         lineStyle: { width: 1.1, color: c.avg },
         z: 2,
       },
