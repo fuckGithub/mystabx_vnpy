@@ -25,17 +25,41 @@
 
 截图取自公网演示环境（`admin` / `admin123`）：
 
-| 登录 | 工作台 |
-|---|---|
-| ![登录页](docs/images/ui-login.png) | ![工作台](docs/images/ui-workbench.png) |
+<table width="100%">
+  <tr>
+    <th width="50%" align="center">登录</th>
+    <th width="50%" align="center">工作台</th>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/ui-login.png" alt="登录页" width="100%" />
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/ui-workbench.png" alt="工作台" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <th width="50%" align="center">市场行情</th>
+    <th width="50%" align="center">交易下单</th>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/ui-market.png" alt="市场行情" width="100%" />
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/ui-trade.png" alt="交易下单" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <th colspan="2" align="center">策略模型</th>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/images/ui-strategy-models.png" alt="策略模型" width="100%" />
+    </td>
+  </tr>
+</table>
 
-| 市场行情 | 交易下单 |
-|---|---|
-| ![市场行情](docs/images/ui-market.png) | ![交易下单](docs/images/ui-trade.png) |
-
-| 策略模型 |
-|---|
-| ![策略模型](docs/images/ui-strategy-models.png) |
 
 ## 仓库地址
 
