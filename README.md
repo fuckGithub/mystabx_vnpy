@@ -11,7 +11,7 @@
 
 ### 新手必读
 
-- **在线演示（ECS）**：[http://47.102.208.231:18080/](http://47.102.208.231:18080/)（公网 Web，端口 `18080`；账号 **`admin`** / **`admin123`**）
+- **在线演示（ECS）**：[http://mystabx.com/](http://mystabx.com/)（Nginx `80→18080`；需安全组放行 TCP 80）或 [http://47.102.208.231:18080/](http://47.102.208.231:18080/)；账号 **`admin`** / **`admin123`**
 - **本机启动**：下文「搭建步骤」；入口 `python main.py` / `uv run start` / `./start.sh`
 - **架构与功能**：[docs/01-架构与功能规划.md](docs/01-架构与功能规划.md)
 - **存储方案**：[docs/02-数据存储方案.md](docs/02-数据存储方案.md)（实现以 MySQL + ClickHouse Tick 为准）
