@@ -300,16 +300,31 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
     start, _end = session_range(trade_date, exchange=exchange)
     # Upper-bound of 15:15 dropped SimNow CFFEX ticks stamped 17:xx (after close).
     # trade_date already isolates the 交易日; keep a floor so prior nights stay out.
+    # Minute bars are enough for 分时; raw ticks are 10k–70k/day and made the
+    # session-ticks API take >10s / multi-MB so the UI froze on one OMS snapshot.
     sql = (
-        f"SELECT symbol, exchange, gateway_name, datetime, last_price, last_volume, "
-        f"volume, turnover, open_interest, bid_price_1, bid_volume_1, ask_price_1, ask_volume_1 "
+        f"SELECT "
+        f"any(symbol) AS symbol, "
+        f"any(exchange) AS exchange, "
+        f"any(gateway_name) AS gateway_name, "
+        f"toStartOfMinute(datetime) AS datetime, "
+        f"argMax(last_price, datetime) AS last_price, "
+        f"toFloat64(0) AS last_volume, "
+        f"max(volume) AS volume, "
+        f"argMax(turnover, datetime) AS turnover, "
+        f"argMax(open_interest, datetime) AS open_interest, "
+        f"argMax(bid_price_1, datetime) AS bid_price_1, "
+        f"argMax(bid_volume_1, datetime) AS bid_volume_1, "
+        f"argMax(ask_price_1, datetime) AS ask_price_1, "
+        f"argMax(ask_volume_1, datetime) AS ask_volume_1 "
         f"FROM {_database()}.{TABLE} "
         f"WHERE symbol = {_qstr(symbol)} "
         f"AND upper(exchange) = {_qstr(exchange.upper())} "
         f"AND trade_date = '{trade_date.isoformat()}' "
         f"AND datetime >= toDateTime64('{_fmt_dt(start)}', 3, 'Asia/Shanghai') "
+        f"GROUP BY toStartOfMinute(datetime) "
         f"ORDER BY datetime "
-        f"LIMIT 80000 "
+        f"LIMIT 2000 "
         f"FORMAT JSONEachRow"
     )
     try:

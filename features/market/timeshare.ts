@@ -360,10 +360,12 @@ export function aggregateTimeshare(
         putBucket(buckets, bucketMins(inSession ? mins : snapToSessionMinute(mins, windows)), price, delta, oi);
         continue;
       }
-      // Live after-hours / mid-break quotes: pin to nearest session minute
-      // (e.g. 17:xx → 14:59) so the curve keeps the latest last_price.
+      // Live after-hours / mid-break quotes: pin *price* to nearest session
+      // minute (e.g. 17:xx → 14:59) so the tape matches the quote board.
+      // Do NOT add volume — thousands of after-close ticks would otherwise
+      // stack into one giant bar and make focusLiveTimeshare look empty.
       if (live) {
-        putBucket(buckets, bucketMins(mins), price, delta, oi);
+        putBucket(buckets, bucketMins(mins), price, 0, oi);
         continue;
       }
     } else if (live) {

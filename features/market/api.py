@@ -12,7 +12,7 @@ from core.db import User
 from core.deps import current_user, visible_gateways
 from core.runtime import runtime
 from core.serialize import contract_payload, tick_payload
-from core.sessions import current_trade_date, parse_trade_date, recent_trade_dates
+from core.sessions import current_trade_date, parse_tick_dt, parse_trade_date, recent_trade_dates
 from features.market.bars import INTERVALS, HistorySource, fetch_bars
 from features.market.subscriptions import (
     delete_subscription,
@@ -73,6 +73,40 @@ def _merge_ticks(*groups: list[dict]) -> list[dict]:
     return sorted(merged.values(), key=lambda row: str(row.get("datetime") or ""))
 
 
+def _downsample_to_minute(ticks: list[dict]) -> list[dict]:
+    """Keep the last tick of each minute.
+
+    Full SimNow tapes are 10k–70k rows / day (~MB JSON). The 分时 chart only
+    needs minute buckets; shipping every tick made the browser sit on a single
+    OMS snapshot (one blue dot + one fat volume bar) while the request crawled.
+    """
+    if len(ticks) <= 1500:
+        return ticks
+    buckets: dict[str, dict] = {}
+    order: list[str] = []
+    for row in ticks:
+        dt = parse_tick_dt(row.get("datetime"))
+        if dt is None:
+            key = f"raw|{row.get('datetime')}|{row.get('last_price')}"
+        else:
+            key = dt.strftime("%Y-%m-%dT%H:%M")
+        if key not in buckets:
+            order.append(key)
+        # Prefer the later print in the minute; keep the higher cumulative volume
+        # so minute-to-minute delta still works on the client.
+        prev = buckets.get(key)
+        nxt = dict(row)
+        nxt["last_volume"] = 0
+        if prev is not None:
+            try:
+                if float(prev.get("volume") or 0) > float(nxt.get("volume") or 0):
+                    nxt["volume"] = prev.get("volume")
+            except (TypeError, ValueError):
+                pass
+        buckets[key] = nxt
+    return [buckets[key] for key in order]
+
+
 @router.get("/api/market/trade-dates")
 def list_trade_dates(
     symbol: str = "",
@@ -131,11 +165,12 @@ def list_session_ticks(
     oms = [normalize_live_tick(row) for row in _oms_ticks(symbol, exchange, gws)] if td == current else []
     ch_rows = query_ticks(symbol, exchange, td)
     ch_ok = ch_rows is not None
+    ticks = _downsample_to_minute(_merge_ticks(ch_rows or [], mem, oms))
     return {
         "trade_date": td.isoformat(),
         "is_current": td == current,
         "clickhouse": "ok" if ch_ok else "down",
-        "ticks": _merge_ticks(ch_rows or [], mem, oms),
+        "ticks": ticks,
     }
 
 

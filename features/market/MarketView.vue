@@ -157,6 +157,29 @@ function mergeTickRows(...groups: Record<string, unknown>[][]): Record<string, u
   return [...merged.values()];
 }
 
+/** Cap client-side tapes so live WS + history cannot re-inflate to 10k+ rows. */
+function downsampleToMinute(ticks: Record<string, unknown>[]): Record<string, unknown>[] {
+  if (ticks.length <= 1500) return ticks;
+  const buckets = new Map<string, Record<string, unknown>>();
+  for (const row of ticks) {
+    const raw = String(row.datetime || "");
+    const key = raw.length >= 16 ? raw.slice(0, 16) : raw || tickSeriesId(row);
+    const prev = buckets.get(key);
+    if (!prev) {
+      buckets.set(key, { ...row, last_volume: 0 });
+      continue;
+    }
+    const next = { ...row, last_volume: 0 };
+    const prevVol = Number(prev.volume);
+    const nextVol = Number(next.volume);
+    if (Number.isFinite(prevVol) && (!Number.isFinite(nextVol) || prevVol > nextVol)) {
+      next.volume = prev.volume;
+    }
+    buckets.set(key, next);
+  }
+  return [...buckets.values()];
+}
+
 /** Session API (memory + ClickHouse) plus live WS — 今日 used to ignore CH and keep one snapshot. */
 const liveTicks = computed(() => {
   const key = sessionKey.value;
@@ -180,14 +203,16 @@ const spanDates = computed(() => {
 function ticksForDate(date: string): Record<string, unknown>[] {
   const current = currentTradeDate(selectedExchange.value);
   if (date === current) {
-    return mergeTickRows(
-      ticksByDate.value[date] || [],
-      liveTicks.value,
-      selectedTick.value ? [selectedTick.value] : [],
+    return downsampleToMinute(
+      mergeTickRows(
+        ticksByDate.value[date] || [],
+        liveTicks.value,
+        selectedTick.value ? [selectedTick.value] : [],
+      ),
     );
   }
-  if (date === tradeDate.value) return mergeTickRows(ticksByDate.value[date] || [], loadedTicks.value);
-  return ticksByDate.value[date] || [];
+  if (date === tradeDate.value) return downsampleToMinute(mergeTickRows(ticksByDate.value[date] || [], loadedTicks.value));
+  return downsampleToMinute(ticksByDate.value[date] || []);
 }
 
 const timesharePoints = computed<TimesharePoint[]>(() => {
