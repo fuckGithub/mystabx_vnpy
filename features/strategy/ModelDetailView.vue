@@ -197,17 +197,10 @@
             <button type="button" class="sd-zoom" title="缩小" @click="zoomEditor(-1)">－</button>
           </div>
           <div class="sd-editor-wrap">
-            <div class="sd-gutter" aria-hidden="true">
-              <span v-for="n in lineCount" :key="n">{{ n }}</span>
-            </div>
-            <textarea
+            <PythonCodeEditor
               v-model="sourceContent"
-              class="sd-code-area"
-              :style="{ fontSize: editorFontSize + 'px' }"
               :readonly="!auth.isAdmin"
-              spellcheck="false"
-              wrap="off"
-              @keydown.tab.prevent="onTab"
+              :font-size="editorFontSize"
             />
           </div>
           <div class="sd-editor-foot">
@@ -324,6 +317,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { http } from "@/api";
 import { useAuthStore, useStrategyStore } from "@/stores";
+import PythonCodeEditor from "@/components/PythonCodeEditor.vue";
 
 type MainTab = "backtest" | "report" | "code" | "settings";
 type SubTab = "overview" | "daily" | "trades" | "logs";
@@ -424,7 +418,6 @@ const subTab = computed<SubTab>(() => {
 });
 
 const showSubnav = computed(() => mainTab.value === "backtest" || mainTab.value === "report");
-const lineCount = computed(() => Math.max(1, (sourceContent.value || "").split("\n").length));
 
 const consoleLines = computed(() => {
   const lines = [...localLogs.value];
@@ -518,16 +511,6 @@ function setSubTab(sub: SubTab) {
 
 function zoomEditor(delta: number) {
   editorFontSize.value = Math.min(20, Math.max(11, editorFontSize.value + delta));
-}
-
-function onTab(e: Event) {
-  const el = e.target as HTMLTextAreaElement;
-  const start = el.selectionStart;
-  const end = el.selectionEnd;
-  sourceContent.value = `${sourceContent.value.slice(0, start)}    ${sourceContent.value.slice(end)}`;
-  requestAnimationFrame(() => {
-    el.selectionStart = el.selectionEnd = start + 4;
-  });
 }
 
 function syncSettingForm(params: Record<string, unknown>) {

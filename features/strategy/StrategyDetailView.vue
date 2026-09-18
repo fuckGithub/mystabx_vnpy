@@ -212,18 +212,10 @@
             <button type="button" class="sd-zoom" title="缩小" @click="zoomEditor(-1)">－</button>
           </div>
           <div class="sd-editor-wrap">
-            <div class="sd-gutter" aria-hidden="true">
-              <span v-for="n in lineCount" :key="n">{{ n }}</span>
-            </div>
-            <textarea
-              ref="codeInputRef"
+            <PythonCodeEditor
               v-model="source.content"
-              class="sd-code-area"
-              :style="{ fontSize: editorFontSize + 'px' }"
               :readonly="!auth.isAdmin || !source.editable"
-              spellcheck="false"
-              wrap="off"
-              @keydown.tab.prevent="onTab"
+              :font-size="editorFontSize"
             />
           </div>
           <div class="sd-editor-foot">
@@ -437,6 +429,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { http } from "@/api";
 import { useAuthStore, useStrategyStore } from "@/stores";
+import PythonCodeEditor from "@/components/PythonCodeEditor.vue";
 
 type MainTab = "backtest" | "report" | "code" | "settings";
 type SubTab = "overview" | "daily" | "trades" | "logs" | "vars";
@@ -473,7 +466,6 @@ const renaming = ref(false);
 const renamingBusy = ref(false);
 const renameDraft = ref("");
 const renameInputRef = ref<{ focus?: () => void; input?: HTMLInputElement } | null>(null);
-const codeInputRef = ref<HTMLTextAreaElement | null>(null);
 const instance = ref<Record<string, unknown> | null>(null);
 const varsVisible = ref(false);
 const consoleTab = ref<"logs" | "trades" | "vars">("logs");
@@ -564,8 +556,6 @@ const storeTagType = computed(() => {
   if (source.store === "default") return "warning";
   return "info";
 });
-
-const lineCount = computed(() => Math.max(1, (source.content || "").split("\n").length));
 
 const instanceLogs = computed(() =>
   strategy.logs.filter((row) => String(row.strategy_name || "") === name.value),
@@ -710,16 +700,6 @@ function showApiHint() {
 
 function zoomEditor(delta: number) {
   editorFontSize.value = Math.min(20, Math.max(11, editorFontSize.value + delta));
-}
-
-function onTab(e: Event) {
-  const el = e.target as HTMLTextAreaElement;
-  const start = el.selectionStart;
-  const end = el.selectionEnd;
-  source.content = `${source.content.slice(0, start)}    ${source.content.slice(end)}`;
-  requestAnimationFrame(() => {
-    el.selectionStart = el.selectionEnd = start + 4;
-  });
 }
 
 function syncSettingForm() {

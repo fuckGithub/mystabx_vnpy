@@ -314,50 +314,6 @@
   overflow: hidden;
 }
 
-.sd-gutter {
-  flex-shrink: 0;
-  width: 44px;
-  padding: 12px 8px 12px 0;
-  text-align: right;
-  background: var(--sd-gutter);
-  color: #94a3b8;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  overflow: hidden;
-  user-select: none;
-  border-right: 1px solid var(--sd-border);
-}
-
-.sd-gutter span {
-  display: block;
-}
-
-.sd-code-area {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  resize: none;
-  outline: none;
-  padding: 12px 14px;
-  background: var(--sd-editor);
-  color: var(--sd-code);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  line-height: 1.55;
-  tab-size: 4;
-  white-space: pre;
-  overflow: auto;
-}
-
-.sd-code-area:focus {
-  box-shadow: inset 0 0 0 1px rgba(22, 119, 255, 0.35);
-}
-
-.sd-code-area[readonly] {
-  opacity: 0.85;
-  cursor: default;
-}
-
 .sd-editor-foot {
   display: flex;
   justify-content: space-between;
