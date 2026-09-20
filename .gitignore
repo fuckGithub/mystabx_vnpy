@@ -161,3 +161,7 @@ vendor/simnow-ctp/**/*.zip
 *.db
 *.mdb
 *.dat
+
+# 系列文章与视频素材（不公开；仅本机）
+docs/articles/
+docs/video/
