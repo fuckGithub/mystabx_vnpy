@@ -105,6 +105,8 @@
             filterable
             clearable
             class="sd-bt-symbol"
+            placement="bottom-start"
+            :fallback-placements="['bottom-start']"
             :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
           >
             <el-option
@@ -266,23 +268,25 @@
               <el-option label="日线" value="d" />
             </el-select>
             <el-select
-            v-model="btForm.vt_symbol"
-            size="small"
-            filterable
-            clearable
-            class="sd-bt-symbol"
-            :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
-          >
-            <el-option
-              v-for="opt in subscribedContractOptions"
-              :key="opt.vt_symbol"
-              :label="opt.label"
-              :value="opt.vt_symbol"
+              v-model="btForm.vt_symbol"
+              size="small"
+              filterable
+              clearable
+              class="sd-bt-symbol"
+              placement="bottom-start"
+              :fallback-placements="['bottom-start']"
+              :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
             >
-              <span>{{ opt.name }}</span>
-              <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
-            </el-option>
-          </el-select>
+              <el-option
+                v-for="opt in subscribedContractOptions"
+                :key="opt.vt_symbol"
+                :label="opt.label"
+                :value="opt.vt_symbol"
+              >
+                <span>{{ opt.name }}</span>
+                <span class="sd-bt-symbol__vt">{{ opt.vt_symbol }}</span>
+              </el-option>
+            </el-select>
             <el-button
               type="primary"
               size="small"
