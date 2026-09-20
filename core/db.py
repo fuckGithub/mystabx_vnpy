@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import quote_plus
 
 from sqlalchemy import (
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -261,6 +262,36 @@ class Instrument(Base):
     exchange: Mapped[str] = mapped_column(String(16), nullable=False)
     name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     product: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
+
+
+class MarketBar(Base):
+    """Aggregated OHLCV bars for local K-line replay (from ClickHouse ticks)."""
+
+    __tablename__ = "market_bars"
+    __table_args__ = (
+        UniqueConstraint(
+            "symbol",
+            "exchange",
+            "interval",
+            "bar_time",
+            name="uq_market_bars_sym_ex_iv_time",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    exchange: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    interval: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
+    trade_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    bar_time: Mapped[str] = mapped_column(String(32), nullable=False)
+    open: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    high: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    low: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    close: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    volume: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    turnover: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    open_interest: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=_now)
 
 

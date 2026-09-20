@@ -79,6 +79,7 @@ const period = ref<ChartPeriod>("timeshare");
 const daySpan = ref<TimeshareSpan>("1");
 const bars = ref<HistoryBar[]>([]);
 const barsLoading = ref(false);
+const barsHint = ref("");
 const sessionLoading = ref(false);
 const tradeDate = ref("");
 const tradeDates = ref<TradeDateOption[]>([]);
@@ -257,7 +258,9 @@ const chartHeading = computed(() => {
 const emptyHint = computed(() => {
   if (!selected.value) return "点击左侧合约，默认打开当前交易时段分时图。";
   if (period.value !== "timeshare") {
-    return barsLoading.value ? "正在加载模拟 K 线…" : bars.value.length ? "" : "暂无 K 线数据。";
+    if (barsLoading.value) return "正在加载本地 K 线…";
+    if (bars.value.length) return "";
+    return barsHint.value || "本地暂无 K 线。请先订阅合约，等待 Tick 归集后再查看。";
   }
   if (sessionLoading.value && !hasTimesharePrice.value) {
     return viewingCurrent.value ? "正在加载分时 Tick…" : "正在从 ClickHouse 加载该交易日…";
@@ -450,19 +453,29 @@ async function ensureSpanTicks(row: ContractRow) {
 async function loadBars() {
   if (!selected.value || period.value === "timeshare") {
     bars.value = [];
+    barsHint.value = "";
     return;
   }
   barsLoading.value = true;
+  barsHint.value = "";
   try {
     const result = await fetchHistoryBars({
       symbol: String(selected.value.symbol || ""),
       exchange: String(selected.value.exchange || ""),
       interval: period.value,
+      source: "local",
     });
-    bars.value = result.bars;
+    bars.value = result.bars || [];
+    if (!bars.value.length) {
+      barsHint.value =
+        result.hint ||
+        "本地暂无 K 线。请先订阅该合约，系统会从 ClickHouse Tick 归集到 MySQL 后供回放。";
+      ElMessage.info(barsHint.value);
+    }
   } catch {
     bars.value = [];
-    ElMessage.warning("K 线暂为模拟数据；RQData 尚未对接");
+    barsHint.value = "加载本地 K 线失败，请确认后端与 MySQL 可用。";
+    ElMessage.warning(barsHint.value);
   } finally {
     barsLoading.value = false;
   }

@@ -10,6 +10,7 @@ from typing import Any
 from core.serialize import SHANGHAI, dt_iso
 from core.sessions import (
     current_trade_date,
+    in_session_for_trade_date,
     parse_tick_dt,
     session_start,
     trade_date_of,
@@ -80,8 +81,11 @@ def session_ticks(symbol: str, exchange: str, trade_date: date | None = None) ->
             if row.get("last_price"):
                 out.append(row)
             continue
-        if trade_date_of(dt, exchange=exchange) == want:
-            out.append(row)
+        if trade_date_of(dt, exchange=exchange) != want:
+            continue
+        if not in_session_for_trade_date(dt, want, exchange=exchange):
+            continue
+        out.append(row)
     # Stale SimNow stamps (previous calendar day / 17:xx) still carry live last_price.
     if not out and rows:
         return list(rows)

@@ -51,7 +51,7 @@
         <span v-if="period === 'timeshare'" class="chart-src" :class="live ? 'live' : 'hist'">
           {{ live ? "SimNow 实时" : "历史交易日" }} · {{ sessionHint }}
         </span>
-        <span v-else class="chart-src mock">{{ intervalLabel }} · 模拟K线（待对接 RQData）</span>
+        <span v-else class="chart-src hist">{{ intervalLabel }} · 本地库回放</span>
       </div>
     </header>
     <div v-if="period === 'timeshare'" class="span-row">

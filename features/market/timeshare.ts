@@ -178,10 +178,20 @@ function snapToSessionMinute(mins: number, windows: Window[]): number {
  * Live only: pin night-wrap phantoms (e.g. 00:19 while wall is still 21:19).
  * Do NOT remap later same-session minutes (e.g. 14:xx while wall is 10:xx) onto
  * "now" — that piles the whole tape into one bucket and leaves a single blue dot.
+ * When the market is closed (weekend / after hours), pin to the session close
+ * minute instead of inventing a fake "now" inside the day template.
  */
-function liveBucketMinute(mins: number, nowMins: number, windows: Window[]): number {
+function liveBucketMinute(
+  mins: number,
+  nowMins: number,
+  windows: Window[],
+  exchange: string,
+): number {
+  if (!wallInTradingSession(exchange)) {
+    return lastSessionMinute(windows);
+  }
   const snapped = inWindows(mins, windows) ? mins : snapToSessionMinute(mins, windows);
-  if (slotElapsed(snapped, nowMins, windows)) return snapped;
+  if (slotElapsed(snapped, nowMins, windows, exchange)) return snapped;
   const nightWrap = nowMins >= 21 * 60 && snapped < 3 * 60;
   if (nightWrap) return snapToSessionMinute(nowMins, windows);
   if (inWindows(snapped, windows)) return snapped;
@@ -193,9 +203,21 @@ function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; next
   const lastVol = Number(tick.last_volume ?? tick.lastVolume);
   let delta = 0;
   let nextCum = prevCum;
-  if (Number.isFinite(lastVol) && lastVol > 0) delta = lastVol;
-  else if (Number.isFinite(cum) && cum >= prevCum) delta = cum - prevCum;
-  if (Number.isFinite(cum) && cum > 0) nextCum = cum;
+  if (Number.isFinite(lastVol) && lastVol > 0) {
+    delta = lastVol;
+    if (Number.isFinite(cum) && cum > 0) nextCum = cum;
+    return { delta: Math.max(0, delta), nextCum };
+  }
+  if (Number.isFinite(cum) && cum >= 0) {
+    if (cum >= prevCum) {
+      delta = cum - prevCum;
+      nextCum = cum > 0 ? cum : prevCum;
+    } else {
+      // Cumulative volume reset (new session / bad merge) — don't invent a spike.
+      delta = 0;
+      nextCum = cum;
+    }
+  }
   return { delta: Math.max(0, delta), nextCum };
 }
 
@@ -231,18 +253,43 @@ function isPastSlot(mins: number, nowMins: number): boolean {
   return mins <= nowMins;
 }
 
+function lastSessionMinute(windows: Window[]): number {
+  if (!windows.length) return 0;
+  return windows[windows.length - 1].end - 1;
+}
+
+/**
+ * Wall clock is inside a real trading segment today (not merely HH:mm that
+ * matches a weekday template). Weekend CFFEX / Sat afternoon commodity are closed.
+ */
+function wallInTradingSession(exchange: string, now = new Date()): boolean {
+  const windows = sessionWindows(exchange);
+  const wall = shanghaiWall(now);
+  const mins = wall.hour * 60 + wall.minute;
+  if (!inWindows(mins, windows)) return false;
+  const ymd = { y: wall.y, m: wall.m, d: wall.d };
+  const wd = weekdayUtc(ymd);
+  if (isCffex(exchange)) return wd !== 0 && wd !== 6;
+  if (wd === 0) return false;
+  if (wd === 6) return mins < 2 * 60 + 30;
+  return true;
+}
+
 /** Elapsed axis minutes only — 夜盘 must not paint unused 日盘 slots. */
-function slotElapsed(mins: number, nowMins: number, windows: Window[]): boolean {
-  if (inWindows(nowMins, windows)) return isPastSlot(mins, nowMins);
+function slotElapsed(mins: number, nowMins: number, windows: Window[], exchange = ""): boolean {
+  const trading = !exchange || wallInTradingSession(exchange);
+  if (trading && inWindows(nowMins, windows)) return isPastSlot(mins, nowMins);
   const hasNight = windows.some((w) => w.session === "night");
   if (!hasNight) {
     const lastEnd = windows[windows.length - 1]?.end ?? 0;
     const firstStart = windows[0]?.start ?? 0;
-    if (nowMins >= lastEnd || nowMins < firstStart) return true;
+    // Weekend / after close: treat the whole day as complete (replay mode).
+    if (!trading || nowMins >= lastEnd || nowMins < firstStart) return true;
     const next = windows.find((w) => nowMins < w.start);
     if (next) return mins < next.start;
     return true;
   }
+  if (!trading) return true;
   if (nowMins >= 15 * 60 && nowMins < 20 * 60 + 50) return true;
   if (nowMins >= 2 * 60 + 30 && nowMins < 9 * 60) return mins >= 21 * 60 || mins < 3 * 60;
   return isPastSlot(mins, nowMins);
@@ -333,8 +380,9 @@ export function aggregateTimeshare(
   let prevCum = 0;
   const orphans: { price: number; volume: number; oi: number | null; dt: Date | null }[] = [];
   const nowMins = clockMinutes(new Date());
+  const tradingNow = wallInTradingSession(exchange);
   const bucketMins = (mins: number) =>
-    live ? liveBucketMinute(mins, nowMins, windows) : snapToSessionMinute(mins, windows);
+    live ? liveBucketMinute(mins, nowMins, windows, exchange) : snapToSessionMinute(mins, windows);
 
   const sorted = ticks.map((tick, idx) => ({ tick, idx })).sort((a, b) => {
     const da = parseTickDate(a.tick.datetime)?.getTime() ?? 0;
@@ -354,22 +402,27 @@ export function aggregateTimeshare(
       const mins = clockMinutes(dt);
       const inSession = inWindows(mins, windows);
       const inRange = dt.getTime() >= startMs && dt.getTime() < endMs;
-      // inSession uses clock only — SimNow often stamps the wrong calendar day
-      // but a valid session HH:mm; still plot those on today's axis.
-      if (inSession || inRange) {
+      // Weekend live: HH:mm may match the weekday template (e.g. Sun 11:00 ≈
+      // CFFEX morning) — do not treat that as a real session print.
+      const acceptSession = (inSession || inRange) && (!live || tradingNow);
+      if (acceptSession) {
         putBucket(buckets, bucketMins(inSession ? mins : snapToSessionMinute(mins, windows)), price, delta, oi);
         continue;
       }
-      // Live after-hours / mid-break quotes: pin *price* to nearest session
-      // minute (e.g. 17:xx → 14:59) so the tape matches the quote board.
-      // Do NOT add volume — thousands of after-close ticks would otherwise
-      // stack into one giant bar and make focusLiveTimeshare look empty.
+      // Live after-hours / closed market: pin *price* to session close (14:59).
+      // Do NOT add volume.
       if (live) {
-        putBucket(buckets, bucketMins(mins), price, 0, oi);
+        putBucket(buckets, lastSessionMinute(windows), price, 0, oi);
         continue;
       }
     } else if (live) {
-      putBucket(buckets, bucketMins(nowMins), price, delta, oi);
+      putBucket(
+        buckets,
+        tradingNow ? bucketMins(nowMins) : lastSessionMinute(windows),
+        price,
+        delta,
+        oi,
+      );
       continue;
     }
     orphans.push({ price, volume: delta, oi, dt });
@@ -388,7 +441,13 @@ export function aggregateTimeshare(
     for (let i = sorted.length - 1; i >= 0; i -= 1) {
       const price = tickLastPrice(sorted[i].tick);
       if (price == null) continue;
-      putBucket(buckets, bucketMins(nowMins), price, 0, tickOpenInterest(sorted[i].tick));
+      putBucket(
+        buckets,
+        tradingNow ? bucketMins(nowMins) : lastSessionMinute(windows),
+        price,
+        0,
+        tickOpenInterest(sorted[i].tick),
+      );
       break;
     }
   }
@@ -424,7 +483,7 @@ export function aggregateTimeshare(
         cumVol += hit.volume;
         cumNotional += hit.notional;
       }
-      const elapsed = !live || slotElapsed(m, nowMins, windows);
+      const elapsed = !live || slotElapsed(m, nowMins, windows, exchange);
       const price = hit ? lastPrice : seenTick && elapsed ? lastPrice : null;
       const dayStart = !markedStart;
       if (dayStart) markedStart = true;
@@ -477,7 +536,7 @@ export function focusLiveTimeshare(
   for (let i = 0; i < points.length; i += 1) {
     const p = points[i];
     if (p.session === "break") continue;
-    if (!slotElapsed(p.ts, nowMins, windows)) continue;
+    if (!slotElapsed(p.ts, nowMins, windows, exchange)) continue;
     lastElapsed = i;
     if (p.price != null && firstPrice < 0) firstPrice = i;
   }
@@ -487,7 +546,7 @@ export function focusLiveTimeshare(
     for (let i = 0; i <= lastElapsed; i += 1) {
       const p = points[i];
       if (p.session === "break") continue;
-      if (!slotElapsed(p.ts, nowMins, windows)) continue;
+      if (!slotElapsed(p.ts, nowMins, windows, exchange)) continue;
       first = i;
       break;
     }

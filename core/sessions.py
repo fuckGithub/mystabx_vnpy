@@ -101,7 +101,12 @@ def parse_trade_date(raw: str | date | None) -> date | None:
 
 
 def session_range(trade_date: date, *, exchange: str = "") -> tuple[datetime, datetime]:
-    """Inclusive-ish [start, end) covering night + day for one 交易日."""
+    """Loose [start, end) bounding box for one 交易日 (may span a weekend).
+
+    Prefer ``session_segments`` / ``in_session_for_trade_date`` for filtering —
+    this box alone includes Sat/Sun idle hours between Friday night and Monday
+    day, which would pollute 分时 if used as the only gate.
+    """
     end = datetime.combine(trade_date, time(15, 15), tzinfo=SHANGHAI)
     if is_cffex(exchange):
         start = datetime.combine(trade_date, time(9, 15), tzinfo=SHANGHAI)
@@ -109,6 +114,81 @@ def session_range(trade_date: date, *, exchange: str = "") -> tuple[datetime, da
     prev = prev_weekday(trade_date - timedelta(days=1))
     start = datetime.combine(prev, _NIGHT_OPEN, tzinfo=SHANGHAI)
     return start, end
+
+
+def session_segments(trade_date: date, *, exchange: str = "") -> list[tuple[datetime, datetime]]:
+    """Exact trading segments [start, end) for one 交易日.
+
+    Commodity Monday includes Friday 21:00–Saturday 02:30 and Monday day
+    session — not Saturday/Sunday day hours. CFFEX is day-only on trade_date.
+    """
+    if is_cffex(exchange):
+        return [
+            (
+                datetime.combine(trade_date, time(9, 30), tzinfo=SHANGHAI),
+                datetime.combine(trade_date, time(11, 30), tzinfo=SHANGHAI),
+            ),
+            (
+                datetime.combine(trade_date, time(13, 0), tzinfo=SHANGHAI),
+                datetime.combine(trade_date, time(15, 0), tzinfo=SHANGHAI),
+            ),
+        ]
+    prev = prev_weekday(trade_date - timedelta(days=1))
+    night_end_day = prev + timedelta(days=1)
+    return [
+        (
+            datetime.combine(prev, time(21, 0), tzinfo=SHANGHAI),
+            datetime.combine(night_end_day, time(0, 0), tzinfo=SHANGHAI),
+        ),
+        (
+            datetime.combine(night_end_day, time(0, 0), tzinfo=SHANGHAI),
+            datetime.combine(night_end_day, time(2, 30), tzinfo=SHANGHAI),
+        ),
+        (
+            datetime.combine(trade_date, time(9, 0), tzinfo=SHANGHAI),
+            datetime.combine(trade_date, time(10, 15), tzinfo=SHANGHAI),
+        ),
+        (
+            datetime.combine(trade_date, time(10, 30), tzinfo=SHANGHAI),
+            datetime.combine(trade_date, time(11, 30), tzinfo=SHANGHAI),
+        ),
+        (
+            datetime.combine(trade_date, time(13, 30), tzinfo=SHANGHAI),
+            datetime.combine(trade_date, time(15, 0), tzinfo=SHANGHAI),
+        ),
+    ]
+
+
+def in_session_for_trade_date(
+    dt: datetime | None,
+    trade_date: date,
+    *,
+    exchange: str = "",
+    include_auction: bool = True,
+) -> bool:
+    """True when ``dt`` falls inside a real auction/trading segment of trade_date."""
+    now = as_shanghai(dt)
+    if now is None:
+        return False
+    segments = session_segments(trade_date, exchange=exchange)
+    if include_auction and is_cffex(exchange):
+        segments = [
+            (
+                datetime.combine(trade_date, time(9, 15), tzinfo=SHANGHAI),
+                datetime.combine(trade_date, time(9, 30), tzinfo=SHANGHAI),
+            ),
+            *segments,
+        ]
+    elif include_auction and not is_cffex(exchange):
+        prev = prev_weekday(trade_date - timedelta(days=1))
+        segments = [
+            (
+                datetime.combine(prev, _NIGHT_OPEN, tzinfo=SHANGHAI),
+                datetime.combine(prev, time(21, 0), tzinfo=SHANGHAI),
+            ),
+            *segments,
+        ]
+    return any(start <= now < end for start, end in segments)
 
 
 def session_start(now: datetime | None = None, *, exchange: str = "") -> datetime:

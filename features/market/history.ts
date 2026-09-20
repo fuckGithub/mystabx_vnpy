@@ -1,11 +1,11 @@
 import { http } from "@/api";
 
-/** Historical K-line source. Flip to rqdata after the backend RQData plug-in is wired. */
-export type HistorySource = "mock" | "rqdata";
+/** Historical K-line source. Default local MySQL; mock/rqdata are explicit only. */
+export type HistorySource = "local" | "mock" | "rqdata";
 export type BarInterval = "1m" | "5m" | "15m" | "30m" | "60m" | "1d" | "1w" | "1M";
 export type ChartPeriod = "timeshare" | BarInterval;
 
-export const HISTORY_SOURCE: HistorySource = "mock";
+export const HISTORY_SOURCE: HistorySource = "local";
 
 export type HistoryBar = {
   datetime: string;
@@ -23,6 +23,8 @@ export type HistoryBarsResult = {
   exchange: string;
   interval: BarInterval;
   bars: HistoryBar[];
+  empty?: boolean;
+  hint?: string;
 };
 
 export async function fetchHistoryBars(params: {

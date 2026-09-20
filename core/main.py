@@ -38,6 +38,7 @@ from features.auth.api import router as auth_router  # noqa: E402
 from features.backtest.api import router as backtest_router  # noqa: E402
 from features.market.api import router as market_router  # noqa: E402
 from features.market.tick_writer import start_tick_writer, stop_tick_writer  # noqa: E402
+from features.market.bar_writer import start_bar_writer, stop_bar_writer  # noqa: E402
 from features.strategy.api import router as strategy_router  # noqa: E402
 from features.trade.api import router as trade_router  # noqa: E402
 
@@ -63,6 +64,7 @@ async def lifespan(_app: FastAPI):
     else:
         logger.warning("ClickHouse unreachable %s — 分时今日走内存，历史交易日不可查", where)
     start_tick_writer()
+    start_bar_writer()
     # CtaEngine / BacktesterEngine load strategies from Path.cwd()/strategies
     os.chdir(PROJECT_ROOT)
     if str(PROJECT_ROOT) not in sys.path:
@@ -109,6 +111,7 @@ async def lifespan(_app: FastAPI):
         yield
     finally:
         stop_tick_writer()
+        stop_bar_writer()
         set_loop(None)
         runtime.gateways = None
         runtime.event_engine = None

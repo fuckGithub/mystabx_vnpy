@@ -12,8 +12,9 @@ from core.db import User
 from core.deps import current_user, visible_gateways
 from core.runtime import runtime
 from core.serialize import contract_payload, tick_payload
-from core.sessions import current_trade_date, parse_tick_dt, parse_trade_date, recent_trade_dates
+from core.sessions import current_trade_date, in_session_for_trade_date, parse_tick_dt, parse_trade_date, recent_trade_dates
 from features.market.bars import INTERVALS, HistorySource, fetch_bars
+from features.market.bar_aggregator import aggregate_recent
 from features.market.subscriptions import (
     delete_subscription,
     list_user_subscriptions,
@@ -107,6 +108,20 @@ def _downsample_to_minute(ticks: list[dict]) -> list[dict]:
     return [buckets[key] for key in order]
 
 
+def _filter_session_clock(ticks: list[dict], exchange: str, trade_date) -> list[dict]:
+    """Keep ticks inside real auction/trading segments (drop Fri→Mon idle hours)."""
+    out: list[dict] = []
+    for row in ticks:
+        dt = parse_tick_dt(row.get("datetime"))
+        if dt is None:
+            if row.get("last_price"):
+                out.append(row)
+            continue
+        if in_session_for_trade_date(dt, trade_date, exchange=exchange):
+            out.append(row)
+    return out
+
+
 @router.get("/api/market/trade-dates")
 def list_trade_dates(
     symbol: str = "",
@@ -165,7 +180,10 @@ def list_session_ticks(
     oms = [normalize_live_tick(row) for row in _oms_ticks(symbol, exchange, gws)] if td == current else []
     ch_rows = query_ticks(symbol, exchange, td)
     ch_ok = ch_rows is not None
-    ticks = _downsample_to_minute(_merge_ticks(ch_rows or [], mem, oms))
+    # CH already session-filtered; memory may still hold break prints — tighten.
+    hist = _filter_session_clock(_merge_ticks(ch_rows or [], mem), exchange, td)
+    # Live OMS snapshot may be after close / wrong day — keep for price pin only.
+    ticks = _downsample_to_minute(_merge_ticks(hist, oms))
     return {
         "trade_date": td.isoformat(),
         "is_current": td == current,
@@ -179,10 +197,10 @@ def list_bars(
     symbol: str,
     exchange: str,
     interval: str = Query("1d"),
-    source: HistorySource = Query("mock"),
+    source: HistorySource = Query("local"),
     user: User = Depends(current_user),
 ) -> dict:
-    """Historical K-line. Default mock; source=rqdata is the future RQData plug-in."""
+    """Historical K-line from local MySQL (aggregated ticks). source=mock is debug-only."""
     _ = user
     if interval not in INTERVALS:
         raise HTTPException(status_code=400, detail=f"invalid interval: {interval}")
@@ -198,6 +216,28 @@ def list_bars(
     except NotImplementedError as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
 
+
+class AggregateBarsBody(BaseModel):
+    days: int = 5
+    symbol: str | None = None
+    exchange: str | None = None
+
+
+@router.post("/api/market/bars/aggregate")
+def trigger_bar_aggregate(
+    body: AggregateBarsBody | None = None,
+    user: User = Depends(current_user),
+) -> dict:
+    """Manually (re)aggregate ClickHouse ticks → MySQL market_bars."""
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可触发归集")
+    payload = body or AggregateBarsBody()
+    days = max(1, min(int(payload.days or 5), 15))
+    contracts = None
+    if payload.symbol and payload.exchange:
+        contracts = [(payload.symbol.strip(), payload.exchange.strip().upper())]
+    summary = aggregate_recent(days=days, contracts=contracts)
+    return {"ok": True, **summary}
 
 def _last_price(symbol: str, exchange: str) -> float | None:
     want_ex = exchange.upper()

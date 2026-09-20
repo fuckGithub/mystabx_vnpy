@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from core.config import settings
 from core.serialize import SHANGHAI, dt_iso
-from core.sessions import parse_tick_dt, session_range, trade_date_of
+from core.sessions import in_session_for_trade_date, parse_tick_dt, session_range, trade_date_of
 
 logger = logging.getLogger("stabx.clickhouse")
 
@@ -329,6 +329,7 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
         except json.JSONDecodeError:
             continue
         dt_raw = row.get("datetime")
+        parsed: datetime | None = None
         if isinstance(dt_raw, str) and dt_raw and "T" not in dt_raw:
             try:
                 parsed = datetime.strptime(dt_raw[:23], "%Y-%m-%d %H:%M:%S.%f").replace(tzinfo=SHANGHAI)
@@ -338,6 +339,14 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
                 except ValueError:
                     parsed = None
             row["datetime"] = dt_iso(parsed) if parsed else dt_raw
+        else:
+            parsed = parse_tick_dt(dt_raw)
+        # Drop weekend / lunch / after-close prints that sit inside the loose
+        # [night-open, day-close] box spanning Fri→Mon.
+        if parsed is not None and not in_session_for_trade_date(
+            parsed, trade_date, exchange=exchange
+        ):
+            continue
         out.append(row)
     return out
 
