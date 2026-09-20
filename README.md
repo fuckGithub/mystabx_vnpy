@@ -11,7 +11,7 @@
 
 ### 新手必读
 
-- **在线演示（ECS）**：[http://mystabx.com/](http://mystabx.com/)（Nginx `80→18080`；需安全组放行 TCP 80）或 [http://47.102.208.231:18080/](http://47.102.208.231:18080/)；账号 **`admin`** / **`admin123`**
+- **在线演示（ECS）**：优先用 IP [http://47.102.208.231:18080/](http://47.102.208.231:18080/) 或 [http://47.102.208.231/](http://47.102.208.231/)（Nginx `80→18080`）。域名 [http://mystabx.com/](http://mystabx.com/) 当前会被阿里云 **未备案拦截（HTTP 403）**，无法打开登录页。演示账号 **`admin`** / **`admin123`**（`STABX_ADMIN_PASSWORD` 仅首次引导写入；已有用户不随 `.env` 自动改密）
 - **本机启动**：下文「搭建步骤」；入口 `python main.py` / `uv run start` / `./start.sh`
 - **架构与功能**：[docs/01-架构与功能规划.md](docs/01-架构与功能规划.md)
 - **存储方案**：[docs/02-数据存储方案.md](docs/02-数据存储方案.md)（实现以 MySQL + ClickHouse Tick 为准）

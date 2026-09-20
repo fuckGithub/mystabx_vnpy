@@ -30,6 +30,17 @@ def _issue(user: User) -> dict:
     expires = datetime.now(tz=timezone.utc) + timedelta(days=settings.refresh_expire_days)
     db = get_session()
     try:
+        # Keep at most a handful of active refresh rows per user (avoid UNIQUE noise
+        # from stale identical JWTs issued before jti existed).
+        old_rows = list(
+            db.scalars(
+                select(Session)
+                .where(Session.user_id == user.id, Session.revoked == 0)
+                .order_by(Session.id.desc())
+            )
+        )
+        for row in old_rows[4:]:
+            row.revoked = 1
         db.add(
             Session(
                 user_id=user.id,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import jwt
 from fastapi import Depends, HTTPException
@@ -17,9 +18,12 @@ bearer = HTTPBearer(auto_error=False)
 
 
 def create_token(user_id: int, token_type: str, expire: timedelta) -> str:
+    # jti makes each token unique: without it, same-second re-login collides on
+    # sessions.refresh_token UNIQUE and login returns 500 ("登录失败").
     payload = {
         "sub": str(user_id),
         "type": token_type,
+        "jti": uuid4().hex,
         "exp": datetime.now(tz=timezone.utc) + expire,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)

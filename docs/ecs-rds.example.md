@@ -59,8 +59,8 @@ ssh root@47.102.208.231
 |------|-----|
 | 监听 | `0.0.0.0:18080`（`STABX_PORT`） |
 | 机内健康 | `http://127.0.0.1:18080/` · `/health` |
-| 公网 | `http://47.102.208.231:18080/`（需安全组放行 TCP 18080） |
-| 管理员 | 仅 ECS `.env` 的 `STABX_ADMIN_*`（勿提交；勿用 `admin123`） |
+| 公网 | `http://47.102.208.231:18080/` 或 `http://47.102.208.231/`（80→18080）；**`mystabx.com` 未备案会被阿里云 403 拦截** |
+| 管理员 | 演示口令见 README（当前库内仍为首次引导写入的口令）；改密需走用户管理或重置哈希，**仅改 `.env` 的 `STABX_ADMIN_PASSWORD` 不会更新已有用户** |
 | 安装 | `./scripts/install_linux.sh`（Web-only；**不装** PySide6 / qdarkstyle） |
 | 服务 | `scripts/mystabx-vnpy.service` → systemd；产品入口 Web，无桌面 Qt |
 | Locale | OS 必有 `zh_CN.gb18030`（`locales-all` / `locale-gen`；vnpy_ctp 硬编码）；unit/`start.sh` 用 `LANG=zh_CN.utf8`（勿用未生成的 `zh_CN.UTF-8` / `en_US.UTF-8`） |
