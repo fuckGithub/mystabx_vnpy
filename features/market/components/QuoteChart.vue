@@ -49,7 +49,9 @@
       <div class="chart-meta">
         <strong>{{ heading }}</strong>
         <span v-if="period === 'timeshare'" class="chart-src" :class="live ? 'live' : 'hist'">
-          {{ live ? "SimNow 实时" : "历史交易日" }} · {{ sessionHint }}
+          {{ live ? "SimNow 实时" : "历史交易日" }}
+          <template v-if="tradeDate"> · {{ tradeDate }}</template>
+          · {{ sessionHint }}
         </span>
         <span v-else class="chart-src hist">{{ intervalLabel }} · {{ klineSourceLabel }}</span>
       </div>
@@ -513,8 +515,8 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         xAxisIndex: 1,
         yAxisIndex: 2,
         data: vols,
-        barWidth: "60%",
-        barMaxWidth: 6,
+        barWidth: 3,
+        barMaxWidth: 4,
       },
       {
         name: overlayKind.value === "oi" ? "持仓量" : "成交量线",
@@ -535,8 +537,8 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
           value: p.hist,
           itemStyle: { color: (p.hist || 0) >= 0 ? c.rise : c.fall },
         })),
-        barWidth: "50%",
-        barMaxWidth: 6,
+        barWidth: 3,
+        barMaxWidth: 4,
       },
       {
         name: "DIFF",

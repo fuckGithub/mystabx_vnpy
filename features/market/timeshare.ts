@@ -249,6 +249,20 @@ function putBucket(
   });
 }
 
+/** Drop a lone auction spike that dwarfs the rest of the session volume. */
+function tameVolumeSpikes(buckets: Map<number, MinuteBucket>) {
+  const vols = [...buckets.values()].map((b) => b.volume).filter((v) => v > 0).sort((a, b) => a - b);
+  if (vols.length < 3) return;
+  const mid = vols[Math.floor(vols.length / 2)] || 0;
+  if (mid <= 0) return;
+  const cap = Math.max(mid * 8, 1);
+  for (const [mins, bucket] of buckets) {
+    if (bucket.volume > cap) {
+      buckets.set(mins, { ...bucket, volume: mid, notional: bucket.price * mid });
+    }
+  }
+}
+
 function isPastSlot(mins: number, nowMins: number): boolean {
   const nightLate = mins >= 21 * 60;
   const nightEarly = mins < 3 * 60;
@@ -475,6 +489,8 @@ export function aggregateTimeshare(
       putBucket(buckets, clock, row.price, row.volume, row.oi);
     }
   }
+
+  tameVolumeSpikes(buckets);
 
   // Live tape may only contribute one OMS snapshot — still anchor last_price at "now"
   // so 分时 is not blank while the right-hand quote panel updates.

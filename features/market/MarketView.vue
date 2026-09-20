@@ -338,12 +338,15 @@ function pickDefaultTradeDate(dates: TradeDateOption[], exchange: string): strin
   const current = dates.find((d) => d.is_current)?.date || dates[0].date;
   const currentMeta = dates.find((d) => d.date === current);
   const withData = dates.filter((d) => d.has_data);
-  const prior = withData.find((d) => d.date !== current);
+  const priorWithData = withData.find((d) => d.date !== current);
+  const priorAny = dates.find((d) => d.date !== current);
+  // Weekend / Sat after night close: open the previous 交易日 even if has_data
+  // briefly reads false while ClickHouse recovers from a probe blip.
   if (preferPriorTradeDate(exchange)) {
-    return prior?.date || withData[0]?.date || current;
+    return priorWithData?.date || priorAny?.date || withData[0]?.date || current;
   }
   if (isMarketOpen(exchange) || currentMeta?.has_data) return current;
-  return prior?.date || current;
+  return priorWithData?.date || current;
 }
 
 function shouldFallbackFromCurrent(ticks: Record<string, unknown>[], exchange: string, date: string): boolean {
@@ -352,6 +355,9 @@ function shouldFallbackFromCurrent(ticks: Record<string, unknown>[], exchange: s
   if (ticks.length < 20) return true;
   return !hasDaySessionPrints(ticks, exchange);
 }
+
+let sessionLoadSeq = 0;
+let suppressTradeDateWatch = false;
 
 async function onPick(row: ContractRow) {
   void market.loadHealth();
@@ -363,13 +369,19 @@ async function onPick(row: ContractRow) {
   const ex = String(row.exchange || "");
   await refreshTradeDates(row);
   let next = pickDefaultTradeDate(tradeDates.value, ex);
+  suppressTradeDateWatch = true;
   tradeDate.value = next;
+  suppressTradeDateWatch = false;
   await refreshSession(row, next);
   if (shouldFallbackFromCurrent(loadedTicks.value, ex, next)) {
-    const prior = tradeDates.value.find((d) => d.has_data && d.date !== next);
+    const prior =
+      tradeDates.value.find((d) => d.has_data && d.date !== next) ||
+      tradeDates.value.find((d) => d.date !== next);
     if (prior?.date) {
       next = prior.date;
+      suppressTradeDateWatch = true;
       tradeDate.value = next;
+      suppressTradeDateWatch = false;
       await refreshSession(row, next);
     }
   }
@@ -432,24 +444,29 @@ async function ensureSubscribed(row: ContractRow, notify = false) {
 }
 
 async function refreshTradeDates(row: ContractRow) {
-  const fallback = recentTradeDates(10, String(row.exchange || "")).map((date, i) => ({
+  const fallback = recentTradeDates(10, String(row.exchange || "")).map((date) => ({
     date,
-    is_current: i === 0,
-    has_data: i === 0,
+    is_current: date === currentTradeDate(String(row.exchange || "")),
+    // Fallback must not claim only "current" has data — on weekends that is an
+    // empty upcoming 交易日 and blocks preferPrior.
+    has_data: true,
   }));
   try {
     const data = await market.loadTradeDates(String(row.symbol || ""), String(row.exchange || ""));
     tradeDates.value = data.dates || fallback;
-    if (!tradeDate.value && data.current) tradeDate.value = data.current;
+    // Do NOT assign tradeDate here — that races watch(tradeDate) with onPick's
+    // preferPrior default and can leave loadedTicks stuck on the empty Monday tape.
   } catch {
     tradeDates.value = fallback;
   }
 }
 
 async function refreshSession(row: ContractRow, date = tradeDate.value) {
+  const seq = ++sessionLoadSeq;
   sessionLoading.value = true;
   try {
     const result = await market.loadSessionTicks(String(row.symbol || ""), String(row.exchange || ""), date);
+    if (seq !== sessionLoadSeq) return;
     loadedTicks.value = result.ticks || [];
     const storedDate = result.trade_date || date;
     ticksByDate.value = { ...ticksByDate.value, [storedDate]: result.ticks || [] };
@@ -459,7 +476,7 @@ async function refreshSession(row: ContractRow, date = tradeDate.value) {
   } catch {
     /* keep WS ticks already in store */
   } finally {
-    sessionLoading.value = false;
+    if (seq === sessionLoadSeq) sessionLoading.value = false;
   }
 }
 
@@ -536,6 +553,7 @@ watch(selectedKey, () => {
 });
 
 watch(tradeDate, (next, prev) => {
+  if (suppressTradeDateWatch) return;
   if (!selected.value || !next || next === prev) return;
   void refreshSession(selected.value, next).then(() => {
     if (selected.value) void ensureSpanTicks(selected.value);
