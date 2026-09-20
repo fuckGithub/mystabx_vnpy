@@ -32,10 +32,10 @@
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/ui-login.png" alt="登录页" width="100%" />
+      <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/ui-login.png" alt="登录页" width="100%" />
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/ui-workbench.png" alt="工作台" width="100%" />
+      <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/ui-workbench.png" alt="工作台" width="100%" />
     </td>
   </tr>
   <tr>
@@ -44,10 +44,10 @@
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/ui-market.png" alt="市场行情" width="100%" />
+      <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/ui-market.png" alt="市场行情" width="100%" />
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/ui-trade.png" alt="交易下单" width="100%" />
+      <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/ui-trade.png" alt="交易下单" width="100%" />
     </td>
   </tr>
   <tr>
@@ -55,7 +55,7 @@
   </tr>
   <tr>
     <td colspan="2">
-      <img src="docs/images/ui-strategy-models.png" alt="策略模型" width="100%" />
+      <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/ui-strategy-models.png" alt="策略模型" width="100%" />
     </td>
   </tr>
 </table>
@@ -75,7 +75,7 @@
 提示：长按或扫描下方优惠券二维码领取新人立减券（¥88，有效至 2026/12/31；**限量 100 张，先到先得**），完成注册后即可在星球内交流实践与联调经验。
 
 <p align="center">
-  <img src="docs/images/mystabx-zsxq-coupon.png" alt="MyStabx 知识星球新人优惠券" width="360" />
+  <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/mystabx-zsxq-coupon.png" alt="MyStabx 知识星球新人优惠券" width="360" />
 </p>
 
 **② 微信沟通群**（入星球后申请加入）
@@ -83,7 +83,7 @@
 提示：沟通群面向星球成员。请先完成上一步加入星球，再在星球内申请入群；下方二维码约 7 天有效（当前至 2026/9/24 前），过期后会刷新，请以本页最新图片为准。
 
 <p align="center">
-  <img src="docs/images/mystabx-wechat-invite-qr.jpg" alt="微信群二维码：MyStabx期货量化交易平台" width="400" />
+  <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/mystabx-wechat-invite-qr.jpg" alt="微信群二维码：MyStabx期货量化交易平台" width="400" />
 </p>
 
 ## 支持作者
@@ -93,7 +93,7 @@
 支付宝扫码赞赏（收款名：小葫芦金(**初)）：
 
 <p align="center">
-  <img src="docs/images/mystabx-alipay-coffee.jpg" alt="支付宝赞赏码：请作者喝杯咖啡" width="280" />
+  <img src="https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/mystabx-alipay-coffee.jpg" alt="支付宝赞赏码：请作者喝杯咖啡" width="280" />
 </p>
 
 > 状态：产品入口是 **Web**（Vue 3 + FastAPI + 进程内 vnpy）。启动任选其一：`python main.py`、`uv run start` 或 `./start.sh`（三者等价，均落到 `./start.sh`）。**依赖不含 PySide6**；`python main.py --qt` 仅在本机自行安装了桌面 Qt 时才可用。`docs/` 是设计文档；实现按 `features/ + core/ + ui/` 放在仓库根目录。
@@ -152,7 +152,7 @@
 
 ## 技术架构
 
-![技术架构](docs/images/architecture.png)
+![技术架构](https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/architecture.png)
 
 主链路自左向右：**浏览器 → Vue SPA → Uvicorn `:18080`（可选 Nginx）→ FastAPI + 进程内 vnpy → MySQL / ClickHouse**。上方为 WebSocket / SSE / EventEngine；下方为 ECS 部署与 `/health`、metrics。策略模型管理与动态编译属于后端应用层（`model_store`、`strategy_loader`），不是独立中间件。本仓库**未使用** Redis、Elasticsearch、Jenkins、SkyWalking；存储以 **MySQL（业务）+ ClickHouse（Tick）** 为准，不以 SQLite 作为业务库。
 
