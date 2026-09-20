@@ -4,6 +4,10 @@ This repository wraps [vn.py](https://github.com/vnpy/vnpy) and
 [vnpy_ctp](https://github.com/vnpy/vnpy_ctp). It does not claim ownership of
 those projects.
 
+This repository's own code is licensed under [LICENSE](LICENSE)
+(Stabx Source-Available: use allowed, no re-open-sourcing). That license does
+**not** replace the third-party licenses below.
+
 | Component | License | Copyright | Upstream | Local copy |
 |---|---|---|---|---|
 | vn.py (VeighNa) | MIT | Copyright (c) 2015-present, Xiaoyou Chen | https://github.com/vnpy/vnpy | [licenses/vnpy-LICENSE](licenses/vnpy-LICENSE) |

@@ -1,21 +1,77 @@
-MIT License
+Stabx Source-Available License
+（可用 · 禁止二次开源 / Use Allowed · No Re-Open-Sourcing）
 
 Copyright (c) 2026 小葫芦金
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+本文件为法律许可文本。以下中文与英文条款具有同等效力；如有歧义，以更能限制被许可人再开源权利的解释为准。
+This document is the license text. Chinese and English have equal effect; if they conflict, the reading that more clearly restricts re-open-sourcing controls.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+────────────────────────────────────────
+一、中文条款
+────────────────────────────────────────
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. 定义
+   「本软件」指本仓库中由版权方原创或改编的源码、文档与资源（不含第三方组件原文及其原许可）。
+   「开源协议」指 OSI 认可或通常称为开源的许可（含但不限于 MIT、Apache、BSD、GPL、LGPL、MPL、AGPL 等），以及任何要求或允许公众以开源方式再许可、再分发的许可。
+   「二次开源」指将本软件或其修改版、衍生作品以开源协议对外发布、再许可，或宣称为开源项目对外提供。
+
+2. 许可授予（可用）
+   在遵守本许可的前提下，版权方授予你一项全球、免特许权使用费、不可转让、非独占的许可，允许你：
+   (a) 运行、学习、研究本软件；
+   (b) 复制与修改本软件，供个人使用或组织内部自用；
+   (c) 在组织内部为上述自用目的分发副本（不得对外公开为开源）。
+
+3. 禁止事项（不可二次开源）
+   未经版权方事先书面许可，你不得：
+   (a) 将本软件或其修改版、衍生作品以任何开源协议发布、再许可或分发；
+   (b) 将本软件宣称为「开源软件 / Open Source」并对外再分发或再授权；
+   (c) 移除、篡改本软件中的版权声明、本许可或 NOTICE 中要求保留的第三方声明；
+   (d) 使用版权方的商标、标识或项目名暗示背书、合作或官方关系（法律要求标明来源的合理提及除外）。
+
+4. 第三方组件
+   vn.py、vnpy_ctp 及其他依赖按其各自原许可授权（多为 MIT 等）。本许可仅约束本仓库自研/包装层代码，不覆盖、不替代、不限制第三方按其原许可享有的权利与义务。你使用第三方组件时须自行遵守其原许可。
+
+5. 保留权利
+   未在本许可中明示授予的权利均由版权方保留。本软件的所有权不因本许可而转移。
+
+6. 免责声明
+   本软件按「现状（AS IS）」提供，不附带任何明示或默示担保，包括适销性、特定用途适用性与不侵权。在适用法律允许的最大范围内，版权方不对因使用本软件产生的任何损害承担责任。
+
+7. 终止
+   若你违反本许可，许可自动终止。终止后你必须停止使用并销毁依本许可获得的副本（法律强制要求保留的除外）。
+
+────────────────────────────────────────
+二、English Terms
+────────────────────────────────────────
+
+1. Definitions
+   "Software" means the original or adapted source code, docs, and assets in this repository that are owned by the copyright holder (excluding third-party components and their original licenses).
+   "Open Source License" means any OSI-approved or commonly called open-source license (including without limitation MIT, Apache, BSD, GPL, LGPL, MPL, AGPL), or any license that requires or permits public re-licensing/redistribution as open source.
+   "Re-Open-Sourcing" means publishing, redistributing, or re-licensing the Software (or a modification/derivative) under an Open Source License, or offering it to the public as an "open source" project.
+
+2. Grant (Use Allowed)
+   Subject to this License, the copyright holder grants you a worldwide, royalty-free, non-transferable, non-exclusive license to:
+   (a) run, study, and research the Software;
+   (b) copy and modify the Software for personal use or internal use within your organization;
+   (c) distribute copies inside your organization solely for such internal use (not as a public open-source release).
+
+3. Restrictions (No Re-Open-Sourcing)
+   Without prior written permission from the copyright holder, you may not:
+   (a) publish, redistribute, or re-license the Software (or any modification/derivative) under any Open Source License;
+   (b) represent the Software as "Open Source" when redistributing or re-licensing it to the public;
+   (c) remove or alter copyright notices, this License, or third-party notices required by NOTICE;
+   (d) use the copyright holder's trademarks, logos, or project name to imply endorsement, partnership, or official affiliation (except fair attribution required by law).
+
+4. Third-Party Components
+   vn.py, vnpy_ctp, and other dependencies remain under their own licenses (often MIT). This License covers only this repository's original/wrapper code and does not supersede third-party licenses. You must comply with those licenses separately.
+
+5. Reservation of Rights
+   All rights not expressly granted are reserved. Ownership of the Software does not transfer under this License.
+
+6. Disclaimer
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY DAMAGES ARISING FROM USE OF THE SOFTWARE.
+
+7. Termination
+   This License terminates automatically if you breach it. Upon termination you must stop using and destroy copies obtained under this License (except as required by law).
+
+SPDX-License-Identifier: LicenseRef-Stabx-Source-Available

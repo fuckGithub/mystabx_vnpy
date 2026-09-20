@@ -66,7 +66,7 @@
 | 平台 | 地址 | 说明 |
 |---|---|---|
 | Gitee | https://gitee.com/xjc621105/mystabx_vnpy | 主远程（`origin` fetch） |
-| GitHub | https://github.com/fuckGithub/mystabx_vnpy | 公开开源镜像（MIT） |
+| GitHub | https://github.com/fuckGithub/mystabx_vnpy | 公开源码镜像（可用、禁止二次开源） |
 
 ## 社区与交流
 
@@ -88,7 +88,7 @@
 
 ## 支持作者
 
-开源不易，维护与联调都要花时间。若本项目对你有帮助，欢迎请作者喝杯咖啡——完全自愿，绝不强制。
+源码公开维护不易，联调都要花时间。若本项目对你有帮助，欢迎请作者喝杯咖啡——完全自愿，绝不强制。
 
 支付宝扫码赞赏（收款名：小葫芦金(**初)）：
 
@@ -106,7 +106,7 @@
 
 具体来说：交易链路里的 `MainEngine`、事件引擎（`EventEngine`）、OMS（`OmsEngine`），以及委托、持仓、资金、Tick 等对象，来自 [vnpy](https://github.com/vnpy/vnpy)；CTP 柜台网关 `CtpGateway` 来自 [vnpy_ctp](https://github.com/vnpy/vnpy_ctp)。本仓库在此之上提供 Web UI 与业务服务，**不重新实现**交易所撮合或柜台通信协议。
 
-**许可（事实说明，不构成法律意见）**：vn.py 与 vnpy_ctp 均为 MIT 许可（Copyright (c) 2015-present, Xiaoyou Chen）。使用或分发时须保留其版权与许可声明。本项目不主张对 vnpy 或其组件的所有权。完整原文见根目录 [NOTICE](NOTICE)、[THIRD_PARTY.md](THIRD_PARTY.md) 以及 [licenses/vnpy-LICENSE](licenses/vnpy-LICENSE)、[licenses/vnpy_ctp-LICENSE](licenses/vnpy_ctp-LICENSE)。本仓库未对本包装层另行声明许可证；包装层许可不覆盖、不替代 vnpy / vnpy_ctp 的许可。
+**许可（事实说明，不构成法律意见）**：本仓库自研 / 包装层代码采用 [Stabx Source-Available License](LICENSE)（**可以使用，但不能二次开源**）：允许运行、学习与自用修改；禁止以开源协议再发布 / 再许可为开源项目。vn.py 与 vnpy_ctp 等上游依赖仍为其原 MIT 等许可（Copyright (c) 2015-present, Xiaoyou Chen），使用或分发时须保留其版权与许可声明；本项目不主张对 vnpy 或其组件的所有权。完整原文见根目录 [LICENSE](LICENSE)、[NOTICE](NOTICE)、[THIRD_PARTY.md](THIRD_PARTY.md) 以及 [licenses/vnpy-LICENSE](licenses/vnpy-LICENSE)、[licenses/vnpy_ctp-LICENSE](licenses/vnpy_ctp-LICENSE)。本仓库许可不覆盖、不替代 vnpy / vnpy_ctp 的许可。
 
 **柜台与接口**：CTP API 由上海期货信息技术有限公司（上期技术）提供，与 vnpy 项目相互独立。SimNow / CTP 账号凭证以及交易所、期货公司接口各有其使用条款，须自行遵守。
 
@@ -114,9 +114,9 @@
 
 本文为事实说明，**不构成法律意见**，亦不构成对 vn.py 官方或上期技术的背书。完整文本见 [docs/07-用户服务协议与免责声明.md](docs/07-用户服务协议与免责声明.md)；登录页可点击「免责声明」进入公开路由 `/disclaimer`（无需登录）。
 
-- 本项目自研 Web UI + FastAPI 等业务后端，**交易运行时依托** vn.py / vnpy_ctp，**不构成**对 vn.py 官方或其作者、上期技术及其 CTP 接口的背书或官方支持。版权与 MIT 许可原文见 [NOTICE](NOTICE)、[licenses/](licenses/)。
+- 本项目自研 Web UI + FastAPI 等业务后端，**交易运行时依托** vn.py / vnpy_ctp，**不构成**对 vn.py 官方或其作者、上期技术及其 CTP 接口的背书或官方支持。本仓库许可见 [LICENSE](LICENSE)；上游 vnpy 版权与 MIT 原文见 [NOTICE](NOTICE)、[licenses/](licenses/)。
 - 期货 / SimNow 交易有风险，可能导致本金损失。本软件**不提供投资建议**、不荐品种、不承诺收益；盈亏由使用者自行承担。
-- 开源按「现状（AS IS）」提供。作者不对盈亏、服务中断、指令延迟、数据错误或丢失负责，不保证持续可用。
+- 本软件按「现状（AS IS）」提供（源码可得，非 OSI 开源）。作者不对盈亏、服务中断、指令延迟、数据错误或丢失负责，不保证持续可用。
 - CTP、SimNow、期货公司与交易所各有条款与规则，使用者须自行遵守。
 
 ## 项目定位

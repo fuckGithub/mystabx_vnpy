@@ -8,7 +8,7 @@
 | Linux | `.so`（`libthostmduserapi_se.so` / `libthosttraderapi_se.so`） | `linux/` |
 | Windows | `.dll`（`thostmduserapi_se.dll` / `thosttraderapi_se.dll`） | `windows/` |
 
-**不要**跨平台混用。CTP API 版权归上海期货信息技术有限公司，**不是** vn.py 的一部分，也不得当作本仓库 MIT/包装层许可覆盖的内容。二进制 **不要提交进 git**。
+**不要**跨平台混用。CTP API 版权归上海期货信息技术有限公司，**不是** vn.py 的一部分，也不得当作本仓库 [LICENSE](../../LICENSE) / 包装层许可覆盖的内容。二进制 **不要提交进 git**。
 
 分平台安装步骤见仓库 [docs/CTP分平台搭建.md](../../docs/CTP分平台搭建.md)。
 

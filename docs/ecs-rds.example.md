@@ -1,6 +1,6 @@
 # ECS / RDS / Redis / RabbitMQ（模板 · 无真实密码）
 
-> **本仓库已公开（GitHub MIT）。真实凭据只放本机 `docs/ecs-rds.local.md`（已 gitignore），切勿提交。**
+> **本仓库源码已公开（可用、禁止二次开源，见根目录 LICENSE）。真实凭据只放本机 `docs/ecs-rds.local.md`（已 gitignore），切勿提交。**
 >
 > 从 cumustabilis `docs/ecs&rds.md` 迁移结构。本机若尚无 local 文件，可从该仓库复制并改名为 `ecs-rds.local.md`。
 
