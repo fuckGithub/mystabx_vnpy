@@ -89,4 +89,4 @@ uvicorn core.main:app --host 0.0.0.0 --port 18080
 
 扫描下方优惠券二维码，领取新人立减券（¥88，限量 100 张，有效至 2026/12/31）：
 
-![MyStabx 知识星球新人优惠券](https://stabx-dev.oss-cn-beijing.aliyuncs.com/mystabx/docs/images/mystabx-zsxq-coupon.png)
+![MyStabx 知识星球新人优惠券](https://cdn.jsdelivr.net/gh/fuckGithub/mystabx_vnpy@main/docs/images/mystabx-zsxq-coupon.png)
