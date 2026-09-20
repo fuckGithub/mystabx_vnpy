@@ -294,28 +294,43 @@ def _fmt_dt(value: datetime) -> str:
 
 
 def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, Any]] | None:
-    """Ticks for one 交易日. None = ClickHouse down (caller should fall back)."""
+    """Minute-bucketed ticks for one 交易日. None = ClickHouse down.
+
+    Aggregate in CH so the first 分时 packet is ~hundreds of rows instead of
+    tens of thousands (avoids multi-second JSON while the UI shows one OMS pin).
+    """
     if not _ready and not init_clickhouse():
         return None
     start, _end = session_range(trade_date, exchange=exchange)
-    # Upper-bound of 15:15 dropped SimNow CFFEX ticks stamped 17:xx (after close).
-    # trade_date already isolates the 交易日; keep a floor so prior nights stay out.
-    # Keep raw SELECT — CH 26.x rejects any()/argMax aliases that collide with
-    # WHERE column names. Minute downsample happens in the API layer instead.
+    # CH 26.x treats SELECT aliases like WHERE columns — never alias aggregates
+    # as symbol/exchange/datetime/last_price (ILLEGAL_AGGREGATION).
     sql = (
-        f"SELECT symbol, exchange, gateway_name, datetime, last_price, last_volume, "
-        f"volume, turnover, open_interest, bid_price_1, bid_volume_1, ask_price_1, ask_volume_1 "
+        f"SELECT "
+        f"any(symbol) AS sym, "
+        f"any(exchange) AS ex, "
+        f"any(gateway_name) AS gw, "
+        f"toStartOfMinute(datetime) AS minute_dt, "
+        f"argMax(last_price, datetime) AS px, "
+        f"toFloat64(0) AS lv, "
+        f"max(volume) AS vol, "
+        f"argMax(turnover, datetime) AS tovr, "
+        f"argMax(open_interest, datetime) AS oi, "
+        f"argMax(bid_price_1, datetime) AS bp1, "
+        f"argMax(bid_volume_1, datetime) AS bv1, "
+        f"argMax(ask_price_1, datetime) AS ap1, "
+        f"argMax(ask_volume_1, datetime) AS av1 "
         f"FROM {_database()}.{TABLE} "
         f"WHERE symbol = {_qstr(symbol)} "
         f"AND upper(exchange) = {_qstr(exchange.upper())} "
         f"AND trade_date = '{trade_date.isoformat()}' "
         f"AND datetime >= toDateTime64('{_fmt_dt(start)}', 3, 'Asia/Shanghai') "
-        f"ORDER BY datetime "
-        f"LIMIT 80000 "
+        f"GROUP BY minute_dt "
+        f"ORDER BY minute_dt "
+        f"LIMIT 2500 "
         f"FORMAT JSONEachRow"
     )
     try:
-        raw = _query(sql, timeout=12.0)
+        raw = _query(sql, timeout=8.0)
         _mark_up()
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         _mark_down(exc)
@@ -328,7 +343,7 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
-        dt_raw = row.get("datetime")
+        dt_raw = row.get("minute_dt")
         parsed: datetime | None = None
         if isinstance(dt_raw, str) and dt_raw and "T" not in dt_raw:
             try:
@@ -338,7 +353,6 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
                     parsed = datetime.strptime(dt_raw[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=SHANGHAI)
                 except ValueError:
                     parsed = None
-            row["datetime"] = dt_iso(parsed) if parsed else dt_raw
         else:
             parsed = parse_tick_dt(dt_raw)
         # Drop weekend / lunch / after-close prints that sit inside the loose
@@ -347,7 +361,23 @@ def query_ticks(symbol: str, exchange: str, trade_date: date) -> list[dict[str, 
             parsed, trade_date, exchange=exchange
         ):
             continue
-        out.append(row)
+        out.append(
+            {
+                "symbol": row.get("sym") or symbol,
+                "exchange": row.get("ex") or exchange,
+                "gateway_name": row.get("gw") or "",
+                "datetime": dt_iso(parsed) if parsed else dt_raw,
+                "last_price": row.get("px"),
+                "last_volume": row.get("lv") or 0,
+                "volume": row.get("vol"),
+                "turnover": row.get("tovr"),
+                "open_interest": row.get("oi"),
+                "bid_price_1": row.get("bp1"),
+                "bid_volume_1": row.get("bv1"),
+                "ask_price_1": row.get("ap1"),
+                "ask_volume_1": row.get("av1"),
+            }
+        )
     return out
 
 

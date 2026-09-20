@@ -51,7 +51,7 @@
         <span v-if="period === 'timeshare'" class="chart-src" :class="live ? 'live' : 'hist'">
           {{ live ? "SimNow 实时" : "历史交易日" }} · {{ sessionHint }}
         </span>
-        <span v-else class="chart-src hist">{{ intervalLabel }} · 本地库回放</span>
+        <span v-else class="chart-src hist">{{ intervalLabel }} · {{ klineSourceLabel }}</span>
       </div>
     </header>
     <div v-if="period === 'timeshare'" class="span-row">
@@ -81,7 +81,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as echarts from "echarts";
-import type { ChartPeriod, HistoryBar } from "../history";
+import type { ChartPeriod, HistoryBar, HistorySource } from "../history";
 import { computeMacd, lastMacdLabel } from "../macd";
 import {
   lastOpenInterest,
@@ -129,6 +129,8 @@ const props = defineProps<{
   timeshare: TimesharePoint[];
   bars: HistoryBar[];
   emptyHint: string;
+  /** API bars source; charts default to local MySQL replay. */
+  barsSource?: HistorySource;
   preClose?: number | null;
   tradeDate?: string;
   tradeDates?: TradeDateOption[];
@@ -162,6 +164,11 @@ const moreActive = computed(() => morePeriods.some((p) => p.key === props.period
 const intervalLabel = computed(() => {
   const all = [...mainPeriods, ...morePeriods];
   return all.find((p) => p.key === props.period)?.label || "";
+});
+const klineSourceLabel = computed(() => {
+  if (props.barsSource === "mock") return "模拟K线（调试）";
+  if (props.barsSource === "rqdata") return "RQData";
+  return "本地库回放";
 });
 
 const oiText = computed(() => formatQty(lastOpenInterest(props.timeshare) ?? lastBarOi()));
@@ -507,6 +514,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
         yAxisIndex: 2,
         data: vols,
         barWidth: "60%",
+        barMaxWidth: 6,
       },
       {
         name: overlayKind.value === "oi" ? "持仓量" : "成交量线",
@@ -528,6 +536,7 @@ function timeshareOption(c: ReturnType<typeof colors>): echarts.EChartsOption {
           itemStyle: { color: (p.hist || 0) >= 0 ? c.rise : c.fall },
         })),
         barWidth: "50%",
+        barMaxWidth: 6,
       },
       {
         name: "DIFF",

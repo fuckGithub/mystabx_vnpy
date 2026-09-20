@@ -32,10 +32,11 @@
         :heading="chartHeading"
         :timeshare="timesharePoints"
         :bars="bars"
+        :bars-source="barsSource"
         :empty-hint="emptyHint"
         :pre-close="preClose"
         :trade-dates="tradeDates"
-        :live="viewingCurrent"
+        :live="liveChart"
         :session-hint="sessionCaption"
         :marks="chartMarks"
       />
@@ -54,11 +55,14 @@ import ContractListPanel from "./components/ContractListPanel.vue";
 import QuoteChart from "./components/QuoteChart.vue";
 import QuoteTape from "./components/QuoteTape.vue";
 import { contractKey, exchangeLabel, type ContractRow } from "./contracts";
-import { fetchHistoryBars, type ChartPeriod, type HistoryBar } from "./history";
+import { fetchHistoryBars, type ChartPeriod, type HistoryBar, type HistorySource } from "./history";
 import {
   aggregateTimeshare,
   currentTradeDate,
   focusLiveTimeshare,
+  hasDaySessionPrints,
+  isMarketOpen,
+  preferPriorTradeDate,
   recentTradeDates,
   sessionHint,
   sliceHalfDay,
@@ -78,6 +82,7 @@ const selected = ref<ContractRow | null>(null);
 const period = ref<ChartPeriod>("timeshare");
 const daySpan = ref<TimeshareSpan>("1");
 const bars = ref<HistoryBar[]>([]);
+const barsSource = ref<HistorySource>("local");
 const barsLoading = ref(false);
 const barsHint = ref("");
 const sessionLoading = ref(false);
@@ -134,6 +139,8 @@ const viewingCurrent = computed(() => {
   if (!tradeDate.value) return true;
   return tradeDate.value === currentTradeDate(selectedExchange.value);
 });
+const marketOpen = computed(() => isMarketOpen(selectedExchange.value));
+const liveChart = computed(() => viewingCurrent.value && marketOpen.value);
 const sessionCaption = computed(() => sessionHint(selectedExchange.value));
 const sessionRows = computed(() => {
   const key = sessionKey.value;
@@ -160,7 +167,7 @@ function mergeTickRows(...groups: Record<string, unknown>[][]): Record<string, u
 
 /** Cap client-side tapes so live WS + history cannot re-inflate to 10k+ rows. */
 function downsampleToMinute(ticks: Record<string, unknown>[]): Record<string, unknown>[] {
-  if (ticks.length <= 1500) return ticks;
+  if (ticks.length <= 1) return ticks;
   const buckets = new Map<string, Record<string, unknown>>();
   for (const row of ticks) {
     const raw = String(row.datetime || "");
@@ -229,7 +236,7 @@ const timesharePoints = computed<TimesharePoint[]>(() => {
   const priced = days.filter((d) => d.points.some((p) => p.price != null));
   const stitched = stitchTimeshareDays(priced.length ? priced : days.slice(-1));
   const scoped = daySpan.value === "half" ? sliceHalfDay(stitched) : stitched;
-  if (viewingCurrent.value && daySpan.value !== "half" && spanCount(daySpan.value) === 1) {
+  if (liveChart.value && daySpan.value !== "half" && spanCount(daySpan.value) === 1) {
     return focusLiveTimeshare(scoped, ex);
   }
   return scoped;
@@ -262,7 +269,7 @@ const emptyHint = computed(() => {
     if (bars.value.length) return "";
     return barsHint.value || "本地暂无 K 线。请先订阅合约，等待 Tick 归集后再查看。";
   }
-  if (sessionLoading.value && !hasTimesharePrice.value) {
+  if (sessionLoading.value) {
     return viewingCurrent.value ? "正在加载分时 Tick…" : "正在从 ClickHouse 加载该交易日…";
   }
   if (!hasTimesharePrice.value) {
@@ -271,7 +278,9 @@ const emptyHint = computed(() => {
         ? "ClickHouse 未连接，历史交易日无法加载。今日分时仍可走内存实时。"
         : `${tradeDate.value} 暂无 Tick。连接行情后会写入本地 ClickHouse（保留 10 天）。`;
     }
-    if (finitePrice(selectedTick.value?.last_price) != null) return "";
+    if (finitePrice(selectedTick.value?.last_price) != null) {
+      return marketOpen.value ? "" : "休市中，盘口为最近成交价；请切换至有数据的交易日查看分时。";
+    }
     return "暂无分时数据。请先连接行情通道并订阅该合约，分时由 SimNow 实时 Tick 聚合（非模拟）。";
   }
   return "";
@@ -324,6 +333,26 @@ async function onSearch(keyword: string) {
   await market.loadContracts(keyword);
 }
 
+function pickDefaultTradeDate(dates: TradeDateOption[], exchange: string): string {
+  if (!dates.length) return currentTradeDate(exchange);
+  const current = dates.find((d) => d.is_current)?.date || dates[0].date;
+  const currentMeta = dates.find((d) => d.date === current);
+  const withData = dates.filter((d) => d.has_data);
+  const prior = withData.find((d) => d.date !== current);
+  if (preferPriorTradeDate(exchange)) {
+    return prior?.date || withData[0]?.date || current;
+  }
+  if (isMarketOpen(exchange) || currentMeta?.has_data) return current;
+  return prior?.date || current;
+}
+
+function shouldFallbackFromCurrent(ticks: Record<string, unknown>[], exchange: string, date: string): boolean {
+  if (isMarketOpen(exchange)) return false;
+  if (date !== currentTradeDate(exchange)) return false;
+  if (ticks.length < 20) return true;
+  return !hasDaySessionPrints(ticks, exchange);
+}
+
 async function onPick(row: ContractRow) {
   void market.loadHealth();
   selected.value = row;
@@ -331,13 +360,19 @@ async function onPick(row: ContractRow) {
   loadedTicks.value = [];
   ticksByDate.value = {};
   historyKey.value = "";
-  const next = currentTradeDate(String(row.exchange || ""));
-  tradeDate.value = next;
+  const ex = String(row.exchange || "");
   await refreshTradeDates(row);
-  // Always stay on the current 交易日 for live quotes. Falling back to a
-  // historical day when today still has <2 ticks made the tape look live
-  // while 分时 froze on a sparse/flat history series.
+  let next = pickDefaultTradeDate(tradeDates.value, ex);
+  tradeDate.value = next;
   await refreshSession(row, next);
+  if (shouldFallbackFromCurrent(loadedTicks.value, ex, next)) {
+    const prior = tradeDates.value.find((d) => d.has_data && d.date !== next);
+    if (prior?.date) {
+      next = prior.date;
+      tradeDate.value = next;
+      await refreshSession(row, next);
+    }
+  }
   await ensureSpanTicks(row);
 }
 
@@ -453,6 +488,7 @@ async function ensureSpanTicks(row: ContractRow) {
 async function loadBars() {
   if (!selected.value || period.value === "timeshare") {
     bars.value = [];
+    barsSource.value = "local";
     barsHint.value = "";
     return;
   }
@@ -465,6 +501,15 @@ async function loadBars() {
       interval: period.value,
       source: "local",
     });
+    // Never paint mock candles on the market chart.
+    if (result.source === "mock") {
+      bars.value = [];
+      barsSource.value = "local";
+      barsHint.value = "已拒绝模拟 K 线，请确认后端 STABX_HISTORY_SOURCE=local。";
+      ElMessage.warning(barsHint.value);
+      return;
+    }
+    barsSource.value = result.source || "local";
     bars.value = result.bars || [];
     if (!bars.value.length) {
       barsHint.value =
@@ -474,6 +519,7 @@ async function loadBars() {
     }
   } catch {
     bars.value = [];
+    barsSource.value = "local";
     barsHint.value = "加载本地 K 线失败，请确认后端与 MySQL 可用。";
     ElMessage.warning(barsHint.value);
   } finally {

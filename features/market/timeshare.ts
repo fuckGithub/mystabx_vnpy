@@ -209,7 +209,12 @@ function tickVolumeDelta(tick: TickLike, prevCum: number): { delta: number; next
     return { delta: Math.max(0, delta), nextCum };
   }
   if (Number.isFinite(cum) && cum >= 0) {
-    if (cum >= prevCum) {
+    if (prevCum <= 0) {
+      // First print of the tape: cumulative volume is a day total, not a minute
+      // delta — using it as-is paints one fat red bar under a single blue dot.
+      delta = 0;
+      nextCum = cum;
+    } else if (cum >= prevCum) {
       delta = cum - prevCum;
       nextCum = cum > 0 ? cum : prevCum;
     } else {
@@ -262,7 +267,7 @@ function lastSessionMinute(windows: Window[]): number {
  * Wall clock is inside a real trading segment today (not merely HH:mm that
  * matches a weekday template). Weekend CFFEX / Sat afternoon commodity are closed.
  */
-function wallInTradingSession(exchange: string, now = new Date()): boolean {
+export function isMarketOpen(exchange: string, now = new Date()): boolean {
   const windows = sessionWindows(exchange);
   const wall = shanghaiWall(now);
   const mins = wall.hour * 60 + wall.minute;
@@ -273,6 +278,37 @@ function wallInTradingSession(exchange: string, now = new Date()): boolean {
   if (wd === 0) return false;
   if (wd === 6) return mins < 2 * 60 + 30;
   return true;
+}
+
+function wallInTradingSession(exchange: string, now = new Date()): boolean {
+  return isMarketOpen(exchange, now);
+}
+
+/** True when ticks look like night-only stubs for an upcoming 交易日 (weekend). */
+export function hasDaySessionPrints(ticks: TickLike[], exchange: string): boolean {
+  const windows = sessionWindows(exchange).filter((w) => w.session === "day");
+  for (const tick of ticks) {
+    const dt = parseTickDate(tick.datetime);
+    if (!dt || tickLastPrice(tick) == null) continue;
+    if (inWindows(clockMinutes(dt), windows)) return true;
+  }
+  return false;
+}
+
+/**
+ * Closed market, and the "current" 交易日 is still the upcoming one (weekend /
+ * Sat after night close) — UI should open the last completed day instead.
+ * Weekday after 15:00 still prefers current (that day's tape is complete).
+ */
+export function preferPriorTradeDate(exchange: string, now = new Date()): boolean {
+  if (isMarketOpen(exchange, now)) return false;
+  const wall = shanghaiWall(now);
+  const ymd = { y: wall.y, m: wall.m, d: wall.d };
+  const wd = weekdayUtc(ymd);
+  if (isCffex(exchange)) return wd === 0 || wd === 6;
+  if (wd === 0) return true;
+  if (wd === 6) return wall.hour * 60 + wall.minute >= 2 * 60 + 30;
+  return false;
 }
 
 /** Elapsed axis minutes only — 夜盘 must not paint unused 日盘 slots. */
@@ -372,7 +408,12 @@ export function aggregateTimeshare(
   opts: TimeshareOptions = {},
 ): TimesharePoint[] {
   const tradeDate = opts.tradeDate || currentTradeDate(exchange);
-  const live = opts.live !== false && tradeDate === currentTradeDate(exchange);
+  // Weekend / after hours: never run "live" bucketing — it pins every print to
+  // 14:59 (one blue dot) while the quote panel still shows last_price.
+  const live =
+    opts.live !== false &&
+    tradeDate === currentTradeDate(exchange) &&
+    wallInTradingSession(exchange);
   const windows = sessionWindows(exchange);
   const startMs = sessionStartMs(exchange, tradeDate);
   const endMs = sessionEndMs(exchange, tradeDate);

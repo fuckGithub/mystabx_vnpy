@@ -1,4 +1,4 @@
-"""Historical K-line provider — local MySQL first; mock/RQData only as explicit fallback."""
+"""Historical K-line provider — local MySQL only; mock gated by STABX_ALLOW_MOCK_BARS."""
 
 from __future__ import annotations
 
@@ -48,11 +48,28 @@ _LIMITS: dict[BarInterval, int] = {
 }
 
 
+def mock_bars_allowed() -> bool:
+    """Mock K-lines are debug-only; production must set STABX_ALLOW_MOCK_BARS=1 explicitly."""
+    return os.environ.get("STABX_ALLOW_MOCK_BARS", "").strip().lower() in {"1", "true", "yes"}
+
+
 def configured_source() -> HistorySource:
     raw = os.environ.get("STABX_HISTORY_SOURCE", "local").strip().lower()
     if raw == "rqdata":
         return "rqdata"
-    if raw == "mock":
+    if raw == "mock" and mock_bars_allowed():
+        return "mock"
+    return "local"
+
+
+def resolve_source(source: HistorySource | None = None) -> HistorySource:
+    """Force local unless mock is explicitly allowed; never silent-fallback to mock."""
+    resolved: HistorySource = source or configured_source()
+    if resolved == "mock" and not mock_bars_allowed():
+        return "local"
+    if resolved == "rqdata":
+        return "rqdata"
+    if resolved == "mock":
         return "mock"
     return "local"
 
@@ -66,7 +83,7 @@ def fetch_bars(
     last_price: float | None = None,
 ) -> dict:
     """Fetch-boundary for historical bars. Default = local MySQL market_bars."""
-    resolved: HistorySource = source or configured_source()
+    resolved = resolve_source(source)
     if resolved == "rqdata":
         return fetch_rqdata_bars(symbol, exchange, interval, last_price=last_price)
     if resolved == "mock":
@@ -183,7 +200,7 @@ def fetch_mock_bars(
     *,
     last_price: float | None = None,
 ) -> dict:
-    """Explicit fallback only (source=mock). Not used for production charts."""
+    """Debug-only mock series. Gated by STABX_ALLOW_MOCK_BARS=1; never a silent fallback."""
     count = _COUNTS[interval]
     step = _STEP[interval]
     now = datetime.now(tz=SHANGHAI)

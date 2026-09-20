@@ -1,10 +1,11 @@
 import { http } from "@/api";
 
-/** Historical K-line source. Default local MySQL; mock/rqdata are explicit only. */
+/** Historical K-line source. Charts always request local MySQL replay. */
 export type HistorySource = "local" | "mock" | "rqdata";
 export type BarInterval = "1m" | "5m" | "15m" | "30m" | "60m" | "1d" | "1w" | "1M";
 export type ChartPeriod = "timeshare" | BarInterval;
 
+/** Production charts never request mock; empty local stays empty. */
 export const HISTORY_SOURCE: HistorySource = "local";
 
 export type HistoryBar = {
@@ -33,13 +34,14 @@ export async function fetchHistoryBars(params: {
   interval: BarInterval;
   source?: HistorySource;
 }): Promise<HistoryBarsResult> {
-  const source = params.source ?? HISTORY_SOURCE;
+  // Charts always request local MySQL; ignore any caller mock/rqdata intent.
+  void params.source;
   const { data } = await http.get<HistoryBarsResult>("/api/market/bars", {
     params: {
       symbol: params.symbol,
       exchange: params.exchange,
       interval: params.interval,
-      source,
+      source: HISTORY_SOURCE,
     },
   });
   return data;

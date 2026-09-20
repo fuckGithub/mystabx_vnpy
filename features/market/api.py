@@ -80,8 +80,9 @@ def _downsample_to_minute(ticks: list[dict]) -> list[dict]:
     Full SimNow tapes are 10k–70k rows / day (~MB JSON). The 分时 chart only
     needs minute buckets; shipping every tick made the browser sit on a single
     OMS snapshot (one blue dot + one fat volume bar) while the request crawled.
+    Always bucket — even a few hundred rows — so first paint stays small.
     """
-    if len(ticks) <= 1500:
+    if len(ticks) <= 1:
         return ticks
     buckets: dict[str, dict] = {}
     order: list[str] = []
@@ -142,7 +143,9 @@ def list_trade_dates(
             {
                 "date": day.isoformat(),
                 "is_current": day == current,
-                "has_data": day == current or day in have,
+                # Do not force has_data=true for current — weekend "next Monday"
+                # may only have night stubs; the UI needs an honest signal.
+                "has_data": day in have,
             }
             for day in dates
         ],
@@ -177,12 +180,19 @@ def list_session_ticks(
     # drop them when gateway_name differs (reconnect / renamed account) — that
     # left the UI with a single OMS snapshot and a flat 分时 line.
     mem = session_ticks(symbol, exchange, td) if td == current else []
-    oms = [normalize_live_tick(row) for row in _oms_ticks(symbol, exchange, gws)] if td == current else []
+    oms_raw = [normalize_live_tick(row) for row in _oms_ticks(symbol, exchange, gws)] if td == current else []
+    # OMS snapshots are often re-stamped to "now" (weekend / frozen SimNow clock).
+    # Merging them after session filter used to inject one out-of-session print
+    # with full cumulative volume → single fat volume bar under a lone price pin.
+    oms = [
+        row
+        for row in oms_raw
+        if in_session_for_trade_date(parse_tick_dt(row.get("datetime")), td, exchange=exchange)
+    ]
     ch_rows = query_ticks(symbol, exchange, td)
     ch_ok = ch_rows is not None
     # CH already session-filtered; memory may still hold break prints — tighten.
     hist = _filter_session_clock(_merge_ticks(ch_rows or [], mem), exchange, td)
-    # Live OMS snapshot may be after close / wrong day — keep for price pin only.
     ticks = _downsample_to_minute(_merge_ticks(hist, oms))
     return {
         "trade_date": td.isoformat(),
@@ -200,7 +210,11 @@ def list_bars(
     source: HistorySource = Query("local"),
     user: User = Depends(current_user),
 ) -> dict:
-    """Historical K-line from local MySQL (aggregated ticks). source=mock is debug-only."""
+    """Historical K-line from local MySQL (aggregated ticks).
+
+    Production always serves source=local. Mock requires STABX_ALLOW_MOCK_BARS=1;
+    empty local returns empty bars (never silent mock fallback).
+    """
     _ = user
     if interval not in INTERVALS:
         raise HTTPException(status_code=400, detail=f"invalid interval: {interval}")
