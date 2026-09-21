@@ -1,5 +1,13 @@
 # Stabx Web 交易台
 
+[![GitHub Stars](https://img.shields.io/github/stars/fuckGithub/mystabx_vnpy?style=flat&logo=github)](https://github.com/fuckGithub/mystabx_vnpy)
+[![Gitee Stars](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgitee.com%2Fapi%2Fv5%2Frepos%2Fxjc621105%2Fmystabx_vnpy&query=%24.stargazers_count&label=Gitee%20Stars&color=C71D23&style=flat)](https://gitee.com/xjc621105/mystabx_vnpy)
+[![Issues](https://img.shields.io/github/issues/fuckGithub/mystabx_vnpy?style=flat)](https://github.com/fuckGithub/mystabx_vnpy/issues)
+[![Closed Issues](https://img.shields.io/github/issues-closed/fuckGithub/mystabx_vnpy?style=flat&color=yellow)](https://github.com/fuckGithub/mystabx_vnpy/issues?q=is%3Aissue+is%3Aclosed)
+[![Pull Requests](https://img.shields.io/github/issues-pr/fuckGithub/mystabx_vnpy?style=flat)](https://github.com/fuckGithub/mystabx_vnpy/pulls)
+[![Closed PRs](https://img.shields.io/github/issues-pr-closed/fuckGithub/mystabx_vnpy?style=flat&color=yellow)](https://github.com/fuckGithub/mystabx_vnpy/pulls?q=is%3Apr+is%3Aclosed)
+[![License](https://img.shields.io/badge/license-source--available-4c1?style=flat)](LICENSE)
+
 面向国内期货（CTP）的 Web 交易台：Vue 3 + FastAPI（REST / WebSocket / SSE）托管进程内 vnpy `MainEngine`。产品入口是浏览器，不是桌面 Qt——**入口 Web 化是手段，不是唯一目标**。
 
 在把 vnpy 能力接到浏览器的同时，本仓库侧重：
