@@ -14,7 +14,7 @@
       popper-style="padding: 5px 16px;">
       <template #reference>
         <div
-          class="fa-user-menu__avatar-ref mr-5 max-sm:mr-[16px] c-p flex size-8.5 max-sm:w-6.5 max-sm:h-6.5 shrink-0 items-center justify-center">
+          class="fa-user-menu__avatar-ref mr-1.5 max-sm:mr-1.5 c-p flex size-8.5 max-sm:w-6.5 max-sm:h-6.5 shrink-0 items-center justify-center">
           <img v-if="userAvatar" class="size-full rounded-full object-cover block" :src="userAvatar" alt="avatar" />
           <img v-else class="size-full rounded-full block" src="@imgs/user/avatar.webp" alt="avatar" />
           <!-- 与旧版 NavbarActions.user-profile__online-indicator 一致 -->

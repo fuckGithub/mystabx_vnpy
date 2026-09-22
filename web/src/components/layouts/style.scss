@@ -22,6 +22,9 @@
       z-index: 50;
       flex-shrink: 0;
       width: 100%;
+      /* 顶栏贴齐 #app-main 左右边，不额外内缩 */
+      padding-inline: 0;
+      margin-inline: 0;
     }
 
     #app-content {

@@ -5,22 +5,23 @@
     :class="[
       tabStyle === 'tab-card' || tabStyle === 'tab-google' || tabStyle === 'tab-default' ? 'max-sm:mb-3 !bg-box' : '',
     ]">
+    <!-- 单行全宽：左控件贴内容区左边，右工具栏贴右边（space-between，不换行） -->
     <div
-      class="relative box-border flex-b h-15 leading-15 select-none"
+      class="fa-header-bar__row relative box-border flex h-15 w-full min-w-0 flex-nowrap items-center justify-between leading-15 select-none"
       :class="[
         tabStyle === 'tab-card' || tabStyle === 'tab-google' || tabStyle === 'tab-default'
           ? 'border-b border-[var(--fa-card-border)]'
           : '',
       ]">
-      <div class="flex-c flex-1 min-w-0 leading-15" style="display: flex">
+      <div class="fa-header-bar__left flex min-w-0 flex-1 flex-nowrap items-center overflow-hidden leading-15">
         <!-- 系统信息：Logo + 标题一并受「显示应用 Logo」控制 -->
-        <div class="flex-c c-p" @click="toHome" v-if="isTopMenu && showAppLogo">
-          <FaLogo class="pl-4.5" variant="wordmark" :size="32" />
+        <div class="flex shrink-0 items-center c-p" @click="toHome" v-if="isTopMenu && showAppLogo">
+          <FaLogo class="pl-1.5" variant="wordmark" :size="32" />
         </div>
 
         <FaLogo
           v-if="showAppLogo"
-          class="!hidden pl-3.5 overflow-hidden align-[-0.15em] fill-current"
+          class="!hidden pl-1.5 overflow-hidden align-[-0.15em] fill-current"
           variant="mark"
           :size="28"
           @click="toHome" />
@@ -29,20 +30,20 @@
         <FaIconButton
           v-if="isLeftMenu && shouldShowMenuButton"
           icon="ri:menu-2-fill"
-          class="ml-3 max-sm:ml-[7px]"
+          class="ml-1 max-sm:ml-1"
           @click="visibleMenu" />
 
         <!-- 刷新按钮 -->
         <FaIconButton
           v-if="shouldShowRefreshButton"
           icon="ri:refresh-line"
-          class="!ml-3 refresh-btn max-sm:!hidden"
-          :style="{ marginLeft: !isLeftMenu ? '10px' : '0' }"
+          class="!ml-2 refresh-btn max-sm:!hidden"
+          :style="{ marginLeft: !isLeftMenu ? '8px' : '' }"
           @click="reload" />
 
         <!-- 快速入口 -->
         <FaFastEnter v-if="shouldShowFastEnter && width >= headerBarFastEnterMinWidth">
-          <FaIconButton icon="ri:function-line" class="ml-3" />
+          <FaIconButton icon="ri:function-line" class="ml-2" />
         </FaFastEnter>
 
         <!-- 面包屑 -->
@@ -55,7 +56,7 @@
         <FaMixedMenu v-if="isTopLeftMenu" :list="menuList" />
       </div>
 
-      <div id="app-header-toolbar" class="flex-c gap-2.5">
+      <div id="app-header-toolbar" class="fa-header-bar__right flex shrink-0 flex-nowrap items-center gap-2">
         <!-- 搜索 -->
         <div
           v-if="shouldShowGlobalSearch"
@@ -76,12 +77,12 @@
         <FaIconButton
           v-if="shouldShowFullscreen"
           :icon="isFullscreen ? 'ri:fullscreen-exit-line' : 'ri:fullscreen-fill'"
-          :class="[!isFullscreen ? 'full-screen-btn' : 'exit-full-screen-btn', 'ml-3']"
+          :class="[!isFullscreen ? 'full-screen-btn' : 'exit-full-screen-btn']"
           class="max-md:!hidden"
           @click="toggleFullScreen" />
 
         <!-- 组件尺寸 default/large/small（沿用旧版持久化开关 showSizeSelect） -->
-        <div v-if="shouldShowSizeSelect" class="flex-cc ml-1 max-md:!hidden">
+        <div v-if="shouldShowSizeSelect" class="flex-cc max-md:!hidden">
           <FaSizeSelect />
         </div>
 
@@ -330,6 +331,22 @@ const openChat = (): void => {
 </script>
 
 <style lang="scss" scoped>
+/* 顶栏工具行：强制单行全宽左右对齐，避免中间多余内边距/换行 */
+.fa-header-bar__row {
+  box-sizing: border-box;
+  width: 100%;
+  padding-inline: 0;
+}
+
+.fa-header-bar__left,
+.fa-header-bar__right {
+  flex-wrap: nowrap;
+}
+
+.fa-header-bar__right {
+  margin-left: auto;
+}
+
 /* Custom animations */
 @keyframes rotate180 {
   0% {
