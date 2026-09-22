@@ -83,11 +83,21 @@
   gap: 2px;
 }
 
-.channel-row-actions .el-button {
+.channel-row-actions .el-button,
+.channel-row-actions .el-button.is-text,
+.channel-row-actions .el-button.is-link {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: transparent;
+  --el-button-hover-border-color: transparent;
+  --el-button-active-bg-color: transparent;
+  --el-button-active-border-color: transparent;
   padding: 4px 6px;
   margin: 0;
   border: none !important;
+  border-color: transparent !important;
   background: transparent !important;
+  background-color: transparent !important;
   box-shadow: none !important;
   outline: none !important;
 }
@@ -95,9 +105,16 @@
 .channel-row-actions .el-button:hover,
 .channel-row-actions .el-button:focus,
 .channel-row-actions .el-button:focus-visible,
-.channel-row-actions .el-button:active {
+.channel-row-actions .el-button:active,
+.channel-row-actions .el-button.is-text:not(.is-disabled):hover,
+.channel-row-actions .el-button.is-text:not(.is-disabled):focus,
+.channel-row-actions .el-button.is-text:not(.is-disabled):active,
+.channel-row-actions .el-button.is-link:not(.is-disabled):hover,
+.channel-row-actions .el-button.is-link:not(.is-disabled):focus {
   border: none !important;
+  border-color: transparent !important;
   background: transparent !important;
+  background-color: transparent !important;
   box-shadow: none !important;
   outline: none !important;
 }
