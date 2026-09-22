@@ -80,6 +80,12 @@
   justify-content: center;
   flex-wrap: nowrap;
   white-space: nowrap;
+  gap: 2px;
+}
+
+.channel-row-actions .el-button {
+  padding: 4px 6px;
+  margin: 0;
 }
 
 .el-form-item:last-of-type {

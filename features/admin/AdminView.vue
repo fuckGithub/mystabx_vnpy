@@ -65,13 +65,45 @@
             <ChannelStatusPair :row="row" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="248" align="center" header-class-name="table-action-col" class-name="table-action-col">
+        <el-table-column
+          label="操作"
+          width="420"
+          align="center"
+          fixed="right"
+          header-class-name="table-action-col"
+          class-name="table-action-col"
+        >
           <template #default="{ row }">
-            <span class="table-row-actions">
-              <el-button type="primary" link @click="openEditAccount(row)">编辑</el-button>
-              <el-button type="primary" link @click="openAccountLogs(row)">日志</el-button>
-              <el-button type="primary" link :loading="testingId === row.id" @click="testAccount(row.id)">测试</el-button>
-              <el-button type="danger" link @click="removeAccount(row)">删除</el-button>
+            <span class="table-row-actions channel-row-actions">
+              <el-button size="small" text type="primary" :icon="EditPen" @click="openEditAccount(row)">
+                编辑
+              </el-button>
+              <el-button size="small" text type="primary" :icon="Document" @click="openAccountLogs(row)">
+                日志
+              </el-button>
+              <el-button
+                size="small"
+                text
+                type="success"
+                :icon="Connection"
+                :loading="testingId === row.id"
+                @click="testAccount(row.id)"
+              >
+                测试
+              </el-button>
+              <el-button
+                size="small"
+                text
+                type="warning"
+                :icon="SwitchButton"
+                :loading="disconnectingId === row.id"
+                @click="disconnectAccount(row)"
+              >
+                断开
+              </el-button>
+              <el-button size="small" text type="danger" :icon="Delete" @click="removeAccount(row)">
+                删除
+              </el-button>
             </span>
           </template>
         </el-table-column>
@@ -379,7 +411,17 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Plus, QuestionFilled, Refresh, Search } from "@element-plus/icons-vue";
+import {
+  Connection,
+  Delete,
+  Document,
+  EditPen,
+  Plus,
+  QuestionFilled,
+  Refresh,
+  Search,
+  SwitchButton,
+} from "@element-plus/icons-vue";
 import { http } from "@/api";
 import ChannelStatusPair from "@/components/ChannelStatusPair.vue";
 import {
@@ -468,6 +510,7 @@ const accVisible = ref(false);
 const accSaving = ref(false);
 const accTesting = ref(false);
 const testingId = ref<number | null>(null);
+const disconnectingId = ref<number | null>(null);
 const testResult = ref<ConnectTestResult | null>(null);
 const autoHint = reactive({ ...FALLBACK_AUTO });
 const interfaceNote = ref(SIMNOW_INTERFACE_NOTE);
@@ -844,6 +887,20 @@ async function testAccount(accountId: number | null, { notify = true } = {}) {
   } finally {
     accTesting.value = false;
     testingId.value = null;
+  }
+}
+
+async function disconnectAccount(row: AdminAccount) {
+  disconnectingId.value = row.id;
+  try {
+    await http.post(`/api/gateways/${row.id}/disconnect`);
+    ElMessage.success(`已断开 ${row.gateway_name}`);
+    await reload();
+    await trade.refresh();
+  } catch (error: unknown) {
+    ElMessage.error(apiError(error, "断开失败"));
+  } finally {
+    disconnectingId.value = null;
   }
 }
 

@@ -95,12 +95,31 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" align="center" header-class-name="table-action-col" class-name="table-action-col">
+        <el-table-column
+          label="操作"
+          width="300"
+          align="center"
+          header-class-name="table-action-col"
+          class-name="table-action-col"
+        >
           <template #default="{ row }">
-            <span class="table-row-actions">
-              <el-button type="primary" link @click="connect(row)">连接</el-button>
-              <el-button type="primary" link :loading="testingId === row.id" @click="testConnect(row)">测试联通</el-button>
-              <el-button link @click="disconnect(row)">断开</el-button>
+            <span class="table-row-actions channel-row-actions">
+              <el-button size="small" text type="success" :icon="Connection" @click="connect(row)">
+                连接
+              </el-button>
+              <el-button
+                size="small"
+                text
+                type="primary"
+                :icon="Aim"
+                :loading="testingId === row.id"
+                @click="testConnect(row)"
+              >
+                测试
+              </el-button>
+              <el-button size="small" text type="warning" :icon="SwitchButton" @click="disconnect(row)">
+                断开
+              </el-button>
             </span>
           </template>
         </el-table-column>
@@ -125,7 +144,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
-import { Refresh, Search } from "@element-plus/icons-vue";
+import { Aim, Connection, Refresh, Search, SwitchButton } from "@element-plus/icons-vue";
 import { http } from "@/api";
 import { useMarketStore, useTradeStore } from "@/stores";
 import { contractNameOf } from "../workbench/liveMap";
