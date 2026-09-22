@@ -25,7 +25,9 @@
     "**/.github": true,
     "**/.idea": true,
     "**/.venv": true,
-    "**/.vntrader": true
+    "**/.vntrader": true,
+    "**/licenses": true,
+    "**/node_modules": true
   },
   "search.exclude": {
     "**/.agents": true,
@@ -35,6 +37,8 @@
     "**/.github": true,
     "**/.idea": true,
     "**/.venv": true,
-    "**/.vntrader": true
+    "**/.vntrader": true,
+    "**/licenses": true,
+    "**/node_modules": true
   }
 }
