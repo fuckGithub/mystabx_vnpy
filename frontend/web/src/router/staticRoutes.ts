@@ -316,6 +316,12 @@ export const staticRoutes: AppRouteRecordRaw[] = [
     meta: { hidden: true, isHideTab: true, title: 'menus.login.title' },
     component: () => import('@views/module_system/auth/login/index.vue'),
   },
+  {
+    path: '/disclaimer',
+    name: 'Disclaimer',
+    meta: { hidden: true, isHideTab: true, title: '免责声明' },
+    component: () => import('@views/module_system/auth/disclaimer/index.vue'),
+  },
   /** 无 Layout 全屏异常页；守卫与白名单跳转使用（勿再在 RootLayout 下重复挂载同组件） */
   {
     path: '/401',

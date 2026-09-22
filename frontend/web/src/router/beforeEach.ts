@@ -272,7 +272,7 @@ function isLoginRoute(to: RouteLocationNormalized): boolean {
  */
 function isAnonymousPublicPath(path: string): boolean {
   if (path.startsWith('/redirect')) return true
-  const allow = new Set(['/401', '/404', '/500', '/403'])
+  const allow = new Set(['/401', '/404', '/500', '/403', '/disclaimer'])
   return allow.has(path)
 }
 

@@ -1,4 +1,4 @@
-<!-- 账号密码登录表单（含快捷账号、验证码、滑块） -->
+<!-- 账号密码登录（vnpy 视觉；保留算术验证码，无滑动校验） -->
 <template>
   <div>
     <ElForm
@@ -6,29 +6,24 @@
       :model="loginForm"
       :rules="rules"
       :key="formKey"
-      class="login-page-form"
+      size="large"
+      class="login-content-form"
       :validate-on-rule-change="false"
       @keyup.enter="$emit('submit')">
-      <ElFormItem>
-        <ElSelect
-          :model-value="demoAccountKey"
-          class="w-full"
-          :placeholder="$t('login.quickSelectAccount')"
-          @update:model-value="$emit('setupAccount', $event as AccountKey)">
-          <ElOption v-for="account in accounts" :key="account.key" :label="account.label" :value="account.key">
-            <span>{{ account.label }}</span>
-          </ElOption>
-        </ElSelect>
-      </ElFormItem>
-
       <ElFormItem prop="username">
         <ElInput
-          class="custom-height"
           v-model.trim="loginForm.username"
+          class="login-input login-input--auth"
           clearable
+          autocomplete="username"
           :placeholder="$t('login.placeholder.username')">
           <template #prefix>
-            <ElIcon><User /></ElIcon>
+            <span class="login-field-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7Z" />
+              </svg>
+            </span>
           </template>
         </ElInput>
       </ElFormItem>
@@ -36,35 +31,75 @@
       <ElTooltip :visible="isCapsLock" :content="$t('login.capsLock')" placement="right">
         <ElFormItem prop="password">
           <ElInput
-            class="custom-height"
             v-model.trim="loginForm.password"
-            type="password"
-            autocomplete="off"
-            show-password
+            class="login-input login-input--auth"
+            :type="showPassword ? 'text' : 'password'"
+            autocomplete="current-password"
             clearable
             @keyup="checkCapsLock"
             @keyup.enter="$emit('submit')">
             <template #prefix>
-              <ElIcon><Lock /></ElIcon>
+              <span class="login-field-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 11V8a5 5 0 0 0-10 0v3" />
+                  <rect x="5" y="11" width="14" height="10" rx="2" />
+                  <circle cx="12" cy="16" r="1.25" fill="currentColor" stroke="none" />
+                </svg>
+              </span>
+            </template>
+            <template #suffix>
+              <button
+                type="button"
+                class="login-toggle-pwd"
+                :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                @click="showPassword = !showPassword">
+                <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M10.58 10.58A2 2 0 0 0 12 14c1.38 0 2.5-1.12 2.5-2.5 0-.42-.1-.82-.29-1.17" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M9.88 5.09A10.94 10.94 0 0 1 12 5c5.52 0 10 4.5 10 7s-1.02 2.28-2.62 3.72" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6.61 6.61C4.39 8.09 3 10.2 2 12c1.5 2.5 5.5 7 10 7 1.05 0 2.06-.2 3-.57" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
             </template>
           </ElInput>
         </ElFormItem>
       </ElTooltip>
 
       <ElFormItem v-if="captchaState.enable" prop="captcha" class="login-captcha-row">
-        <div class="flex w-full items-center gap-2.5">
+        <div class="flex w-full items-center gap-3">
           <ElInput
             v-model.trim="loginForm.captcha"
-            class="custom-height flex-1"
+            class="login-input login-input--auth login-input--captcha flex-1"
             clearable
             :placeholder="$t('login.captchaCode')"
             @keyup.enter="$emit('submit')">
             <template #prefix>
-              <FaSvgIcon icon="mdi:shield-lock-outline" class="size-[18px] text-(--el-text-color-secondary)" />
+              <span class="login-field-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 3l7 4v5c0 5-3 8-7 9-4-1-7-4-7-9V7l7-4Z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l1.8 1.8L15 10" />
+                </svg>
+              </span>
             </template>
           </ElInput>
           <div
-            class="login-captcha-img flex h-10 w-[100px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded"
+            class="login-captcha-img flex h-12 w-[120px] shrink-0 cursor-pointer items-center justify-center overflow-hidden"
             role="button"
             :title="$t('login.captchaClickHint')"
             @click="$emit('getCaptcha')">
@@ -83,107 +118,63 @@
         </div>
       </ElFormItem>
 
-      <div class="login-form-tail flex flex-col gap-[1.1rem]">
-        <div class="relative pb-3">
-          <div
-            class="relative z-2 overflow-hidden select-none rounded-lg border border-transparent tad-300"
-            :class="{ 'border-[#FF4E4F]!': !isPassing && isClickPass }">
-            <FaDragVerify
-              ref="dragVerifyRef"
-              v-model:value="isPassing"
-              :text="$t('login.sliderText')"
-              :text-color="dragVerifyTextColor"
-              :success-text="$t('login.sliderSuccessText')"
-              progress-bar-bg="var(--el-color-primary)"
-              :background="isDark ? '#26272F' : '#F1F1F4'"
-              handler-bg="var(--default-box-color)" />
-          </div>
-          <p
-            class="absolute top-0 z-1 mt-2 px-px text-xs text-[#f56c6c] tad-300"
-            :class="{ 'translate-y-10': !isPassing && isClickPass }">
-            {{ $t('login.placeholder.slider') }}
-          </p>
-        </div>
-
-        <div class="login-options-row flex-cb text-sm">
-          <ElCheckbox v-model="loginForm.remember" class="login-remember">
-            {{ $t('login.rememberPwd') }}
-          </ElCheckbox>
-          <ElLink
-            type="primary"
-            underline="never"
-            class="inline-flex items-center text-sm leading-[inherit]!"
-            @click="$emit('forget')">
-            {{ $t('login.forgetPwd') }}
-          </ElLink>
-        </div>
-
-        <div>
-          <ElButton
-            class="h-11 w-full rounded-lg! text-base font-medium"
-            type="primary"
-            :loading="loading"
-            v-ripple
-            @click="$emit('submit')">
-            {{ $t('login.btnText') }}
-          </ElButton>
-        </div>
-
-        <div class="login-secondary-actions grid grid-cols-2 gap-2">
-          <ElButton class="login-secondary-btn" plain @click="$emit('openMobile')">
-            {{ $t('login.mobileLogin') }}
-          </ElButton>
-          <ElButton class="login-secondary-btn" plain @click="$emit('openQr')">
-            {{ $t('login.qrLogin') }}
-          </ElButton>
-        </div>
+      <div class="login-options-row flex-cb mb-1 text-sm">
+        <ElCheckbox v-model="loginForm.remember" class="login-remember">
+          {{ $t('login.rememberPwd') }}
+        </ElCheckbox>
+        <ElLink type="primary" underline="never" class="inline-flex items-center text-sm" @click="$emit('forget')">
+          {{ $t('login.forgetPwd') }}
+        </ElLink>
       </div>
+
+      <ElFormItem class="login-submit-item">
+        <ElButton
+          class="login-btn login-btn--auth w-full"
+          type="primary"
+          :loading="loading"
+          @click="$emit('submit')">
+          <span>{{ $t('login.btnText') }}</span>
+        </ElButton>
+      </ElFormItem>
     </ElForm>
 
-    <LoginThirdPartySection @oauth="$emit('oauth', $event)" />
+    <p class="disclaimer-entry">
+      <RouterLink to="/disclaimer" class="disclaimer-entry-link">免责声明</RouterLink>
+      <span class="disclaimer-entry-hint">交易有风险，软件不提供投资建议</span>
+    </p>
 
-    <LoginAuthLinkRow :hint="$t('login.noAccount')" :link-text="$t('login.register')" @link="$emit('register')" />
+    <p class="login-alt-links">
+      <a class="login-alt-links__item" href="javascript:;" @click.prevent="$emit('register')">
+        {{ $t('login.register') }}
+      </a>
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { CaptchaInfo, LoginFormData } from '@/api/module_system/auth'
-import { Loading, Lock, User } from '@element-plus/icons-vue'
+import { Loading } from '@element-plus/icons-vue'
 import type { FormRules } from 'element-plus'
-import type { Account, AccountKey } from '../types'
-import LoginAuthLinkRow from './LoginAuthLinkRow.vue'
-import LoginThirdPartySection from './LoginThirdPartySection.vue'
 
 defineProps<{
   loginForm: LoginFormData
   rules: FormRules
   captchaState: CaptchaInfo
   codeLoading: boolean
-  demoAccountKey: AccountKey
-  accounts: Account[]
   formKey: number | string
-  isDark: boolean
-  dragVerifyTextColor: string
   loading: boolean
 }>()
 
-const isPassing = defineModel<boolean>('isPassing', { required: true })
-const isClickPass = defineModel<boolean>('isClickPass', { required: true })
-
 defineEmits<{
   submit: []
-  setupAccount: [key: AccountKey]
   getCaptcha: []
-  openMobile: []
-  openQr: []
   forget: []
   register: []
-  oauth: [provider: 'wechat' | 'qq' | 'github' | 'gitee']
 }>()
 
 const formRef = ref()
-const dragVerifyRef = ref<{ reset?: () => void } | null>(null)
 const isCapsLock = ref(false)
+const showPassword = ref(false)
 
 function checkCapsLock(event: KeyboardEvent) {
   if (event instanceof KeyboardEvent) {
@@ -194,10 +185,5 @@ function checkCapsLock(event: KeyboardEvent) {
 defineExpose({
   validate: () => formRef.value?.validate?.(),
   clearValidate: () => formRef.value?.clearValidate?.(),
-  resetDragVerify: () => dragVerifyRef.value?.reset?.(),
 })
 </script>
-
-<style scoped>
-@import '../style.css';
-</style>
