@@ -364,7 +364,8 @@
     "placeholder": {
       "username": "请输入用户名",
       "password": "请输入密码",
-      "slider": "请拖动滑块完成验证"
+      "slider": "请拖动滑块完成验证",
+      "tenant": "请选择租户"
     },
     "sliderText": "按住滑块拖动",
     "sliderSuccessText": "验证成功",
@@ -397,6 +398,9 @@
         "min": "密码不能少于6位",
         "confirm": "请再次确认密码",
         "inconformity": "两次密码输入不一致"
+      },
+      "tenant": {
+        "required": "请选择租户"
       },
       "captchaCode": {
         "required": "请输入验证码"

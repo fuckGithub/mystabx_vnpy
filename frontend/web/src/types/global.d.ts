@@ -202,6 +202,7 @@ declare global {
     captcha?: string
     remember?: boolean
     login_type?: string
+    tenant_id?: number | null
   }
 
   /**

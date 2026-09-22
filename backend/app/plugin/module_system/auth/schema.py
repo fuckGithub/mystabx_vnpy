@@ -28,6 +28,16 @@ class CaptchaOutSchema(BaseModel):
     img_base: str = Field(..., min_length=1, description="Base64编码的验证码图片")
 
 
+class LoginTenantOptionSchema(BaseModel):
+    """登录页可选租户"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int = Field(..., description="租户ID")
+    name: str = Field(..., description="租户名称")
+    code: str = Field(..., description="租户编码")
+
+
 class AutoLoginUserSchema(BaseModel):
     """免登录用户信息模型"""
 

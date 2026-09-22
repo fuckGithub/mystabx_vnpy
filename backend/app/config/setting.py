@@ -186,8 +186,8 @@ class Settings(BaseSettings):
     # ================================================= #
     # ******************** 验证码配置 ******************* #
     # ================================================= #
-    CAPTCHA_ENABLE: bool = True
-    """是否启用验证码"""
+    CAPTCHA_ENABLE: bool = False
+    """是否启用验证码（登录页算术/图片验证；默认关闭）"""
     CAPTCHA_EXPIRE_SECONDS: int = 60
     """验证码过期时间（秒）"""
     CAPTCHA_FONT_SIZE: int = 32
@@ -235,6 +235,7 @@ class Settings(BaseSettings):
     IGNORE_OPERATION_FUNCTION: list[str] = [
         "get_captcha_for_login",
         "get_sm2_public_key_controller",
+        "list_tenants_for_login_controller",
     ]
     """忽略记录操作日志的函数名列表"""
     OPERATION_RECORD_METHOD: list[str] = ["POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]

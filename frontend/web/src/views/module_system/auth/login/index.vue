@@ -1,9 +1,28 @@
-<!-- 登录页：对齐 vnpy AuthBrandPanel + form-panel；保留 FastAPI 登录与算术验证码 -->
+<!-- 登录页：vnpy AuthBrandPanel + 表单；无验证码；租户选择 + 多语言 -->
 <template>
   <div class="auth-page">
     <AuthBrandPanel />
 
     <section class="form-panel">
+      <div class="auth-toolbar">
+        <ElDropdown trigger="click" @command="changeLanguage">
+          <button type="button" class="auth-toolbar-btn auth-toolbar-btn--locale" :title="t('login.languageToggle')">
+            {{ currentLanguageLabel }}
+          </button>
+          <template #dropdown>
+            <ElDropdownMenu>
+              <ElDropdownItem
+                v-for="lang in languageOptions"
+                :key="lang.value"
+                :command="lang.value"
+                :class="{ 'is-selected': locale === lang.value }">
+                <span>{{ lang.label }}</span>
+              </ElDropdownItem>
+            </ElDropdownMenu>
+          </template>
+        </ElDropdown>
+      </div>
+
       <div class="form-wrapper">
         <div class="form-main">
           <div class="form-header">
@@ -20,12 +39,11 @@
                 ref="accountFormRef"
                 :login-form="loginForm"
                 :rules="rules"
-                :captcha-state="captchaState"
-                :code-loading="codeLoading"
                 :form-key="formKey"
                 :loading="loading"
+                :tenants="tenants"
+                :tenant-loading="tenantLoading"
                 @submit="handleSubmit"
-                @get-captcha="getCaptcha"
                 @forget="setAuthPanel('forget')"
                 @register="setAuthPanel('register')" />
             </template>
@@ -85,9 +103,11 @@
 </template>
 
 <script setup lang="ts">
-import AuthAPI, { type CaptchaInfo, type LoginFormData } from '@/api/module_system/auth'
+import AuthAPI, { type LoginFormData, type LoginTenantOption } from '@/api/module_system/auth'
 import wordmarkSrc from '@/assets/brand/logo-topbar.png'
 import AuthBrandPanel from '@/components/auth/AuthBrandPanel.vue'
+import { LanguageEnum } from '@/enums/appEnum'
+import { languageOptions } from '@/locales'
 import UserAPI, { type ForgetPasswordForm, type RegisterForm } from '@/api/module_system/user'
 import { waitForDynamicRoutesReady } from '@/router/beforeEach'
 import { useAppStore } from '@stores/modules/app.store'
@@ -109,7 +129,10 @@ type AuthPanel = 'login' | 'register' | 'forget'
 const configStore = useConfigStore()
 const settingStore = useSettingsStore()
 const appStore = useAppStore()
+const userStore = useUserStore()
 const { t, locale } = useI18n()
+const router = useRouter()
+const route = useRoute()
 
 const authPanel = ref<AuthPanel>('login')
 
@@ -124,6 +147,16 @@ const panelSubTitle = computed(() => {
   if (authPanel.value === 'forget') return t('forgetPassword.subTitle')
   return '登录您的账户，进入 Stabx 交易台'
 })
+
+const currentLanguageLabel = computed(
+  () => languageOptions.find((item) => item.value === locale.value)?.label || '简体中文'
+)
+
+function changeLanguage(lang: LanguageEnum) {
+  if (locale.value === lang) return
+  locale.value = lang
+  userStore.setLanguage(lang)
+}
 
 const infoLines = [
   { before: '查看', highlight: '实时行情', after: '，掌握合约盘口与关键价格' },
@@ -191,16 +224,6 @@ watch(locale, () => {
   formKey.value++
 })
 
-watch(authPanel, (panel) => {
-  if (panel !== 'login') return
-  getCaptcha()
-  loginForm.captcha = ''
-})
-
-const userStore = useUserStore()
-const router = useRouter()
-const route = useRoute()
-
 const accountFormRef = ref<InstanceType<typeof LoginAccountForm> | null>(null)
 const registerPanelRef = ref<InstanceType<typeof LoginRegisterPanel> | null>(null)
 const forgetPanelRef = ref<InstanceType<typeof LoginForgetPanel> | null>(null)
@@ -208,7 +231,8 @@ const forgetPanelRef = ref<InstanceType<typeof LoginForgetPanel> | null>(null)
 const loading = ref(false)
 const registerLoading = ref(false)
 const forgetLoading = ref(false)
-const codeLoading = ref(false)
+const tenantLoading = ref(false)
+const tenants = ref<LoginTenantOption[]>([{ id: 1, name: '系统租户', code: 'system' }])
 
 const registerAgreementRead = ref(false)
 
@@ -292,85 +316,62 @@ const loginForm = reactive<LoginFormData>({
   captcha_key: '',
   remember: true,
   login_type: 'PC',
+  tenant_id: 1,
 })
 
-const captchaState = reactive<CaptchaInfo>({
-  enable: false,
-  key: '',
-  img_base: '',
-})
+const rules = computed<FormRules>(() => ({
+  tenant_id: [
+    {
+      required: true,
+      trigger: 'change',
+      message: t('login.message.tenant.required'),
+    },
+  ],
+  username: [
+    {
+      required: true,
+      trigger: 'blur',
+      message: t('login.message.username.required'),
+    },
+  ],
+  password: [
+    {
+      required: true,
+      trigger: 'blur',
+      message: t('login.message.password.required'),
+    },
+    {
+      min: 6,
+      message: t('login.message.password.min'),
+      trigger: 'blur',
+    },
+  ],
+}))
 
-const rules = computed<FormRules>(() => {
-  const base: FormRules = {
-    username: [
-      {
-        required: true,
-        trigger: 'blur',
-        message: t('login.message.username.required'),
-      },
-    ],
-    password: [
-      {
-        required: true,
-        trigger: 'blur',
-        message: t('login.message.password.required'),
-      },
-      {
-        min: 6,
-        message: t('login.message.password.min'),
-        trigger: 'blur',
-      },
-    ],
-  }
-  if (captchaState.enable) {
-    base.captcha = [
-      {
-        required: true,
-        trigger: 'blur',
-        message: t('login.message.captchaCode.required'),
-      },
-    ]
-  }
-  return base
-})
-
-async function getCaptcha() {
+async function loadTenants() {
   try {
-    codeLoading.value = true
-    const response = await AuthAPI.getCaptcha()
-    const data = response.data.data
-    loginForm.captcha_key = data.key
-    captchaState.img_base = data.img_base
-    captchaState.enable = data.enable
-  } catch {
-    captchaState.enable = false
-    loginForm.captcha = ''
-    loginForm.captcha_key = ''
+    tenantLoading.value = true
+    const response = await AuthAPI.listLoginTenants()
+    const list = response.data.data || []
+    if (list.length) {
+      tenants.value = list
+      const ids = list.map((item) => item.id)
+      if (!ids.includes(loginForm.tenant_id as number)) {
+        loginForm.tenant_id = list[0].id
+      }
+    }
+  } catch (error) {
+    console.debug('[Login] load tenants failed, fallback to system tenant:', error)
   } finally {
-    codeLoading.value = false
+    tenantLoading.value = false
   }
 }
 
 onMounted(async () => {
   await configStore.getConfig()
   await tryConsumeOAuthCallback()
-  getCaptcha()
+  await loadTenants()
 })
-
-onActivated(() => {
-  if (authPanel.value !== 'login') return
-  getCaptcha()
-  loginForm.captcha = ''
-})
-
-watch(
-  () => route.fullPath,
-  () => {
-    if (authPanel.value !== 'login') return
-    getCaptcha()
-    loginForm.captcha = ''
-  }
-)
 
 const handleSubmit = async () => {
   if (!accountFormRef.value) return
@@ -391,7 +392,6 @@ const handleSubmit = async () => {
       appStore.showGuide(true)
     }
   } catch (error) {
-    await getCaptcha()
     console.debug('[Login] login failed:', (error as any)?.data?.msg || error)
   } finally {
     loading.value = false

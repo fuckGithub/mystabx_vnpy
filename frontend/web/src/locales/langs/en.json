@@ -364,7 +364,8 @@
     "placeholder": {
       "username": "Please enter username",
       "password": "Please enter password",
-      "slider": "Please slide to verify"
+      "slider": "Please slide to verify",
+      "tenant": "Please select a tenant"
     },
     "sliderText": "Please slide to verify",
     "sliderSuccessText": "Verification successful",
@@ -397,6 +398,9 @@
         "min": "The password cannot be less than 6 characters",
         "confirm": "Please confirm the password again",
         "inconformity": "The two password entries are inconsistent"
+      },
+      "tenant": {
+        "required": "Please select a tenant"
       },
       "captchaCode": {
         "required": "Please enter Verify Code"

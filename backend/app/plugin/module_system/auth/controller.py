@@ -31,6 +31,7 @@ from .schema import (
     AutoLoginUserSchema,
     CaptchaOutSchema,
     JWTOutSchema,
+    LoginTenantOptionSchema,
     RefreshTokenPayloadSchema,
 )
 from .service import AutoLoginService, CaptchaService, LoginService
@@ -120,6 +121,35 @@ async def get_new_token_controller(
     # 与采集链路里（任何能看到日志的人都能冒充该会话）。
     log.info("刷新token成功")
     return SuccessResponse(data=token_dict, msg="刷新成功")
+
+
+@AuthRouter.get(
+    "/tenants",
+    summary="登录可选租户列表",
+    description="免登录获取可用租户（供登录页选择）",
+    response_model=list[LoginTenantOptionSchema],
+)
+async def list_tenants_for_login_controller(
+    db: Annotated[AsyncSession, Depends(db_getter)],
+) -> JSONResponse:
+    """返回状态正常的租户 id / name / code，供登录页下拉选择。"""
+    from sqlalchemy import select
+
+    from app.plugin.module_system.tenant.model import TenantModel
+
+    result = await db.execute(
+        select(TenantModel.id, TenantModel.name, TenantModel.code)
+        .where(TenantModel.status == "0", TenantModel.is_deleted.is_(False))
+        .order_by(TenantModel.id.asc())
+    )
+    rows = [
+        LoginTenantOptionSchema(id=int(r.id), name=str(r.name), code=str(r.code)).model_dump()
+        for r in result.all()
+    ]
+    if not rows:
+        rows = [LoginTenantOptionSchema(id=1, name="系统租户", code="system").model_dump()]
+    log.info(f"登录租户列表: {len(rows)}")
+    return SuccessResponse(data=rows, msg="获取租户列表成功")
 
 
 @AuthRouter.get(

@@ -1,4 +1,4 @@
-<!-- 账号密码登录（vnpy 视觉；保留算术验证码，无滑动校验） -->
+<!-- 账号密码登录（vnpy 视觉；无滑动/算术验证码；含租户选择） -->
 <template>
   <div>
     <ElForm
@@ -10,6 +10,30 @@
       class="login-content-form"
       :validate-on-rule-change="false"
       @keyup.enter="$emit('submit')">
+      <ElFormItem prop="tenant_id">
+        <ElSelect
+          v-model="loginForm.tenant_id"
+          class="login-input login-input--auth w-full"
+          filterable
+          :placeholder="tenantPlaceholder"
+          :loading="tenantLoading">
+          <template #prefix>
+            <span class="login-field-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 21V7l6-4 6 4v14" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 21v-6h6v6" />
+              </svg>
+            </span>
+          </template>
+          <ElOption
+            v-for="item in tenants"
+            :key="item.id"
+            :label="`${item.name}（${item.code}）`"
+            :value="item.id" />
+        </ElSelect>
+      </ElFormItem>
+
       <ElFormItem prop="username">
         <ElInput
           v-model.trim="loginForm.username"
@@ -78,46 +102,6 @@
         </ElFormItem>
       </ElTooltip>
 
-      <ElFormItem v-if="captchaState.enable" prop="captcha" class="login-captcha-row">
-        <div class="flex w-full items-center gap-3">
-          <ElInput
-            v-model.trim="loginForm.captcha"
-            class="login-input login-input--auth login-input--captcha flex-1"
-            clearable
-            :placeholder="$t('login.captchaCode')"
-            @keyup.enter="$emit('submit')">
-            <template #prefix>
-              <span class="login-field-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M12 3l7 4v5c0 5-3 8-7 9-4-1-7-4-7-9V7l7-4Z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l1.8 1.8L15 10" />
-                </svg>
-              </span>
-            </template>
-          </ElInput>
-          <div
-            class="login-captcha-img flex h-12 w-[120px] shrink-0 cursor-pointer items-center justify-center overflow-hidden"
-            role="button"
-            :title="$t('login.captchaClickHint')"
-            @click="$emit('getCaptcha')">
-            <ElIcon v-if="codeLoading" class="is-loading" :size="20">
-              <Loading />
-            </ElIcon>
-            <ElImage
-              v-else-if="captchaState.img_base"
-              class="h-full w-full object-cover"
-              fit="cover"
-              :src="captchaState.img_base" />
-            <ElText v-else type="info" size="small">
-              {{ $t('login.captchaClickHint') }}
-            </ElText>
-          </div>
-        </div>
-      </ElFormItem>
-
       <div class="login-options-row flex-cb mb-1 text-sm">
         <ElCheckbox v-model="loginForm.remember" class="login-remember">
           {{ $t('login.rememberPwd') }}
@@ -152,29 +136,32 @@
 </template>
 
 <script setup lang="ts">
-import type { CaptchaInfo, LoginFormData } from '@/api/module_system/auth'
-import { Loading } from '@element-plus/icons-vue'
+import type { LoginFormData, LoginTenantOption } from '@/api/module_system/auth'
 import type { FormRules } from 'element-plus'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 defineProps<{
   loginForm: LoginFormData
   rules: FormRules
-  captchaState: CaptchaInfo
-  codeLoading: boolean
   formKey: number | string
   loading: boolean
+  tenants: LoginTenantOption[]
+  tenantLoading: boolean
 }>()
 
 defineEmits<{
   submit: []
-  getCaptcha: []
   forget: []
   register: []
 }>()
 
+const { t } = useI18n()
 const formRef = ref()
 const isCapsLock = ref(false)
 const showPassword = ref(false)
+
+const tenantPlaceholder = computed(() => t('login.placeholder.tenant'))
 
 function checkCapsLock(event: KeyboardEvent) {
   if (event instanceof KeyboardEvent) {

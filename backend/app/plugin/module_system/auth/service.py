@@ -112,6 +112,13 @@ class LoginService:
         if user.status == "1":
             raise CustomException(msg="用户已被停用")
 
+        # 租户校验：登录页选择了租户时，要求与用户所属租户一致
+        selected_tenant_id = getattr(login_form, "tenant_id", None)
+        if selected_tenant_id is not None:
+            user_tenant_id = getattr(user, "tenant_id", None)
+            if user_tenant_id is not None and int(user_tenant_id) != int(selected_tenant_id):
+                raise CustomException(msg="账号不属于所选租户")
+
         # 更新最后登录时间
         user = await UserCRUD(auth).update_last_login_crud(id=user.id)
         log.info(f"[登录计时] 更新登录时间: {round((time.time() - _t4) * 1000, 1)}ms")

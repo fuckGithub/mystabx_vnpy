@@ -81,6 +81,7 @@
     "GET /system/auth/oauth/{provider}/callback",
     "GET /system/auth/oauth/{provider}/login",
     "GET /system/auth/sm-public-key",
+    "GET /system/auth/tenants",
     "GET /system/dept/detail/{id}",
     "GET /system/dept/tree",
     "GET /system/dict/data/detail/{id}",

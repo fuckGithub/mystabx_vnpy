@@ -48,6 +48,14 @@ const AuthAPI = {
     })
   },
 
+  /** 登录页可选租户（免登录） */
+  listLoginTenants() {
+    return request<ApiResponse<LoginTenantOption[]>>({
+      url: `${API_PATH}/tenants`,
+      method: 'get',
+    })
+  },
+
   logout() {
     return request<ApiResponse>({
       url: `${API_PATH}/logout`,
@@ -92,6 +100,15 @@ export interface LoginFormData {
   captcha: string
   remember: boolean
   login_type: string
+  /** 所选租户 ID */
+  tenant_id?: number | null
+}
+
+/** 登录页租户选项 */
+export interface LoginTenantOption {
+  id: number
+  name: string
+  code: string
 }
 
 // 刷新令牌

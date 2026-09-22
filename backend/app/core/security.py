@@ -64,6 +64,7 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
     - captcha_key (str | None): 验证码键,默认值为空字符串。
     - captcha (str | None): 验证码值,默认值为空字符串。
     - login_type (str | None): 登录类型,默认值为"PC",描述为"PC | FLUTTER | UNIAPP"。
+    - tenant_id (int | None): 登录所选租户 ID（可选）。
     """
 
     def __init__(
@@ -77,6 +78,7 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
         captcha_key: str | None = Form(default=""),
         captcha: str | None = Form(default=""),
         login_type: str | None = Form(default="PC", description="PC | FLUTTER | UNIAPP"),
+        tenant_id: int | None = Form(default=None, description="租户ID"),
     ) -> None:
         super().__init__(
             grant_type=grant_type,
@@ -89,6 +91,7 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
         self.captcha_key = captcha_key
         self.captcha = captcha
         self.login_type = login_type
+        self.tenant_id = tenant_id
 
 
 # OAuth2认证配置
