@@ -51,7 +51,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="自动连接" width="128" align="center">
+        <el-table-column label="启动自连" width="128" align="center">
           <template #default="{ row }">
             <el-switch
               :model-value="Boolean(row.auto_connect)"
@@ -173,7 +173,10 @@
               <el-input v-model="accForm.授权编码" />
             </el-form-item>
             <el-form-item label="自动连接">
-              <el-switch v-model="accForm.auto_connect" active-text="启动自动连接" />
+              <el-switch v-model="accForm.auto_connect" active-text="进程启动时自动连接" />
+              <p class="page-form-hint" style="margin-top: 6px">
+                通道一旦连上后，断线会按当前时段自动选 SimNow 前置重连，并恢复订阅录制；手动「断开」除外。
+              </p>
             </el-form-item>
             <el-form-item label="柜台环境">
               <div class="page-static-value">
@@ -964,7 +967,7 @@ async function setAutoConnect(row: AdminAccount, value: string | number | boolea
   try {
     await http.post(`/api/gateways/${row.id}/auto-connect`, { auto_connect: enabled });
     row.auto_connect = enabled;
-    ElMessage.success(enabled ? "已开启启动自动连接" : "已关闭自动连接");
+    ElMessage.success(enabled ? "已开启进程启动时自动连接" : "已关闭启动自连（断线重连仍在连接后生效）");
     await trade.refresh();
   } catch (error: unknown) {
     ElMessage.error(apiError(error, "自动连接设置失败"));

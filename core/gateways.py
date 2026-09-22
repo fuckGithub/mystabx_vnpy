@@ -150,17 +150,31 @@ class AccountGatewayManager:
             self.me.connect(ctp_connect_payload(setting), gateway_name)
             self.start_status_watch(gateway_name)
             self.start_account_sync(gateway_name)
-            if self._auto_connect_enabled(gateway_name):
-                self.start_keepalive(gateway_name)
+            # Keepalive for unexpected drop (user 断开仍走 disconnect → _forced_off).
+            self.start_keepalive(gateway_name)
             if not from_user:
                 acc_id = acc.get("id")
+                env_label = str((meta or {}).get("front_label") or (meta or {}).get("front_env") or "")
+                td = str((meta or {}).get("交易服务器") or setting.get("交易服务器") or "")
+                md = str((meta or {}).get("行情服务器") or setting.get("行情服务器") or "")
                 record_channel_op(
                     account_id=int(acc_id) if acc_id is not None else None,
                     gateway_name=gateway_name,
                     action="连接",
                     result="success",
-                    message="启动自动连接" if self._auto_connect_enabled(gateway_name) else "自动重连",
+                    message=(
+                        f"自动重连"
+                        + (f"（{env_label}）" if env_label else "")
+                        + (f" td={td} md={md}" if td or md else "")
+                    ),
                     operator_name="系统",
+                )
+                logger.info(
+                    "auto reconnect connect %s env=%s td=%s md=%s",
+                    gateway_name,
+                    env_label or "?",
+                    td,
+                    md,
                 )
         finally:
             def _clear() -> None:
@@ -339,7 +353,7 @@ class AccountGatewayManager:
         if gateway_name in self.index:
             self.index[gateway_name]["auto_connect"] = bool(enabled)
         if not enabled:
-            self.stop_keepalive(gateway_name)
+            # Only disables startup connect; drop-reconnect keepalive stays if connected.
             return
         self._forced_off.discard(gateway_name)
         self.start_keepalive(gateway_name)
@@ -402,9 +416,12 @@ class AccountGatewayManager:
         return self._keepalive_alive(gateway_name, gen) and gateway_name not in self._forced_off
 
     def _keepalive_loop(self, gateway_name: str, gen: int) -> None:
+        """Watch td/md; on drop re-pick SimNow fronts by Shanghai clock and reconnect."""
         connecting_since: float | None = None
         while self._keepalive_alive(gateway_name, gen):
-            if gateway_name in self._forced_off or not self._auto_connect_enabled(gateway_name):
+            if gateway_name in self._forced_off:
+                return
+            if gateway_name not in self.index:
                 return
             self.refresh_live_status(gateway_name, publish=True)
             td = self.td_status.get(gateway_name, DISCONNECTED)
@@ -433,14 +450,22 @@ class AccountGatewayManager:
                 continue
             attempt = self._reconnect_attempt.get(gateway_name, 0)
             delay = reconnect_delay(attempt)
-            logger.info("auto reconnect %s in %.0fs (attempt %s)", gateway_name, delay, attempt + 1)
+            logger.info(
+                "channel drop detected %s (td=%s md=%s); auto reconnect in %.0fs (attempt %s)",
+                gateway_name,
+                td,
+                md,
+                delay,
+                attempt + 1,
+            )
             if not self._sleep_interruptible(gateway_name, gen, delay):
                 return
-            if gateway_name in self._forced_off or not self._auto_connect_enabled(gateway_name):
+            if gateway_name in self._forced_off or gateway_name not in self.index:
                 return
             if not self._native_session_dropped(gateway_name):
                 continue
             self._reconnect_attempt[gateway_name] = attempt + 1
+            # connect() re-runs apply_simnow_auto_fronts(probe=True) → pick env by now
             self._safe_connect(gateway_name, False)
             connecting_since = time.time()
 
@@ -813,7 +838,26 @@ class AccountGatewayManager:
                 from features.market.subscriptions import clear_restored, restore_gateway_subscriptions
 
                 if md == CONNECTED:
-                    restore_gateway_subscriptions(gateway_name)
+                    # Always re-subscribe after MD login so reconnect resumes 录制入库.
+                    clear_restored(gateway_name)
+
+                    def _restore(gw: str = gateway_name) -> None:
+                        time.sleep(0.8)
+                        try:
+                            n = restore_gateway_subscriptions(gw, force=True)
+                            logger.info(
+                                "post-reconnect restored %s subscription(s) on %s (ticks→CH→bars)",
+                                n,
+                                gw,
+                            )
+                        except Exception:
+                            logger.exception("delayed subscription restore failed for %s", gw)
+
+                    threading.Thread(
+                        target=_restore,
+                        daemon=True,
+                        name=f"restore-sub-{gateway_name}",
+                    ).start()
                 else:
                     clear_restored(gateway_name)
             except Exception:

@@ -181,7 +181,7 @@ def set_auto_connect(account_id: int, body: AutoConnectBody, user: User = Depend
             gateway_name=gateway_name,
             action="自动连接",
             result="success",
-            message="已开启启动自动连接" if body.auto_connect else "已关闭自动连接",
+            message="已开启进程启动时自动连接" if body.auto_connect else "已关闭启动自连",
         )
         return {
             "ok": True,

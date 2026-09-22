@@ -90,7 +90,7 @@
           <template #default="{ row }">
             <el-switch
               :model-value="Boolean(row.auto_connect)"
-              active-text="启动自动连接"
+              active-text="启动自连"
               @change="(value) => setAutoConnect(row, value)"
             />
           </template>
@@ -235,7 +235,7 @@ async function setAutoConnect(row: Record<string, unknown>, value: string | numb
   try {
     await http.post(`/api/gateways/${row.id}/auto-connect`, { auto_connect: enabled });
     row.auto_connect = enabled;
-    ElMessage.success(enabled ? "已开启启动自动连接" : "已关闭自动连接");
+    ElMessage.success(enabled ? "已开启进程启动时自动连接" : "已关闭启动自连（断线重连仍在连接后生效）");
     await trade.refresh();
   } catch (error: unknown) {
     const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
