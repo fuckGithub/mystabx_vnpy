@@ -3541,6 +3541,7 @@
     "status": "0",
     "title": "首页",
     "description": "APP 移动端-首页",
+    "client": "app",
     "affix": false,
     "params": null
   },
@@ -3560,6 +3561,7 @@
     "status": "0",
     "title": "同事",
     "description": "APP 移动端-同事",
+    "client": "app",
     "affix": false,
     "params": null
   },
@@ -3579,6 +3581,7 @@
     "status": "0",
     "title": "打卡",
     "description": "APP 移动端-打卡",
+    "client": "app",
     "affix": false,
     "params": null
   },
@@ -3598,6 +3601,7 @@
     "status": "0",
     "title": "消息",
     "description": "APP 移动端-消息",
+    "client": "app",
     "affix": false,
     "params": null
   },
@@ -3617,6 +3621,7 @@
     "status": "0",
     "title": "我的",
     "description": "APP 移动端-我的",
+    "client": "app",
     "affix": false,
     "params": null
   }
