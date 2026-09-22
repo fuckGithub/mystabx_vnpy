@@ -92,15 +92,27 @@ class LoginService:
         if not user:
             raise CustomException(msg="用户不存在")
 
-        # SM2 解密密码（前端加密传输）
-        try:
-            from app.utils.sm_crypto_util import CommonCryptogramUtil
+        # SM2 解密密码（前端加密传输）；未配置私钥时回退明文，便于运维排障
+        from app.utils.sm_crypto_util import CommonCryptogramUtil
 
-            plain_password = CommonCryptogramUtil.do_sm2_decrypt(login_form.password)
-            log.info("[登录] SM2 密码解密成功")
-        except Exception as e:
-            log.error(f"[登录] SM2 密码解密失败: {e}")
-            raise CustomException(msg="账号或密码错误")
+        cipher_text = (login_form.password or "").strip()
+        if settings.SM2_PRIVATE_KEY:
+            try:
+                plain_password = CommonCryptogramUtil.do_sm2_decrypt(cipher_text)
+                log.info("[登录] SM2 密码解密成功")
+            except Exception as e:
+                # 兼容公钥未下发时前端误传明文（如 "123456" 被当成 hex → 仅 3 字节）
+                if len(cipher_text) < 96 and all(
+                    c.isalnum() or c in "-_!@#$%^&*" for c in cipher_text
+                ):
+                    log.warning(f"[登录] SM2 解密失败，按明文密码重试: {e}")
+                    plain_password = cipher_text
+                else:
+                    log.error(f"[登录] SM2 密码解密失败: {e}")
+                    raise CustomException(msg="账号或密码错误") from e
+        else:
+            log.warning("[登录] 未配置 SM2_PRIVATE_KEY，按明文密码校验")
+            plain_password = cipher_text
 
         if not PwdUtil.verify_password(
             plain_password=plain_password, password_hash=user.password

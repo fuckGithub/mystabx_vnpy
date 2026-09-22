@@ -11,7 +11,7 @@ import { store, useDictStore } from '@stores'
 import { Auth } from '@utils/auth'
 import { setPageTitle } from '@utils/navigation'
 import { StorageConfig } from '@utils/storage'
-import { ElNotification } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import { defineStore } from 'pinia'
 import { sm2 } from 'sm-crypto'
 import { computed, ref } from 'vue'
@@ -266,9 +266,12 @@ export const useUserStore = defineStore(
     async function encryptPassword(password: string): Promise<string> {
       const publicKey = await getSm2PublicKey()
       if (!publicKey) {
+        ElMessage.error('无法获取 SM2 公钥，请检查后端国密配置（SM2_PUBLIC_KEY）')
         throw new Error('无法获取 SM2 公钥，加密登录不可用')
       }
-      return sm2.doEncrypt(password, publicKey)
+      // sm-crypto 约定：公钥可为 04+128 hex；cipherMode=1 → C1C3C2，与后端一致
+      const key = publicKey.startsWith('04') ? publicKey.slice(2) : publicKey
+      return sm2.doEncrypt(password, key, 1)
     }
 
     /**
