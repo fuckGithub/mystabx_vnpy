@@ -311,11 +311,6 @@
     "scrollLeft": "Scroll tabs left",
     "scrollRight": "Scroll tabs right",
     "menuMore": "Tab menu",
-    "bookmarkAdd": "Add to workplace favorites",
-    "bookmarkRemove": "Remove from favorites",
-    "bookmarkAdded": "Added to favorites",
-    "bookmarkRemoved": "Removed from favorites",
-    "bookmarkFail": "Favorite action failed",
     "refreshCacheDone": "Cache refreshed and page reloaded",
     "refreshCacheFail": "Failed to refresh cache",
     "btn": {

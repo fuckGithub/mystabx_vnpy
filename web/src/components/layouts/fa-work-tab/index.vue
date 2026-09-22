@@ -60,14 +60,6 @@
             @click="clickTab(item)"
             @click.middle.prevent="onMiddleClickClose(item)"
             @contextmenu.prevent="(e: MouseEvent) => showMenu(e, item.path)">
-            <button
-              type="button"
-              class="worktab-star focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--el-color-primary)] focus-visible:ring-offset-1 rounded"
-              :class="{ 'worktab-star--on': isQuickLinkBookmarked(item) }"
-              :title="isQuickLinkBookmarked(item) ? t('worktab.bookmarkRemove') : t('worktab.bookmarkAdd')"
-              @click.prevent.stop="toggleQuickBookmark(item)">
-              <FaSvgIcon :icon="isQuickLinkBookmarked(item) ? 'ri:star-fill' : 'ri:star-line'" class="text-sm" />
-            </button>
             <FaSvgIcon
               v-show="item.icon"
               :icon="item.icon"
@@ -150,7 +142,6 @@ import { formatMenuTitle } from '@utils/navigation'
 import { useSettingsStore } from '@stores/modules/setting.store'
 import { MenuItemType } from '@/components/others/fa-menu-right/index.vue'
 import { useCommon } from '@/hooks/core/useCommon'
-import { quickStartManager } from '@utils/common'
 import { WorkTab } from '@/types'
 
 defineOptions({ name: 'FaWorkTab' })
@@ -569,52 +560,6 @@ function scrollTabs(delta: number): void {
   setTransition()
 }
 
-const quickLinksRevision = ref(0)
-function onQuickLinksChanged(): void {
-  quickLinksRevision.value++
-}
-
-function bookmarkHref(item: WorkTab): string {
-  const q = item.query as LocationQueryRaw | undefined
-  if (!q || !Object.keys(q).length) return item.path
-  const sp = new URLSearchParams()
-  Object.entries(q).forEach(([k, v]) => {
-    if (v === null || v === undefined) return
-    if (Array.isArray(v)) v.forEach((x) => sp.append(k, String(x)))
-    else sp.set(k, String(v))
-  })
-  const s = sp.toString()
-  return s ? `${item.path}?${s}` : item.path
-}
-
-function isQuickLinkBookmarked(item: WorkTab): boolean {
-  void quickLinksRevision.value
-  return quickStartManager.isLinkExists(bookmarkHref(item))
-}
-
-function toggleQuickBookmark(item: WorkTab): void {
-  const href = bookmarkHref(item)
-  const title = item.customTitle || formatMenuTitle(item.title)
-  try {
-    if (quickStartManager.isLinkExists(href)) {
-      quickStartManager.removeQuickLinkByHref(href)
-      ElMessage.success(t('worktab.bookmarkRemoved'))
-    } else {
-      const link = quickStartManager.createQuickLinkFromRoute(
-        { ...item, title, fullPath: href, path: item.path },
-        title
-      )
-      link.href = href
-      if (quickStartManager.addQuickLink(link)) {
-        ElMessage.success(t('worktab.bookmarkAdded'))
-      }
-    }
-  } catch (e) {
-    console.error(e)
-    ElMessage.error(t('worktab.bookmarkFail'))
-  }
-}
-
 function onMiddleClickClose(item: WorkTab): void {
   if (!item.fixedTab && list.value.length > 1) {
     closeWorktab('current', item.path)
@@ -635,7 +580,6 @@ async function handleRefreshCache(): Promise<void> {
 // 生命周期
 onMounted(() => {
   setupEventListeners()
-  quickStartManager.addListener(onQuickLinksChanged)
   autoPositionTab()
   nextTick(() => {
     measureTabOverflow()
@@ -646,7 +590,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   cleanupEventListeners()
-  quickStartManager.removeListener(onQuickLinksChanged)
   teardownTabOverflowObserver()
   window.removeEventListener('resize', measureTabOverflow)
 })
@@ -866,40 +809,6 @@ html:not(.dark) .worktab-tab.worktab-tab--card.activ-tab {
   box-shadow:
     0 2px 14px color-mix(in srgb, var(--el-color-primary) 18%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--el-color-primary) 22%, transparent);
-}
-
-.worktab-star {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 2px;
-  margin: 0 2px 0 0;
-  color: var(--el-text-color-placeholder);
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  opacity: 0.45;
-  transition:
-    opacity 0.15s ease,
-    color 0.15s ease,
-    transform 0.15s ease;
-}
-
-.group:hover .worktab-star,
-.worktab-star:hover {
-  opacity: 1;
-}
-
-.worktab-star:hover {
-  color: var(--el-color-primary);
-  transform: scale(1.06);
-}
-
-.worktab-star--on {
-  color: var(--el-color-primary);
-  opacity: 1;
 }
 
 .worktab-close {

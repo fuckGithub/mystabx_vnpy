@@ -311,11 +311,6 @@
     "scrollLeft": "向左滚动标签",
     "scrollRight": "向右滚动标签",
     "menuMore": "标签选项",
-    "bookmarkAdd": "加入工作台收藏",
-    "bookmarkRemove": "取消工作台收藏",
-    "bookmarkAdded": "已加入收藏",
-    "bookmarkRemoved": "已取消收藏",
-    "bookmarkFail": "收藏操作失败",
     "refreshCacheDone": "已刷新缓存并重新加载当前页",
     "refreshCacheFail": "刷新缓存失败",
     "btn": {
