@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +25,36 @@ def _bt():
     if engine is None:
         raise HTTPException(status_code=503, detail="回测引擎未加载（缺少 vnpy_ctabacktester）")
     return engine
+
+
+def _jsonable(value: Any) -> Any:
+    """Convert numpy / pandas scalars so FastAPI JSONResponse can serialize."""
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    # numpy scalar / pandas NA
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return _jsonable(item())
+        except Exception:
+            pass
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    try:
+        if value != value:  # NaN
+            return None
+    except Exception:
+        pass
+    return value if isinstance(value, (int, float, str, bool)) else str(value)
 
 
 class BacktestRunBody(BaseModel):
@@ -252,6 +282,7 @@ def _collect_result_payload(engine) -> dict[str, Any]:
             stats = dict(stats)
         except Exception:
             stats = {"raw": str(stats)}
+    stats = _jsonable(stats)
 
     trades: list[dict] = []
     try:
@@ -264,14 +295,16 @@ def _collect_result_payload(engine) -> dict[str, Any]:
         for row in engine.get_all_daily_results() or []:
             if hasattr(row, "__dict__"):
                 daily.append(
-                    {
-                        k: getattr(row, k)
-                        for k in ("date", "close_price", "net_pnl", "balance", "drawdown", "turnover")
-                        if hasattr(row, k)
-                    }
+                    _jsonable(
+                        {
+                            k: getattr(row, k)
+                            for k in ("date", "close_price", "net_pnl", "balance", "drawdown", "turnover")
+                            if hasattr(row, k)
+                        }
+                    )
                 )
             elif isinstance(row, dict):
-                daily.append(row)
+                daily.append(_jsonable(row))
     except Exception:
         daily = []
 
@@ -341,7 +374,7 @@ def backtest_status(user: User = Depends(current_user)) -> dict:
     _ = user
     engine = _bt()
     running = bool(getattr(engine, "thread", None) and engine.thread.is_alive())
-    stats = engine.get_result_statistics()
+    stats = _jsonable(engine.get_result_statistics())
     return {
         "running": running,
         "has_result": stats is not None,
@@ -359,7 +392,7 @@ def backtest_status(user: User = Depends(current_user)) -> dict:
 def backtest_result(user: User = Depends(current_user)) -> dict:
     _ = user
     engine = _bt()
-    stats = engine.get_result_statistics()
+    stats = _jsonable(engine.get_result_statistics())
     df = engine.get_result_df()
     daily = []
     try:
@@ -367,14 +400,16 @@ def backtest_result(user: User = Depends(current_user)) -> dict:
         for row in daily_results or []:
             if hasattr(row, "__dict__"):
                 daily.append(
-                    {
-                        k: getattr(row, k)
-                        for k in ("date", "close_price", "net_pnl", "balance", "drawdown")
-                        if hasattr(row, k)
-                    }
+                    _jsonable(
+                        {
+                            k: getattr(row, k)
+                            for k in ("date", "close_price", "net_pnl", "balance", "drawdown")
+                            if hasattr(row, k)
+                        }
+                    )
                 )
             elif isinstance(row, dict):
-                daily.append(row)
+                daily.append(_jsonable(row))
     except Exception:
         daily = []
 
@@ -383,16 +418,7 @@ def backtest_result(user: User = Depends(current_user)) -> dict:
         try:
             reset = df.reset_index()
             for rec in reset.to_dict(orient="records"):
-                item = {}
-                for k, v in rec.items():
-                    key = str(k)
-                    if hasattr(v, "isoformat"):
-                        item[key] = v.isoformat()
-                    elif isinstance(v, float) and v != v:  # NaN
-                        item[key] = None
-                    else:
-                        item[key] = v
-                curve.append(item)
+                curve.append(_jsonable(rec))
         except Exception:
             curve = []
 
