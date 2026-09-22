@@ -16,5 +16,25 @@
     ".gradle",
     "bin"
   ],
-  "java.compile.nullAnalysis.mode": "disabled"
+  "java.compile.nullAnalysis.mode": "disabled",
+  "files.exclude": {
+    "**/.agents": true,
+    "**/.cache": true,
+    "**/.cursor": true,
+    "**/.deps": true,
+    "**/.github": true,
+    "**/.idea": true,
+    "**/.venv": true,
+    "**/.vntrader": true
+  },
+  "search.exclude": {
+    "**/.agents": true,
+    "**/.cache": true,
+    "**/.cursor": true,
+    "**/.deps": true,
+    "**/.github": true,
+    "**/.idea": true,
+    "**/.venv": true,
+    "**/.vntrader": true
+  }
 }
