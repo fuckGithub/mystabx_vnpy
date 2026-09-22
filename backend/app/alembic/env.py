@@ -53,7 +53,10 @@ target_metadata = MappedBase.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-alembic_config.set_main_option("sqlalchemy.url", settings.ASYNC_DB_URI)
+# ConfigParser 把 % 当插值；URL 编码后的密码常含 %XX，需写成 %%
+alembic_config.set_main_option(
+    "sqlalchemy.url", settings.ASYNC_DB_URI.replace("%", "%%")
+)
 
 
 def run_migrations_offline() -> None:
