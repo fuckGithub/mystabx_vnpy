@@ -13,7 +13,8 @@
       <ElFormItem prop="tenant_id">
         <ElSelect
           v-model="loginForm.tenant_id"
-          class="login-input login-input--auth w-full"
+          class="login-input login-input--auth login-tenant-select w-full"
+          popper-class="login-tenant-popper"
           filterable
           :placeholder="tenantPlaceholder"
           :loading="tenantLoading">
@@ -30,7 +31,21 @@
             v-for="item in tenants"
             :key="item.id"
             :label="`${item.name}（${item.code}）`"
-            :value="item.id" />
+            :value="item.id">
+            <div class="login-tenant-option">
+              <span class="login-tenant-option__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 21h18" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 21V7l6-4 6 4v14" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 21v-6h6v6" />
+                </svg>
+              </span>
+              <span class="login-tenant-option__text">
+                <span class="login-tenant-option__name">{{ item.name }}</span>
+                <span class="login-tenant-option__code">{{ item.code }}</span>
+              </span>
+            </div>
+          </ElOption>
         </ElSelect>
       </ElFormItem>
 
