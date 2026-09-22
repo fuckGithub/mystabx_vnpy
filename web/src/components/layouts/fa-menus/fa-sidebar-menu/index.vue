@@ -64,7 +64,7 @@
           v-if="!isDualMenu"
           class="logo"
           :variant="menuOpen ? 'wordmark' : 'mark'"
-          :size="menuOpen ? 34 : 32" />
+          :size="menuOpen ? 44 : 36" />
 
         <p
           v-if="isDualMenu"

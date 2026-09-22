@@ -5,7 +5,7 @@
       :style="logoStyle"
       :src="resolvedSrc"
       alt="Stabx"
-      class="fa-logo__img h-full w-full object-contain"
+      class="fa-logo__img object-contain"
       @error="onImgError" />
   </div>
 </template>
@@ -50,7 +50,7 @@ function onImgError() {
 const logoStyle = computed(() => {
   const h = `${props.size}px`
   if (props.variant === 'wordmark') {
-    return { height: h, width: 'auto', maxWidth: '168px' }
+    return { height: h, width: 'auto', maxWidth: '220px' }
   }
   return { width: h, height: h }
 })
@@ -65,7 +65,12 @@ watch(
 
 <style scoped>
 .fa-logo--wordmark {
-  max-width: 168px;
+  max-width: 220px;
+}
+
+.fa-logo--wordmark .fa-logo__img {
+  width: auto !important;
+  max-width: 100%;
 }
 
 .fa-logo__img {
