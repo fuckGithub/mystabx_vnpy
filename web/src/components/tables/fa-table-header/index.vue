@@ -1,8 +1,11 @@
 <!-- 表格头部，包含表格大小、刷新、全屏、列设置、其他设置 -->
 <template>
   <div class="flex-cb max-md:!block" id="fa-table-header">
+    <!-- 列表工具栏（新增/导出/批删等）统一 small，不影响登录 CTA / 全局 size -->
     <div class="flex-wrap">
-      <slot name="left"></slot>
+      <ElConfigProvider size="small">
+        <slot name="left"></slot>
+      </ElConfigProvider>
     </div>
 
     <div class="flex-c md:justify-end max-md:mt-3 max-sm:!hidden">
