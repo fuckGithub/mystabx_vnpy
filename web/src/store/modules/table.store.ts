@@ -15,7 +15,7 @@ export const useTableStore = defineStore(
   'tableStore',
   () => {
     // --- 表格样式 ---
-    const tableSize = ref(TableSizeEnum.DEFAULT)
+    const tableSize = ref(TableSizeEnum.SMALL)
     const isZebra = ref(false)
     const isBorder = ref(false)
     const isHeaderBackground = ref(false)

@@ -33,7 +33,9 @@
               @add="handleOpenDialog('create')"
               @delete="handleBatchDelete"
               @more="handleMoreClick" />
-            <ElButton @click="toggleExpand">{{ isExpanded ? '收起' : '展开' }}</ElButton>
+            <ElTooltip :content="isExpanded ? '收起' : '展开'" placement="top">
+              <ElButton size="small" :icon="isExpanded ? Fold : Expand" @click="toggleExpand" />
+            </ElTooltip>
           </div>
         </template>
       </FaTableHeader>
@@ -137,7 +139,8 @@ import type { SearchFormItem } from '@/components/forms/fa-search-bar/index.vue'
 import FaDialog from '@/components/modal/fa-dialog/index.vue'
 import FaForm from '@/components/forms/fa-form/index.vue'
 import type { FormItem } from '@/components/forms/fa-form/index.vue'
-import { ElMessage, ElMessageBox, ElTag } from 'element-plus'
+import { Expand, Fold } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElTag, ElTooltip } from 'element-plus'
 import { useAuth } from '@/hooks/core/useAuth'
 import { useUserStore } from '@stores'
 import { formatTree } from '@utils/common'

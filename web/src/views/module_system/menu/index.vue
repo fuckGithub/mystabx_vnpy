@@ -38,7 +38,9 @@
               @add="handleOpenDialog('create')"
               @delete="handleBatchDelete"
               @more="handleMoreClick" />
-            <ElButton @click="toggleExpand">{{ isExpanded ? '收起' : '展开' }}</ElButton>
+            <ElTooltip :content="isExpanded ? '收起' : '展开'" placement="top">
+              <ElButton size="small" :icon="isExpanded ? Fold : Expand" @click="toggleExpand" />
+            </ElTooltip>
           </div>
         </template>
       </FaTableHeader>
@@ -456,7 +458,7 @@ defineOptions({
 })
 
 import { h, ref, reactive, computed, nextTick, onMounted } from 'vue'
-import { CirclePlusFilled, DeleteFilled, QuestionFilled } from '@element-plus/icons-vue'
+import { CirclePlusFilled, DeleteFilled, Expand, Fold, QuestionFilled } from '@element-plus/icons-vue'
 import { useAppStore } from '@stores/modules/app.store'
 import { useUserStore } from '@stores/modules/user.store'
 import { DeviceEnum } from '@/enums/settings/device.enum'

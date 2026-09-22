@@ -83,12 +83,9 @@
           <div class="mt-3 flex-x-between">
             <ElInput v-model="permFilterText" placeholder="菜单名称" />
             <div class="flex-center ml-5">
-              <ElButton type="primary" size="small" plain @click="togglePermTree">
-                <template #icon>
-                  <SwitchIcon />
-                </template>
-                {{ isExpanded ? '收缩' : '展开' }}
-              </ElButton>
+              <ElTooltip :content="isExpanded ? '收起' : '展开'" placement="top">
+                <ElButton type="primary" size="small" plain :icon="isExpanded ? Fold : Expand" @click="togglePermTree" />
+              </ElTooltip>
               <ElCheckbox v-model="parentChildLinked" class="ml-5" @change="handleParentChildLinkedChange">
                 父子联动
               </ElCheckbox>
@@ -134,7 +131,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
-import { QuestionFilled, Switch as SwitchIcon } from '@element-plus/icons-vue'
+import { Expand, Fold, QuestionFilled } from '@element-plus/icons-vue'
 import type { TreeInstance } from 'element-plus'
 import FaDrawer from '@/components/modal/fa-drawer/index.vue'
 import { listToTree, formatTree } from '@utils/common'

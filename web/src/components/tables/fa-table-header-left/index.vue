@@ -5,6 +5,7 @@
       <template v-for="(btn, index) in configButtons" :key="index">
         <ElButton
           v-hasPerm="btn.perm ?? '*:*:*'"
+          size="small"
           v-bind="btn.attrs"
           :disabled="btn.name === 'delete' && removeIds.length === 0"
           @click="$emit('toolbar', btn.name)">
@@ -15,13 +16,21 @@
     <slot v-else>
       <slot>
         <ElSpace>
-          <ElButton v-if="permCreate" v-hasPerm="permCreate" type="success" :icon="Plus" @click="$emit('add')" plain>
+          <ElButton
+            v-if="permCreate"
+            v-hasPerm="permCreate"
+            size="small"
+            type="success"
+            :icon="Plus"
+            @click="$emit('add')"
+            plain>
             新增
           </ElButton>
           <ElButton
             v-if="permImport"
             v-hasPerm="permImport"
             v-ripple
+            size="small"
             type="warning"
             :loading="importLoading"
             :icon="Upload"
@@ -33,6 +42,7 @@
             v-if="permExport"
             v-hasPerm="permExport"
             v-ripple
+            size="small"
             type="primary"
             :loading="exportLoading"
             :icon="Download"
@@ -43,6 +53,7 @@
           <ElButton
             v-if="permDelete"
             v-hasPerm="permDelete"
+            size="small"
             type="danger"
             :loading="deleteLoading"
             :disabled="removeIds.length === 0"
@@ -51,8 +62,9 @@
             plain>
             批量删除
           </ElButton>
+          <!-- ElDropdown 触发器常脱离 ConfigProvider size，需显式 small 与相邻按钮对齐 -->
           <ElDropdown v-if="permPatch" v-hasPerm="permPatch" trigger="click">
-            <ElButton type="default" :disabled="removeIds.length === 0 || moreDisabled">
+            <ElButton size="small" type="default" :disabled="removeIds.length === 0 || moreDisabled">
               <template #icon>
                 <ArrowDown />
               </template>
