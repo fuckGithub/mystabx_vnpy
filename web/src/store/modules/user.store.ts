@@ -11,7 +11,7 @@ import { store, useDictStore } from '@stores'
 import { Auth } from '@utils/auth'
 import { setPageTitle } from '@utils/navigation'
 import { StorageConfig } from '@utils/storage'
-import { ElMessage, ElNotification } from 'element-plus'
+import { ElNotification } from 'element-plus'
 import { defineStore } from 'pinia'
 import { sm2 } from 'sm-crypto'
 import { computed, ref } from 'vue'
@@ -261,17 +261,26 @@ export const useUserStore = defineStore(
     /**
      * 使用SM2加密密码
      * @param password 明文密码
-     * @returns 加密后的密码（hex），或明文（当公钥不可用时）
+     * @returns 加密后的密码（hex）
+     * @throws 公钥不可用或加密失败时抛出（由登录页统一 toast，避免重复提示）
      */
     async function encryptPassword(password: string): Promise<string> {
       const publicKey = await getSm2PublicKey()
       if (!publicKey) {
-        ElMessage.error('无法获取 SM2 公钥，请检查后端国密配置（SM2_PUBLIC_KEY）')
-        throw new Error('无法获取 SM2 公钥，加密登录不可用')
+        throw new Error('无法获取 SM2 公钥，请检查后端国密配置（SM2_PUBLIC_KEY）')
       }
-      // sm-crypto 约定：公钥可为 04+128 hex；cipherMode=1 → C1C3C2，与后端一致
-      const key = publicKey.startsWith('04') ? publicKey.slice(2) : publicKey
-      return sm2.doEncrypt(password, key, 1)
+      // sm-crypto decodePointHex 需要未压缩点「04 + X(64) + Y(64)」(130 hex)；
+      // 去掉 04 后会返回 null，随后在 publicKey.multiply(k) 报 multiply of null。
+      // cipherMode=1 → C1C3C2，与后端 Sm2Cipher 一致。
+      const key = publicKey.startsWith('04') ? publicKey : `04${publicKey}`
+      if (key.length !== 130 || !/^[0-9a-fA-F]+$/.test(key)) {
+        throw new Error('SM2 公钥格式无效，请检查后端 SM2_PUBLIC_KEY 配置')
+      }
+      try {
+        return sm2.doEncrypt(password, key, 1)
+      } catch {
+        throw new Error('密码 SM2 加密失败，请检查公钥配置或刷新页面重试')
+      }
     }
 
     /**

@@ -24,7 +24,7 @@ const AuthAPI = {
 
   /**
    * 获取SM2公钥（用于登录密码加密）
-   * @returns SM2公钥（hex格式，128字符）
+   * @returns SM2公钥（hex，通常 130 字符含 04 前缀；前端加密须保留 04）
    */
   getSmPublicKey() {
     return request<ApiResponse<SmPublicKeyResult>>({
