@@ -15,7 +15,7 @@
   --sd-gutter: #f1f5f9;
   --sd-code: #1e293b;
   --sd-console: #334155;
-  --sd-subnav: #1e293b;
+  --sd-subnav: #f1f5f9;
 
   background: var(--sd-bg);
   color: var(--sd-text);
@@ -131,7 +131,8 @@
   width: 96px;
   flex-shrink: 0;
   background: var(--sd-subnav);
-  color: #e2e8f0;
+  color: var(--sd-text);
+  border-right: 1px solid var(--sd-border);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -143,7 +144,7 @@
   appearance: none;
   border: 0;
   background: transparent;
-  color: #94a3b8;
+  color: var(--sd-muted);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -155,20 +156,21 @@
 }
 
 .sd-subnav__item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--sd-accent);
+  background: rgba(22, 119, 255, 0.06);
 }
 
 .sd-subnav__item.is-active {
-  color: #fff;
-  background: rgba(22, 119, 255, 0.35);
+  color: var(--sd-accent);
+  background: rgba(22, 119, 255, 0.12);
 }
 
 .sd-subnav__icon {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid var(--sd-border);
   display: flex;
   align-items: center;
   justify-content: center;
