@@ -51,11 +51,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="启动自连" width="128" align="center">
+        <el-table-column label="启动自连" width="88" align="center">
           <template #default="{ row }">
             <el-switch
               :model-value="Boolean(row.auto_connect)"
-              active-text="启动"
               @change="(value) => setAutoConnect(row, value)"
             />
           </template>

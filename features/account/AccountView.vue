@@ -86,11 +86,10 @@
             <ChannelStatusPair :row="row" />
           </template>
         </el-table-column>
-        <el-table-column label="自动连接" width="148" align="center">
+        <el-table-column label="自动连接" width="88" align="center">
           <template #default="{ row }">
             <el-switch
               :model-value="Boolean(row.auto_connect)"
-              active-text="启动自连"
               @change="(value) => setAutoConnect(row, value)"
             />
           </template>
