@@ -3,15 +3,41 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
 from core.db import MarketBar, _now, get_session
+from core.serialize import dt_iso
+from core.sessions import as_shanghai, parse_tick_dt
 
 logger = logging.getLogger("stabx.bar_store")
+
+
+def _bar_time_bound(value: datetime | date | str | None, *, end: bool = False) -> str | None:
+    """Normalize range bound to ISO string comparable with stored bar_time (+08:00)."""
+    if value is None:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        text = f"{value.isoformat()}T{'23:59:59.999' if end else '00:00:00.000'}+08:00"
+        return text
+    if isinstance(value, datetime):
+        dt = as_shanghai(value)
+        if dt is None:
+            return None
+        if end and dt.hour == 0 and dt.minute == 0 and dt.second == 0 and dt.microsecond == 0:
+            # Date-only midnight end → include the whole calendar day
+            dt = dt.replace(hour=23, minute=59, second=59, microsecond=999000)
+        return dt_iso(dt)
+    text = str(value).strip()
+    if not text:
+        return None
+    if len(text) <= 10 and "T" not in text:
+        return f"{text[:10]}T{'23:59:59.999' if end else '00:00:00.000'}+08:00"
+    dt = parse_tick_dt(text)
+    return dt_iso(dt) if dt else text
 
 
 def upsert_bars(rows: list[dict[str, Any]]) -> int:
@@ -101,6 +127,38 @@ def query_bars(
         rows = list(db.scalars(stmt))
         rows.reverse()
         return [_bar_dict(row) for row in rows]
+    finally:
+        db.close()
+
+
+def query_bars_range(
+    symbol: str,
+    exchange: str,
+    interval: str,
+    *,
+    start: datetime | date | str | None = None,
+    end: datetime | date | str | None = None,
+    limit: int = 100_000,
+) -> list[dict[str, Any]]:
+    """Load bars in [start, end] ordered ascending — used by CTA backtester."""
+    sym = symbol.strip()
+    ex = exchange.strip().upper()
+    iv = interval.strip()
+    start_s = _bar_time_bound(start, end=False)
+    end_s = _bar_time_bound(end, end=True)
+    db = get_session()
+    try:
+        stmt = select(MarketBar).where(
+            MarketBar.symbol == sym,
+            MarketBar.exchange == ex,
+            MarketBar.interval == iv,
+        )
+        if start_s:
+            stmt = stmt.where(MarketBar.bar_time >= start_s)
+        if end_s:
+            stmt = stmt.where(MarketBar.bar_time <= end_s)
+        stmt = stmt.order_by(MarketBar.bar_time.asc()).limit(max(1, min(int(limit), 200_000)))
+        return [_bar_dict(row) for row in db.scalars(stmt)]
     finally:
         db.close()
 

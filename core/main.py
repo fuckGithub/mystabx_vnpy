@@ -78,6 +78,15 @@ async def lifespan(_app: FastAPI):
     runtime.gateways = manager
     set_loop(asyncio.get_running_loop())
 
+    # CTA backtester load_bar_data → get_database(); point at MySQL market_bars
+    # (SimNow tick 归集) before any backtest / strategy init loads history.
+    try:
+        from features.backtest.market_bars_database import install_market_bars_database
+
+        install_market_bars_database()
+    except Exception:
+        logger.exception("install market_bars database adapter failed")
+
     if runtime.cta is not None:
         try:
             runtime.cta.init_engine()

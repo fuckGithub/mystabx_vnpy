@@ -149,6 +149,14 @@ def run_backtest(body: BacktestRunBody, user: User = Depends(require_admin)) -> 
     if class_name not in getattr(engine, "classes", {}):
         raise HTTPException(status_code=400, detail=f"找不到策略类 {class_name}")
 
+    # Ensure backtester reads MySQL market_bars (SimNow 录制归集)，并清掉 lru 缓存
+    try:
+        from features.backtest.market_bars_database import install_market_bars_database
+
+        install_market_bars_database()
+    except Exception:
+        pass
+
     ok = engine.start_backtesting(
         class_name,
         vt_symbol,
@@ -233,7 +241,7 @@ def run_backtest(body: BacktestRunBody, user: User = Depends(require_admin)) -> 
         if ctx
         else None,
         "backtest_run": run_meta,
-        "note": "若本地无历史 bar / 未配置 RQData，回测结果为空属正常；请先完成数据入库（P1-2）。",
+        "note": "回测历史从 MySQL market_bars 加载（SimNow 录制归集）；区间内无 bar 时结果为空。",
     }
 
 
@@ -393,7 +401,7 @@ def backtest_result(user: User = Depends(current_user)) -> dict:
         "daily_results": daily,
         "df": curve,
         "empty": stats is None,
-        "note": "无结果时多为历史数据为空（未配置 RQData / 本地库无 bar）。" if stats is None else None,
+        "note": "无结果时多为所选区间内 MySQL market_bars 无数据（请先连 SimNow 录制行情）。" if stats is None else None,
     }
 
 
