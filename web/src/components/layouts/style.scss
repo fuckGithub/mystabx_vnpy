@@ -30,7 +30,8 @@
       flex: 1;
       flex-direction: column;
       min-height: 0;
-      padding: 20px;
+      /* 主内容区外圈留白：20px → 10px，列表/监控页更紧凑 */
+      padding: 10px;
       overflow: auto;
 
       :deep(.layout-content) {
@@ -44,7 +45,7 @@
           position: relative;
           box-sizing: border-box;
           min-height: 0;
-          padding: 20px;
+          padding: 12px;
           overflow: hidden auto;
           background: var(--default-box-color);
           border-radius: calc(var(--custom-radius) / 2 + 2px) !important;
@@ -81,7 +82,7 @@
 
       #app-content {
         :deep(.layout-content) {
-          width: calc(100% - 40px);
+          width: calc(100% - 20px);
         }
       }
     }

@@ -50,7 +50,7 @@ function onImgError() {
 const logoStyle = computed(() => {
   const h = `${props.size}px`
   if (props.variant === 'wordmark') {
-    return { height: h, width: 'auto', maxWidth: '220px' }
+    return { height: h, width: 'auto', maxWidth: '240px' }
   }
   return { width: h, height: h }
 })
@@ -65,7 +65,7 @@ watch(
 
 <style scoped>
 .fa-logo--wordmark {
-  max-width: 220px;
+  max-width: 240px;
 }
 
 .fa-logo--wordmark .fa-logo__img {

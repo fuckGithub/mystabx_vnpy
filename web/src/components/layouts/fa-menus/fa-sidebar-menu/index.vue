@@ -64,7 +64,7 @@
           v-if="!isDualMenu"
           class="logo"
           :variant="menuOpen ? 'wordmark' : 'mark'"
-          :size="menuOpen ? 44 : 36" />
+          :size="menuOpen ? 48 : 36" />
 
         <p
           v-if="isDualMenu"
@@ -209,7 +209,7 @@ const scrollbarStyle = computed(() => {
   const isCollapsed = isDualMenu.value && !menuOpen.value
   return {
     transform: isCollapsed ? 'translateY(-50px)' : 'translateY(0)',
-    height: isCollapsed ? 'calc(100% + 50px)' : 'calc(100% - 60px)',
+    height: isCollapsed ? 'calc(100% + 50px)' : 'calc(100% - 64px)',
     transition: 'transform 0.3s ease',
   }
 })
