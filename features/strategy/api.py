@@ -147,7 +147,8 @@ def _resolve_source_path(engine, class_name: str, *, for_write: bool) -> Path:
 class InstanceCreate(BaseModel):
     class_name: str = ""
     strategy_name: str
-    vt_symbol: str
+    vt_symbol: str = ""
+    vt_symbols: list[str] | None = None
     setting: dict = Field(default_factory=dict)
     model_id: int | None = None
     model_version_id: int | None = None
@@ -195,6 +196,7 @@ class ModelCreateBody(BaseModel):
     default_params: dict = Field(default_factory=dict)
     template_source: str | None = None
     vt_symbol: str = "rb2501.SHFE"
+    vt_symbols: list[str] | None = None
     base_config: dict = Field(default_factory=dict)
     sort_order: int = 100
     enabled: bool = True
@@ -223,6 +225,7 @@ class ModelDraftBody(BaseModel):
     params: dict | None = None
     template_source: str | None = None
     vt_symbol: str | None = None
+    vt_symbols: list[str] | None = None
     base_config: dict | None = None
 
 
@@ -381,6 +384,7 @@ def list_models(enabled_only: bool = False, user: User = Depends(current_user)) 
 def create_model(body: ModelCreateBody, user: User = Depends(require_admin)) -> dict:
     _ = user
     try:
+        symbols = body.vt_symbols if body.vt_symbols is not None else body.vt_symbol
         return model_store.create_model(
             code=body.code,
             name=body.name,
@@ -389,7 +393,7 @@ def create_model(body: ModelCreateBody, user: User = Depends(require_admin)) -> 
             parent_template=body.parent_template,
             default_params=body.default_params,
             template_source=body.template_source,
-            vt_symbol=body.vt_symbol,
+            vt_symbol=model_store.format_vt_symbols(symbols) or body.vt_symbol,
             base_config=body.base_config or None,
             sort_order=body.sort_order,
             enabled=body.enabled,
@@ -433,11 +437,16 @@ def put_model_draft(model_id: int, body: ModelDraftBody, user: User = Depends(re
     """普通保存：更新草稿（代码/参数/合约/基础配置），不升级版本号。"""
     _ = user
     try:
+        symbols = None
+        if body.vt_symbols is not None:
+            symbols = model_store.format_vt_symbols(body.vt_symbols)
+        elif body.vt_symbol is not None:
+            symbols = model_store.format_vt_symbols(body.vt_symbol)
         return model_store.update_model_draft(
             model_id,
             params=body.params,
             template_source=body.template_source,
-            vt_symbol=body.vt_symbol,
+            vt_symbol=symbols,
             base_config=body.base_config,
         )
     except ValueError as exc:
@@ -671,13 +680,12 @@ def get_instance(name: str, user: User = Depends(current_user)) -> dict:
 def add_instance(body: InstanceCreate, user: User = Depends(require_admin)) -> dict:
     _ = user
     engine = _cta()
-    if body.strategy_name in engine.strategies:
-        raise HTTPException(status_code=400, detail="策略实例名称已存在")
 
     class_name = (body.class_name or "").strip()
     setting = dict(body.setting or {})
     model_id = body.model_id
     model_version_id = body.model_version_id
+    model: dict | None = None
 
     if model_id:
         model = model_store.get_model(model_id)
@@ -708,41 +716,66 @@ def add_instance(body: InstanceCreate, user: User = Depends(require_admin)) -> d
         pass
     if class_name not in engine.classes:
         raise HTTPException(status_code=400, detail=f"找不到策略类 {class_name}")
-    engine.add_strategy(class_name, body.strategy_name, body.vt_symbol, setting)
-    if body.strategy_name not in engine.strategies:
-        raise HTTPException(status_code=400, detail="创建策略失败，请查看 CTA 日志")
-    strategy_store.upsert_instance_meta(
-        strategy_name=body.strategy_name,
-        strategy_class=class_name,
-        vt_symbol=body.vt_symbol,
-        params=setting,
-        status="stopped",
-        user_id=user.id,
-    )
-    if model_id:
-        try:
-            model_store.pin_instance_model(
-                body.strategy_name,
-                model_id=model_id,
-                model_version_id=model_version_id,
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-    try:
-        model_store.save_instance_version(
-            body.strategy_name,
-            runtime_params=setting,
-            source_code=None,
-            model_id=model_id,
-            model_version_id=model_version_id,
-            note="创建实例",
+
+    symbols = model_store.parse_vt_symbols(body.vt_symbols if body.vt_symbols is not None else body.vt_symbol)
+    if not symbols and model is not None:
+        symbols = list(model.get("vt_symbols") or []) or model_store.parse_vt_symbols(model.get("vt_symbol"))
+    if not symbols:
+        raise HTTPException(status_code=400, detail="请至少选择一个合约")
+
+    base_name = (body.strategy_name or "").strip()
+    if not base_name:
+        raise HTTPException(status_code=400, detail="策略实例名称不能为空")
+
+    def _instance_name(sym: str) -> str:
+        if len(symbols) == 1:
+            return base_name
+        short = sym.split(".", 1)[0]
+        return f"{base_name}_{short}"
+
+    created: list[dict] = []
+    for sym in symbols:
+        name = _instance_name(sym)
+        if name in engine.strategies:
+            raise HTTPException(status_code=400, detail=f"策略实例名称已存在: {name}")
+        engine.add_strategy(class_name, name, sym, setting)
+        if name not in engine.strategies:
+            raise HTTPException(status_code=400, detail=f"创建策略失败: {name}，请查看 CTA 日志")
+        strategy_store.upsert_instance_meta(
+            strategy_name=name,
+            strategy_class=class_name,
+            vt_symbol=sym,
+            params=setting,
+            status="stopped",
             user_id=user.id,
         )
-    except Exception:
-        pass
+        if model_id:
+            try:
+                model_store.pin_instance_model(
+                    name,
+                    model_id=model_id,
+                    model_version_id=model_version_id,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            model_store.save_instance_version(
+                name,
+                runtime_params=setting,
+                source_code=None,
+                model_id=model_id,
+                model_version_id=model_version_id,
+                note="创建实例" if len(symbols) == 1 else f"创建实例（{sym}）",
+                user_id=user.id,
+            )
+        except Exception:
+            pass
+        created.append({"strategy_name": name, "vt_symbol": sym})
+
     return {
         "ok": True,
-        "strategy_name": body.strategy_name,
+        "strategy_name": created[0]["strategy_name"] if created else base_name,
+        "created": created,
         "model_id": model_id,
         "model_version_id": model_version_id,
     }

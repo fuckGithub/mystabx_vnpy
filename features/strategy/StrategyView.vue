@@ -318,10 +318,13 @@
           </el-form-item>
           <el-form-item v-if="!editingName" label="合约">
             <el-select
-              v-model="form.vt_symbol"
+              v-model="form.vt_symbols"
+              multiple
               filterable
               clearable
-              :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+              collapse-tags
+              collapse-tags-tooltip
+              :placeholder="subscribedContractOptions.length ? '可多选已订阅合约' : '请先去行情中心订阅'"
               style="width: 100%"
             >
               <el-option
@@ -338,7 +341,7 @@
             </el-select>
             <p class="page-form-hint">
               <template v-if="subscribedContractOptions.length">
-                选项来自已订阅合约；提交值为 vt_symbol（如 rb2501.SHFE）。添加后需「初始化」再「启动」。
+                可多选；每个合约会创建一条同参实例（名称为 实例名_合约代码）。添加后需「初始化」再「启动」。
               </template>
               <template v-else>请先去「行情中心」订阅合约后再添加策略。</template>
             </p>
@@ -363,7 +366,11 @@
             </p>
             <p v-else class="page-form-hint">选项来自当前用户可见的真实通道；提交值为 gateway_name。</p>
           </el-form-item>
-          <el-form-item v-for="(defVal, key) in paramSchema" :key="String(key)" :label="String(key)">
+          <el-form-item v-for="(defVal, key) in paramSchema" :key="String(key)">
+            <template #label>
+              <span>{{ paramLabelZh(String(key)) }}</span>
+              <span class="sd-param-key" style="margin-left: 6px">{{ key }}</span>
+            </template>
             <el-input-number
               v-if="typeof defVal === 'number'"
               v-model="form.setting[String(key)]"
@@ -457,7 +464,7 @@ const paramSchema = ref<Record<string, unknown>>({});
 const form = reactive({
   class_name: "",
   strategy_name: "",
-  vt_symbol: "",
+  vt_symbols: [] as string[],
   model_id: null as number | null,
   model_version_id: null as number | null,
   setting: {} as Record<string, unknown>,
@@ -718,10 +725,26 @@ function onModelChange(modelId: number | null) {
   form.model_id = modelId;
   form.model_version_id = null;
   if (!modelId) return;
-  const m = models.value.find((x) => x.id === modelId);
+  const m = models.value.find((x) => x.id === modelId) as
+    | {
+        class_name?: string;
+        latest_version_id?: number | null;
+        latest_version?: { params?: Record<string, unknown> };
+        default_params?: Record<string, unknown>;
+        vt_symbol?: string;
+        vt_symbols?: string[];
+      }
+    | undefined;
   if (!m) return;
   form.class_name = m.class_name || form.class_name;
   form.model_version_id = m.latest_version_id ?? null;
+  const fromModel = Array.isArray(m.vt_symbols) && m.vt_symbols.length
+    ? m.vt_symbols.map(String)
+    : String(m.vt_symbol || "")
+        .split(/[,，;；\s]+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+  if (fromModel.length) form.vt_symbols = fromModel;
   const params = {
     ...(m.latest_version?.params || m.default_params || {}),
   } as Record<string, unknown>;
@@ -737,7 +760,7 @@ function onModelChange(modelId: number | null) {
 async function openAdd() {
   editingName.value = "";
   form.strategy_name = "";
-  form.vt_symbol = "";
+  form.vt_symbols = [];
   form.model_id = null;
   form.model_version_id = null;
   form.setting = { gateway_name: defaultGatewayName() };
@@ -781,23 +804,25 @@ async function saveInstance() {
       await http.patch(`/api/cta/instances/${encodeURIComponent(editingName.value)}`, { setting: form.setting });
       ElMessage.success("已更新参数");
     } else {
-      if (!form.class_name || !form.strategy_name || !form.vt_symbol) {
+      if (!form.class_name || !form.strategy_name || !form.vt_symbols.length) {
         ElMessage.warning(
-          !form.vt_symbol && !subscribedContractOptions.value.length
+          !form.vt_symbols.length && !subscribedContractOptions.value.length
             ? "请先去行情中心订阅合约"
-            : "请填写策略类 / 实例名 / 合约",
+            : "请填写策略类 / 实例名 / 至少一个合约",
         );
         return;
       }
-      await http.post("/api/cta/instances", {
+      const { data } = await http.post("/api/cta/instances", {
         class_name: form.class_name,
         strategy_name: form.strategy_name,
-        vt_symbol: form.vt_symbol,
+        vt_symbols: form.vt_symbols,
+        vt_symbol: form.vt_symbols[0] || "",
         setting: form.setting,
         model_id: form.model_id,
         model_version_id: form.model_version_id,
       });
-      ElMessage.success("已添加策略实例");
+      const n = Array.isArray(data?.created) ? data.created.length : 1;
+      ElMessage.success(n > 1 ? `已添加 ${n} 个策略实例（按合约拆分）` : "已添加策略实例");
     }
     dialogVisible.value = false;
     await strategy.refresh();

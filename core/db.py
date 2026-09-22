@@ -116,7 +116,7 @@ class StrategyModel(Base):
     default_params: Mapped[str | None] = mapped_column(Text, nullable=True)
     template_source: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Working-copy run binding (version bump only via「保存为新版本」)
-    vt_symbol: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    vt_symbol: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     base_config: Mapped[str | None] = mapped_column(Text, nullable=True)
     latest_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -503,14 +503,32 @@ def _ensure_table_columns(table: str, cols: tuple[tuple[str, str], ...]) -> None
 
 
 def _ensure_strategy_model_run_columns() -> None:
-    """Add vt_symbol / base_config on strategy_models for run-from-DB."""
+    """Add vt_symbol / base_config on strategy_models for run-from-DB; widen for multi symbols."""
     _ensure_table_columns(
         "strategy_models",
         (
-            ("vt_symbol", "VARCHAR(64) NOT NULL DEFAULT ''"),
+            ("vt_symbol", "VARCHAR(512) NOT NULL DEFAULT ''"),
             ("base_config", "TEXT NULL"),
         ),
     )
+    if _engine is None:
+        return
+    try:
+        with _engine.connect() as conn:
+            row = conn.execute(text("SHOW COLUMNS FROM strategy_models LIKE 'vt_symbol'")).fetchone()
+            if row is not None:
+                col_type = str(row[1] if len(row) > 1 else "").lower()
+                if "varchar(512)" not in col_type:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE strategy_models MODIFY COLUMN vt_symbol "
+                            "VARCHAR(512) NOT NULL DEFAULT ''"
+                        )
+                    )
+                    logger.info("widened strategy_models.vt_symbol to VARCHAR(512)")
+            conn.commit()
+    except Exception:
+        logger.exception("widen strategy_models.vt_symbol failed")
 
 
 def _ensure_strategy_backtest_run_columns() -> None:

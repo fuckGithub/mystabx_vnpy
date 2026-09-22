@@ -42,6 +42,40 @@ _DEFAULT_BASE_CONFIG: dict[str, Any] = {
     "pricetick": 1.0,
 }
 
+_VT_SPLIT = re.compile(r"[,，;；\s]+")
+
+
+def parse_vt_symbols(value: Any) -> list[str]:
+    """Normalize model/instance contract binding to a de-duplicated vt_symbol list."""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_parts = [str(x) for x in value]
+    else:
+        text = str(value).strip()
+        if not text:
+            return []
+        raw_parts = _VT_SPLIT.split(text)
+    out: list[str] = []
+    seen: set[str] = set()
+    for part in raw_parts:
+        sym = part.strip()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append(sym)
+    return out
+
+
+def format_vt_symbols(value: Any) -> str:
+    return ",".join(parse_vt_symbols(value))
+
+
+def primary_vt_symbol(value: Any, *, default: str = _DEFAULT_VT_SYMBOL) -> str:
+    symbols = parse_vt_symbols(value)
+    return symbols[0] if symbols else default
+
+
 
 def _now() -> str:
     return datetime.now(tz=_SHANGHAI).replace(microsecond=0).isoformat()
@@ -225,6 +259,7 @@ def _seed_items() -> list[dict[str, Any]]:
 
 
 def _model_dict(row: StrategyModel, *, latest: StrategyModelVersion | None = None) -> dict[str, Any]:
+    symbols = parse_vt_symbols(row.vt_symbol)
     out: dict[str, Any] = {
         "id": row.id,
         "code": row.code,
@@ -234,7 +269,8 @@ def _model_dict(row: StrategyModel, *, latest: StrategyModelVersion | None = Non
         "parent_template": row.parent_template,
         "default_params": _loads(row.default_params),
         "template_source": row.template_source,
-        "vt_symbol": row.vt_symbol or "",
+        "vt_symbol": symbols[0] if symbols else "",
+        "vt_symbols": symbols,
         "base_config": _loads(row.base_config) or dict(_DEFAULT_BASE_CONFIG),
         "latest_version_id": row.latest_version_id,
         "enabled": bool(row.enabled),
@@ -474,7 +510,7 @@ def create_model(
     source = template_source
     if source is None:
         source = _load_seed_source(class_name)
-    symbol = (vt_symbol or _DEFAULT_VT_SYMBOL).strip()
+    symbol = format_vt_symbols(vt_symbol) or _DEFAULT_VT_SYMBOL
     config = base_config or dict(_DEFAULT_BASE_CONFIG)
     db = get_session()
     try:
@@ -592,7 +628,7 @@ def update_model_draft(
                 raise ValueError("源码不能为空")
             row.template_source = template_source
         if vt_symbol is not None:
-            row.vt_symbol = vt_symbol.strip()
+            row.vt_symbol = format_vt_symbols(vt_symbol)
         if base_config is not None:
             row.base_config = _dumps(base_config)
         row.updated_at = _now()
@@ -751,13 +787,15 @@ def resolve_model_run_context(
             setting.update(runtime_override)
 
         base_config = _loads(row.base_config) or dict(_DEFAULT_BASE_CONFIG)
+        symbols = parse_vt_symbols(row.vt_symbol)
         return {
             "model_id": row.id,
             "model_code": row.code,
             "model_name": row.name,
             "class_name": row.class_name,
             "parent_template": row.parent_template,
-            "vt_symbol": row.vt_symbol or _DEFAULT_VT_SYMBOL,
+            "vt_symbol": symbols[0] if symbols else _DEFAULT_VT_SYMBOL,
+            "vt_symbols": symbols,
             "base_config": base_config,
             "params": params,
             "setting": setting,

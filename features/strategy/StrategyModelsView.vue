@@ -29,7 +29,16 @@
           </template>
         </el-table-column>
         <el-table-column prop="class_name" label="策略类" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="vt_symbol" label="合约" width="130" show-overflow-tooltip />
+        <el-table-column label="合约" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{
+              ((row as ModelRow).vt_symbols?.length
+                ? (row as ModelRow).vt_symbols
+                : [(row as ModelRow).vt_symbol].filter(Boolean)
+              )?.join("、") || "—"
+            }}
+          </template>
+        </el-table-column>
         <el-table-column label="最新版本" width="100" align="center">
           <template #default="{ row }">
             {{ (row as ModelRow).latest_version?.label || ((row as ModelRow).latest_version_id ? `#${(row as ModelRow).latest_version_id}` : "—") }}
@@ -127,6 +136,7 @@ type ModelRow = {
   parent_template: string;
   default_params: Record<string, unknown>;
   vt_symbol?: string;
+  vt_symbols?: string[];
   latest_version_id: number | null;
   latest_version?: { label?: string; params?: Record<string, unknown> };
   enabled: boolean;

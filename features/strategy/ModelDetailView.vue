@@ -99,14 +99,17 @@
             <el-option label="日线" value="d" />
           </el-select>
           <el-select
-            v-model="btForm.vt_symbol"
+            v-model="btForm.vt_symbols"
             size="small"
+            multiple
             filterable
             clearable
+            collapse-tags
+            collapse-tags-tooltip
             class="sd-bt-symbol"
             placement="bottom-start"
             :fallback-placements="['bottom-start']"
-            :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+            :placeholder="subscribedContractOptions.length ? '回测合约（可多选）' : '请先去行情中心订阅'"
           >
             <el-option
               v-for="opt in subscribedContractOptions"
@@ -285,14 +288,17 @@
               <el-option label="日线" value="d" />
             </el-select>
             <el-select
-              v-model="btForm.vt_symbol"
+              v-model="btForm.vt_symbols"
               size="small"
+              multiple
               filterable
               clearable
+              collapse-tags
+              collapse-tags-tooltip
               class="sd-bt-symbol"
               placement="bottom-start"
               :fallback-placements="['bottom-start']"
-              :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+              :placeholder="subscribedContractOptions.length ? '回测合约（可多选）' : '请先去行情中心订阅'"
             >
               <el-option
                 v-for="opt in subscribedContractOptions"
@@ -355,18 +361,21 @@
             <article class="sd-settings-card">
               <div class="sd-settings-card__head">
                 <span class="sd-settings-card__title">订阅合约</span>
-                <span class="sd-settings-card__sub">仅可从已订阅合约中选择</span>
+                <span class="sd-settings-card__sub">可多选；每合约对应一条 CTA 实例</span>
               </div>
               <el-form label-position="top" class="sd-settings-form">
                 <el-form-item label="合约名称">
                   <el-select
-                    v-model="btForm.vt_symbol"
+                    v-model="btForm.vt_symbols"
+                    multiple
                     filterable
                     clearable
+                    collapse-tags
+                    collapse-tags-tooltip
                     style="width: 100%"
                     placement="bottom-start"
                     :fallback-placements="['bottom-start']"
-                    :placeholder="subscribedContractOptions.length ? '选择已订阅合约' : '请先去行情中心订阅'"
+                    :placeholder="subscribedContractOptions.length ? '可多选已订阅合约' : '请先去行情中心订阅'"
                   >
                     <el-option
                       v-for="opt in subscribedContractOptions"
@@ -380,7 +389,7 @@
                   </el-select>
                   <p class="sd-hint">
                     <template v-if="subscribedContractOptions.length">
-                      列表展示中文合约名，提交值为交易代码（如 rb2501.SHFE）。
+                      可多选；实盘添加实例时会按合约各开一条（同参）。回测引擎单合约，请在回测页勾选要跑的合约。
                     </template>
                     <template v-else>请先去「行情中心」订阅合约。</template>
                   </p>
@@ -464,6 +473,7 @@ type ModelRow = {
   default_params: Record<string, unknown>;
   template_source?: string;
   vt_symbol?: string;
+  vt_symbols?: string[];
   base_config?: Record<string, unknown>;
   latest_version_id?: number | null;
 };
@@ -502,7 +512,7 @@ const baseConfig = reactive({
 });
 const btRange = ref<[string, string] | null>(null);
 const btForm = reactive({
-  vt_symbol: "",
+  vt_symbols: [] as string[],
   interval: "1m",
   capital: 1_000_000,
 });
@@ -558,9 +568,11 @@ const subscribedContractOptions = computed(() => {
     market.subscriptions as never[],
     market.subscribedKeys,
   );
-  const current = String(btForm.vt_symbol || "").trim();
-  if (current && !opts.some((o) => o.vt_symbol === current)) {
-    opts.unshift({ vt_symbol: current, name: current, label: `${current}（未在订阅列表）` });
+  for (const current of btForm.vt_symbols) {
+    const sym = String(current || "").trim();
+    if (sym && !opts.some((o) => o.vt_symbol === sym)) {
+      opts.unshift({ vt_symbol: sym, name: sym, label: `${sym}（未在订阅列表）` });
+    }
   }
   return opts;
 });
@@ -682,12 +694,21 @@ function collectParams(): Record<string, unknown> {
   return setting;
 }
 
+function normalizeVtSymbols(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((x) => String(x || "").trim()).filter(Boolean))];
+  }
+  const text = String(raw || "").trim();
+  if (!text) return [];
+  return [...new Set(text.split(/[,，;；\s]+/).map((x) => x.trim()).filter(Boolean))];
+}
+
 function applyModel(data: ModelRow, keepVersion = false) {
   model.value = data;
   sourceContent.value = String(data.template_source || "");
-  btForm.vt_symbol = String(data.vt_symbol || "").trim();
-  if (!btForm.vt_symbol && subscribedContractOptions.value.length) {
-    btForm.vt_symbol = subscribedContractOptions.value[0].vt_symbol;
+  btForm.vt_symbols = normalizeVtSymbols(data.vt_symbols?.length ? data.vt_symbols : data.vt_symbol);
+  if (!btForm.vt_symbols.length && subscribedContractOptions.value.length) {
+    btForm.vt_symbols = [subscribedContractOptions.value[0].vt_symbol];
   }
   const cfg = (data.base_config || {}) as Record<string, number | string>;
   baseConfig.interval = String(cfg.interval || "1m");
@@ -743,7 +764,8 @@ async function saveDraft(): Promise<boolean> {
     const { data } = await http.put(`/api/cta/models/${id}/draft`, {
       template_source: sourceContent.value,
       params: collectParams(),
-      vt_symbol: btForm.vt_symbol,
+      vt_symbols: btForm.vt_symbols,
+      vt_symbol: btForm.vt_symbols[0] || "",
       base_config: {
         interval: baseConfig.interval,
         capital: baseConfig.capital,
@@ -786,7 +808,8 @@ async function saveAsNewVersion() {
     await http.put(`/api/cta/models/${id}/draft`, {
       template_source: sourceContent.value,
       params: collectParams(),
-      vt_symbol: btForm.vt_symbol,
+      vt_symbols: btForm.vt_symbols,
+      vt_symbol: btForm.vt_symbols[0] || "",
       base_config: { ...baseConfig },
     });
     const { data } = await http.post(`/api/cta/models/${id}/versions`, {
@@ -841,6 +864,16 @@ async function loadBacktest() {
   }
 }
 
+async function waitBacktestIdle(timeoutMs = 600_000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const { data } = await http.get("/api/backtest/status");
+    if (!data?.running) return data;
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+  throw new Error("等待回测结束超时");
+}
+
 async function runBacktest() {
   if (!auth.isAdmin || !modelId.value) return;
   const [start, end] = btRange.value || [];
@@ -848,9 +881,10 @@ async function runBacktest() {
     ElMessage.warning("请选择回测区间");
     return;
   }
-  if (!btForm.vt_symbol) {
+  const symbols = [...btForm.vt_symbols].filter(Boolean);
+  if (!symbols.length) {
     ElMessage.warning(
-      subscribedContractOptions.value.length ? "请选择已订阅合约" : "请先去行情中心订阅合约",
+      subscribedContractOptions.value.length ? "请至少选择一个已订阅合约" : "请先去行情中心订阅合约",
     );
     return;
   }
@@ -858,27 +892,47 @@ async function runBacktest() {
   const ok = await saveDraft();
   if (!ok) return;
   btRunning.value = true;
-  localLogs.value.push("[run] 从 MySQL 加载合约/参数/基础配置/源码并启动回测…");
+  localLogs.value.push(
+    `[run] 从 MySQL 加载合约/参数/基础配置/源码；本次回测 ${symbols.length} 个合约：${symbols.join(", ")}`,
+  );
   try {
-    const { data } = await http.post("/api/backtest/run", {
-      model_id: modelId.value,
-      model_version_id: selectedVersionId.value > 0 ? selectedVersionId.value : undefined,
-      start,
-      end,
-      // UI overrides for this run session
-      vt_symbol: btForm.vt_symbol,
-      interval: btForm.interval,
-      capital: btForm.capital,
-    });
-    ElMessage.success(data?.note || "回测已启动");
-    localLogs.value.push(
-      `[run] class=${data?.class_name} symbol=${data?.vt_symbol} version=${data?.run_context?.version_label || "draft"}`,
+    for (let i = 0; i < symbols.length; i += 1) {
+      const sym = symbols[i];
+      localLogs.value.push(`[run] (${i + 1}/${symbols.length}) 启动 ${sym}…`);
+      const { data } = await http.post("/api/backtest/run", {
+        model_id: modelId.value,
+        model_version_id: selectedVersionId.value > 0 ? selectedVersionId.value : undefined,
+        start,
+        end,
+        vt_symbol: sym,
+        interval: btForm.interval,
+        capital: btForm.capital,
+      });
+      localLogs.value.push(
+        `[run] class=${data?.class_name} symbol=${data?.vt_symbol || sym} version=${data?.run_context?.version_label || "draft"}`,
+      );
+      if (i < symbols.length - 1) {
+        await waitBacktestIdle();
+        try {
+          await http.post("/api/backtest/persist-result", null, {
+            params: {
+              model_id: modelId.value,
+              model_version_id: selectedVersionId.value || model.value?.latest_version_id || undefined,
+            },
+          });
+        } catch {
+          /* best-effort between symbols */
+        }
+      }
+    }
+    ElMessage.success(
+      symbols.length > 1 ? `已依次启动 ${symbols.length} 个合约回测` : "回测已启动",
     );
     startPolling();
   } catch (e: unknown) {
     btRunning.value = false;
-    const err = e as { response?: { data?: { detail?: string } } };
-    ElMessage.error(err.response?.data?.detail || "启动回测失败");
+    const err = e as { response?: { data?: { detail?: string } }; message?: string };
+    ElMessage.error(err.response?.data?.detail || err.message || "启动回测失败");
   }
 }
 
@@ -931,13 +985,8 @@ onMounted(async () => {
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   btRange.value = [fmt(start), fmt(end)];
   await Promise.all([market.loadContracts(), market.loadSubscriptions(), loadModel(), loadBacktest()]);
-  if (
-    btForm.vt_symbol &&
-    !subscribedContractOptions.value.some((o) => o.vt_symbol === btForm.vt_symbol)
-  ) {
-    // keep model-saved symbol even if not subscribed (show as selected value); user can re-pick
-  } else if (!btForm.vt_symbol && subscribedContractOptions.value.length) {
-    btForm.vt_symbol = subscribedContractOptions.value[0].vt_symbol;
+  if (!btForm.vt_symbols.length && subscribedContractOptions.value.length) {
+    btForm.vt_symbols = [subscribedContractOptions.value[0].vt_symbol];
   }
 });
 
