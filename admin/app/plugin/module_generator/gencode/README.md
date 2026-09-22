@@ -23,8 +23,8 @@
 `PATCH /generator/gencode/batch/output`。
 
 输出路径（`get_file_name`）：插件骨架写到插件根
-`backend/app/plugin/{module_xxx}/{plugin.toml,plugin.py,README.md}`，业务文件写到
-`backend/app/plugin/{module_xxx}/{module_name}/`，前端写到
+`admin/app/plugin/{module_xxx}/{plugin.toml,plugin.py,README.md}`，业务文件写到
+`admin/app/plugin/{module_xxx}/{module_name}/`，前端写到
 `web/src/{api,views}/{module_xxx}/{module_name}*`。
 
 ## 依赖

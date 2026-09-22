@@ -269,7 +269,7 @@ function init_sql_data() {
   echo -e "${tty_cyan}🧰 初始化数据...${tty_reset}"
 
   local sql_dir
-  sql_dir="$REPO_ROOT/backend/sql/postgres/init_data"
+  sql_dir="$REPO_ROOT/admin/sql/postgres/init_data"
   
   if [ ! -d "$sql_dir" ]; then
     error "未找到 SQL 目录: $sql_dir"

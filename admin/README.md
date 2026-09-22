@@ -2,7 +2,7 @@
 
 一个基于 FastAPI 框架构建企业级后端架构解决方案，为前端 Vue3 管理系统提供完整的 API 服务支持。
 
-> **和仓库根目录文档的关系**：**一键前后端启动、演示账号、新手导航、Mermaid 架构图与默认端口** 请以仓库根目录 [**README.md**](../README.md) 为准；**本文档**侧重 `backend/` 目录结构、迁移命令与开发约定。Docker 部署已从本仓库移除。
+> **和仓库根目录文档的关系**：**一键前后端启动、演示账号、新手导航、Mermaid 架构图与默认端口** 请以仓库根目录 [**README.md**](../README.md) 为准；**本文档**侧重 `admin/` 目录结构、迁移命令与开发约定。Docker 部署已从本仓库移除。
 
 与 **`env/.env.dev.example`** 对齐时：**`SERVER_PORT=8001`**（本机 **`http://127.0.0.1:8001`**），**`ROOT_PATH=/api/v1`**，Swagger **`/docs`**；前端开发端口见 **`../web/env/.env.development.example`** 中的 **`VITE_APP_PORT=5180`**、`VITE_API_BASE_URL=http://127.0.0.1:8001`。
 
@@ -47,7 +47,7 @@
 ## 📁 项目结构
 
 ```txt
-FastapiAdmin/backend/
+admin/
 ├── 📁 app/                     # 项目核心代码
 │   ├── 💾 alembic/             # 数据库迁移管理
 │   ├── 📄 common/              # 公共组件（常量、枚举、响应封装）
@@ -96,7 +96,7 @@ module_*/
 
 ### 环境要求
 
-- **Python**: ≥ 3.14（当前 3.14.7，见 `backend/.python-version`）
+- **Python**: ≥ 3.14（当前 3.14.7，见 `admin/.python-version`）
 - **数据库**: MySQL 8.0+ / PostgreSQL 13+ / SQLite 3.x（连接串在 `env/.env`）
 - **Redis**: 与 `env/.env` 中配置一致（多数场景为必需）
 
@@ -104,7 +104,7 @@ module_*/
 
 1. **环境配置文件**：项目已自带 `env/.env`（公共默认，提交 Git），无需手动复制。如需覆盖配置，复制 `env/.env.dev.example` → `env/.env.dev`，填写数据库、Redis 等实际值（先在 DB 中建好空库）。
 
-2. 在 **`backend/` 目录下** 安装依赖：推荐 **`uv sync`**；或 `pip install -r requirements.txt`。
+2. 在 **`admin/` 目录下** 安装依赖：推荐 **`uv sync`**；或 `pip install -r requirements.txt`。
 
 3. **启动**：`uv run main.py run --env=dev`（或 `python main.py run --env=dev`）。设置 `ENVIRONMENT=dev` 环境变量后，系统自动加载 `env/.env` + `env/.env.dev`（后者覆盖前者）。**首次启动会自动初始化数据库表与基础数据**，一般**无需**先执行 `upgrade`。接口文档示例：`http://127.0.0.1:8001/docs`（端口见 `.env` 中 `SERVER_PORT`）。
 

@@ -6,11 +6,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "main",
-      "cwd": "${workspaceFolder}/backend",
-      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "cwd": "${workspaceFolder}/admin",
+      "python": "${workspaceFolder}/admin/.venv/bin/python",
       "args": ["run", "--env=dev"],
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/backend"
+        "PYTHONPATH": "${workspaceFolder}/admin"
       },
       "console": "integratedTerminal",
       "justMyCode": true
@@ -20,11 +20,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "main",
-      "cwd": "${workspaceFolder}/backend",
-      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "cwd": "${workspaceFolder}/admin",
+      "python": "${workspaceFolder}/admin/.venv/bin/python",
       "args": ["run", "--env=prod"],
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/backend"
+        "PYTHONPATH": "${workspaceFolder}/admin"
       },
       "console": "integratedTerminal",
       "justMyCode": true

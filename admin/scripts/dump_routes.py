@@ -1,7 +1,7 @@
 """导出当前应用的路由清单（方法 + 路径）为 JSON 快照。
 
 用法：
-    cd backend && .venv/bin/python scripts/dump_routes.py
+    cd admin && .venv/bin/python scripts/dump_routes.py
 
 说明：
     采集逻辑统一由 ``scripts/route_walker.py`` 提供（与 ``tests/test_route_snapshot.py``

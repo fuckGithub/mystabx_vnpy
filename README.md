@@ -29,7 +29,7 @@
 
 ```
 mystabx_vnpy/
-├── backend/                 → FastAPI + SQLAlchemy + Alembic（uv）
+├── admin/                 → FastAPI + SQLAlchemy + Alembic（uv）
 │   ├── app/plugin/          → 业务插件 module_*
 │   ├── app/core/            → DB / Auth / CRUD / 限流 / 插件发现
 │   └── main.py              → typer CLI 入口
@@ -51,7 +51,7 @@ mystabx_vnpy/
 | Python | ≥ 3.14（与上游 fastapiadmin 一致） |
 | Node.js / pnpm | ≥ 20 / ≥ 9 |
 | Flutter（可选） | ≥ 3.44 |
-| MySQL / PostgreSQL / SQLite | 见 `backend/env` |
+| MySQL / PostgreSQL / SQLite | 见 `admin/env` |
 | Redis | ≥ 6.x（建议 7.x；ECS 已装 8.x） |
 
 运维用 Redis / RDS 主机见根目录 `.env.ecs.example`（复制为 `.env.ecs`，勿提交密钥）。
@@ -67,7 +67,7 @@ ECS `47.102.208.231` 上 `redis-server` 监听 `0.0.0.0:6379` 且启用 `require
 ### 1. 后端
 
 ```bash
-cd backend
+cd admin
 cp env/.env.example env/.env
 # 填写 DATABASE_PASSWORD / REDIS_PASSWORD（与 .env.ecs 一致）
 

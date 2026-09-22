@@ -62,14 +62,14 @@ share/python-wheels/
 MANIFEST
 .venv/
 venv/
-# 仅忽略仓库根目录名为 ENV 的虚拟环境；勿写成 ENV/（macOS 忽略大小写会误伤 backend/env/）
+# 仅忽略仓库根目录名为 ENV 的虚拟环境；勿写成 ENV/（macOS 忽略大小写会误伤 admin/env/）
 /ENV/
 env.bak/
 venv.bak/
 # 后端环境模板必须入库（覆盖上方 **/.env 规则对 example 的放行已足够，此处显式保证目录不被 ENV 误伤）
-!backend/env/
-!backend/env/.env.example
-!backend/env/.env.prod.example
+!admin/env/
+!admin/env/.env.example
+!admin/env/.env.prod.example
 .mypy_cache/
 .dmypy.json
 dmypy.json

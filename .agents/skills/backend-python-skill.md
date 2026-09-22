@@ -30,7 +30,7 @@ argument-hint: "API 开发、模型设计、路由注册、权限配置"
 ## 项目结构
 
 ```
-backend/
+admin/
 ├── main.py                     # 应用入口（Typer CLI）
 ├── pyproject.toml              # 项目配置与依赖
 ├── alembic.ini                 # 数据库迁移配置

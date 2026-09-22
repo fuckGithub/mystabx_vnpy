@@ -46,7 +46,7 @@ REQUIRED_README_SECTIONS: tuple[str, ...] = (
 )
 """README 产物必须含的 4 个固定小节（与 `tests/test_module_readme.py` 同一约定）。"""
 
-PLUGIN_ROOT = "backend/app/plugin/module_demo"
+PLUGIN_ROOT = "admin/app/plugin/module_demo"
 """示例生成的目标插件根（相对仓库根，与 ``Jinja2TemplateUtil`` 的映射一致）。"""
 
 

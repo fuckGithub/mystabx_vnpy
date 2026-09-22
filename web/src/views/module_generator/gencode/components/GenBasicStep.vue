@@ -248,8 +248,8 @@ const permissionPreview = computed(() => {
 const backendModuleDirPreview = computed(() => {
   const pkg = effectivePackageName.value
   const mod = (props.info.module_name || '').trim()
-  if (!pkg || !mod) return 'backend/app/plugin/<module_xxx>/<module>/'
-  return `backend/app/plugin/${pkg}/${mod}/`
+  if (!pkg || !mod) return 'admin/app/plugin/<module_xxx>/<module>/'
+  return `admin/app/plugin/${pkg}/${mod}/`
 })
 
 const frontendViewDirPreview = computed(() => {

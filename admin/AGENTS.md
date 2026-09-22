@@ -6,7 +6,7 @@
 
 FastAPI 后端，Python ≥ 3.14（当前 3.14.7），MySQL 8.0，Redis 7。所有 API 开发须遵守根目录 AGENTS.md 中的通用约定。
 
-> 🐍 **Python 版本以 `backend/.python-version` 为准（当前 3.14.7），
+> 🐍 **Python 版本以 `admin/.python-version` 为准（当前 3.14.7），
 > 且 `pyproject.toml` 的 `requires-python = ">=3.14"` 是其约束表达。**
 > 本地 `uv sync` 会按 `.python-version` **重建 venv**，因此改这个文件等于切换解释器。
 > 修改 `requires-python` 会同时改变 ruff 推断的 `target-version`，从而改变 lint 基线 ——
@@ -16,7 +16,7 @@ FastAPI 后端，Python ≥ 3.14（当前 3.14.7），MySQL 8.0，Redis 7。所�
 ## Project Structure
 
 ```
-backend/
+admin/
 ├── app/
 │   ├── common/          # 公共工具（常量、枚举、响应封装）
 │   ├── config/          # 配置（路径、环境变量）

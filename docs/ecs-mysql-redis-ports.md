@@ -1,6 +1,6 @@
 # ECS MySQL / Redis / 端口对齐（mystabx_vnpy）
 
-模板说明：真实密码只写本机 `.env.ecs` / `backend/env/.env.prod`（已 gitignore），勿提交。
+模板说明：真实密码只写本机 `.env.ecs` / `admin/env/.env.prod`（已 gitignore），勿提交。
 
 ## 目标口径（相对上游 fastapiadmin）
 
@@ -45,12 +45,22 @@ FastapiAdmin：`DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` / `DATABASE_P
 当前 ECS 上 **交易 Web 已占用 `18080`**（systemd / `start.sh`）。
 
 - **不要**在未切流前，把新 FastapiAdmin 栈再绑到同一 `18080` 覆盖现网。
-- 先按模板对齐 **MySQL / Redis**（`backend/env/.env.prod.example`、`.env.ecs.example`）。
+- 先按模板对齐 **MySQL / Redis**（`admin/env/.env.prod.example`、`.env.ecs.example`）。
 - 并行试跑新栈时可用临时端口（例如改 `SERVER_PORT` / `BACKEND_PORT`），确认后再与 nginx / systemd 一并切到 `18080`。
 - 远端已有 `.env` 由运维保留；本仓库模板**不含**真实密钥，也不会自动覆盖远端密钥文件。
+
+## 目录重命名跟进（`backend/` → `admin/`）
+
+仓库顶层目录已由 `backend/` 重命名为 `admin/`。远端仍以 `ECS_REMOTE_DIR=/stabx/mystabx_vnpy` 为仓库根。
+
+部署本变更后请确认：
+
+1. 远端工作树出现 `admin/`，不再依赖 `backend/`。
+2. 若 systemd `WorkingDirectory` / 启动脚本仍指向 `/stabx/mystabx_vnpy/backend`，改为 `/stabx/mystabx_vnpy/admin` 后 `daemon-reload` 再 restart（切流窗口内操作，避免打断线上交易）。
+3. 远端 `admin/env/.env.prod` 等密钥文件若仍在旧路径，需随目录一并迁移，**不要**用本机 `.env` 覆盖。
 
 ## 相关文件
 
 - `.env.ecs.example`
-- `backend/env/.env.example` / `.env.prod.example`
+- `admin/env/.env.example` / `.env.prod.example`
 - `web/env/*.example`、`uniapp/env/*.example`

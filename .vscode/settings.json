@@ -1,6 +1,6 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
-  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
+  "python.defaultInterpreterPath": "${workspaceFolder}/admin/.venv/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/admin"],
   "chat.tools.terminal.autoApprove": {
     "npx eslint": true,
     "/Users/jerome/Library/FlyEnv/env/flutter/bin/flutter": true

@@ -898,11 +898,11 @@ class GenTableService:
                     os.makedirs(os.path.dirname(gen_path), exist_ok=True)
                     await anyio.Path(gen_path).write_text(render_content, encoding="utf-8")
                     # Python 插件目录需保证包层级可导入：为分系统/模块目录补齐 __init__.py
-                    # 生成规则固定为 backend/app/plugin/{module_xxx}/{module_name}/...
+                    # 生成规则固定为 admin/app/plugin/{module_xxx}/{module_name}/...
                     pn = (table_schema.package_name or "").strip()
                     mn = (table_schema.module_name or "").strip()
                     if pn and mn:
-                        plugin_base = BASE_DIR.parent.joinpath(f"backend/app/plugin/{pn}")
+                        plugin_base = BASE_DIR.parent.joinpath(f"admin/app/plugin/{pn}")
                         module_base = plugin_base.joinpath(mn)
                         for d in (plugin_base, module_base):
                             init_path = d.joinpath("__init__.py")

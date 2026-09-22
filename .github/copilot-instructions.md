@@ -13,7 +13,7 @@
 
 ## 后端插件架构（强制）
 
-后端已 **全面插件化**，全部业务模块位于 `backend/app/plugin/module_*/`，`app/api/` 已删除。
+后端已 **全面插件化**，全部业务模块位于 `admin/app/plugin/module_*/`，`app/api/` 已删除。
 
 - 新增/修改业务代码一律落在 `app/plugin/module_*/` 下，**禁止新建 `app/api/v1/` 路径**
 - 每个插件必须自带 `plugin.toml` + `plugin.py`（模块级 `PLUGIN = Plugin()`）+ `README.md`
@@ -24,5 +24,5 @@
 ## 入口文件优先级
 
 1. `AGENTS.md`（根目录）— 项目统一规范入口
-2. `backend/AGENTS.md` / `web/AGENTS.md` / `uniapp/AGENTS.md` / `flutter/AGENTS.md` — 子项目详细指令
+2. `admin/AGENTS.md` / `web/AGENTS.md` / `uniapp/AGENTS.md` / `flutter/AGENTS.md` — 子项目详细指令
 3. `.agents/skills/*.md` — 按需加载的完整 skill 文档

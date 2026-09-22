@@ -4,7 +4,7 @@
 
 以数据库表为输入、以 Jinja2 模板为输出的 CRUD 代码生成器：表/字段配置的同步与维护、
 代码预览、写入本地工程、打包下载。
-边界：只生成代码与菜单行；生成结果写入 `backend/app/plugin/{module_xxx}/`（并自 A10 起
+边界：只生成代码与菜单行；生成结果写入 `admin/app/plugin/{module_xxx}/`（并自 A10 起
 自带 `plugin.toml`/`plugin.py`/`README.md` 插件骨架），前端模板产出 TS/Vue 文件。
 
 ## 入口

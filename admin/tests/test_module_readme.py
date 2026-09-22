@@ -20,7 +20,7 @@ from pathlib import Path
 from app.core.plugin.loader import discover_plugins
 
 APP_DIR = Path(__file__).resolve().parent.parent / "app"
-"""``backend/app`` 目录。"""
+"""``admin/app`` 目录。"""
 
 REQUIRED_SECTIONS: tuple[str, ...] = (
     "## 模块定位",

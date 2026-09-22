@@ -1,6 +1,6 @@
 # module_ai 插件说明（AI 能力集成）
 
-> 版本：1.1.0 · 目录：`backend/app/plugin/module_ai/` · 技术栈：Agno + OpenAI/Anthropic/Gemini/Ollama 多协议
+> 版本：1.1.0 · 目录：`admin/app/plugin/module_ai/` · 技术栈：Agno + OpenAI/Anthropic/Gemini/Ollama 多协议
 
 ---
 
@@ -21,7 +21,7 @@
 ## 二、目录结构
 
 ```
-backend/app/plugin/module_ai/
+admin/app/plugin/module_ai/
 ├── plugin.toml          # 插件元数据（本文件描述）
 ├── __init__.py
 ├── chat/                # 聊天会话子模块
@@ -212,7 +212,7 @@ backend/app/plugin/module_ai/
 ## 七、验证
 
 ```bash
-cd backend
+cd admin
 # 迁移链
 .venv/bin/python -m alembic heads        # → 9a1b2c3d4e5f (head)
 # 协议构建冒烟（mimo→Claude 协议；deepseek→OpenAILike）

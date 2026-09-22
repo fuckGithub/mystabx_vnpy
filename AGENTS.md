@@ -36,7 +36,7 @@
 
 ## 关键配置项
 
-见 `backend/app/config/setting.py`，主要配置：
+见 `admin/app/config/setting.py`，主要配置：
 
 | 配置                 | 默认值  | 说明                                |
 | -------------------- | ------- | ----------------------------------- |
@@ -55,11 +55,11 @@
 - 公共函数需要类型提示 + Google 风格 docstring
 - **静态检查必须两条都过**：`ruff check` **和** `pyright`。ruff 不做类型检查，
   只跑 ruff 会漏掉参数不匹配、属性访问、协程漏 `await` 等真实缺陷
-  （详见 `backend/AGENTS.md`「验证门禁」）
+  （详见 `admin/AGENTS.md`「验证门禁」）
 
 ## 后端插件架构（重要）
 
-后端已全面插件化：**全部业务模块都在 `backend/app/plugin/module_*/` 下，`app/api/` 已删除**。
+后端已全面插件化：**全部业务模块都在 `admin/app/plugin/module_*/` 下，`app/api/` 已删除**。
 插件按目录发现，无集中注册文件。
 
 新增/迁移模块时的四条静默失败红线（不报错但功能整体失效）：
@@ -68,10 +68,10 @@
 2. 不要在 `plugin.py` 里 `ctx.add_router()` 重复挂载 `controller.py` 顶层 `APIRouter`
    （已由 `app/core/discover.py` 自动挂载，重复即双挂载）。
 3. 模型必须显式声明 `ctx.add_models(*MODEL_PATHS)`，否则映射器注册表不完整。
-4. 插件自带迁移必须登记到 `backend/alembic.ini` 的 `version_locations`
+4. 插件自带迁移必须登记到 `admin/alembic.ini` 的 `version_locations`
    （`alembic heads`/`history` 不执行 `env.py`，只写在 env.py 里会静默漏报）。
 
-完整自检清单见 [`backend/app/core/plugin/README.md`](./backend/app/core/plugin/README.md)。
+完整自检清单见 [`admin/app/core/plugin/README.md`](./admin/app/core/plugin/README.md)。
 
 ## Agent 指令文件（Skills）
 
@@ -86,7 +86,7 @@
 
 详细信息见各子目录的 `AGENTS.md`：
 
-- `backend/AGENTS.md` — 后端专用指令
+- `admin/AGENTS.md` — 后端专用指令
 - `web/AGENTS.md` — 管理后台指令
 - `uniapp/AGENTS.md` — UniApp 移动端指令
 - `flutter/AGENTS.md` — Flutter 移动端指令

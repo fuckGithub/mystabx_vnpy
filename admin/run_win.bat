@@ -186,7 +186,7 @@ exit /b 0
 call :print_separator
 echo Initializing SQL data...
 
-set "sql_dir=%REPO_ROOT%\backend\sql\postgres\init_data"
+set "sql_dir=%REPO_ROOT%\admin\sql\postgres\init_data"
 
 if not exist "%sql_dir%" (
     call :error "SQL directory not found: %sql_dir%"

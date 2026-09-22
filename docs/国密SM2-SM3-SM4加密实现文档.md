@@ -20,11 +20,11 @@
 ### 2.1 文件结构
 
 ```
-backend/app/utils/
+admin/app/utils/
 ├── sm_crypto.py                # SM2/SM3/SM4 算法实现层
 ├── sm_crypto_util.py           # 唯一入口：CommonCryptogramUtil + PwdUtil + Sm4CbcTypeHandler
-backend/app/config/setting.py   # SM2/SM4 密钥配置
-backend/env/.env                # 密钥值
+admin/app/config/setting.py   # SM2/SM4 密钥配置
+admin/env/.env                # 密钥值
 ```
 
 ### 2.2 配置项 (`setting.py`)
@@ -275,7 +275,7 @@ return SM2.encrypt(password, publicKey);
 
 ## 六、环境变量配置
 
-在 `backend/env/.env` 中：
+在 `admin/env/.env` 中：
 
 ```bash
 # SM2 密钥对

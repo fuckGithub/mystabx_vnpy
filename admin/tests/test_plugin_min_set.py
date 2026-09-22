@@ -90,7 +90,7 @@ class MinimalPluginRoot:
     """最小集插件根（软链）与真实插件根。"""
 
     real_root: Path
-    """真实插件根（``backend/app/plugin``），注册表里的 ``PluginDir.path`` 应指向这里。"""
+    """真实插件根（``admin/app/plugin``），注册表里的 ``PluginDir.path`` 应指向这里。"""
 
     minimal_root: Path
     """临时根：只含最小集插件的符号链接，模拟「其它插件目录不存在」。"""

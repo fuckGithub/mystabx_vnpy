@@ -2,7 +2,7 @@
 
 ## 目录结构
 
-创建新模块时，在 `backend/app/plugin/` 下创建以下目录结构：
+创建新模块时，在 `admin/app/plugin/` 下创建以下目录结构：
 
 ```
 module_<module_name>/          # 顶级插件目录（必须以 module_ 开头）
@@ -519,7 +519,7 @@ async def delete_<module_name>_controller(
 
 ## 完整新建模块步骤
 
-1. 在 `backend/app/plugin/` 下创建 `module_<name>/` 和 `module_<name>/<name>/` 目录
+1. 在 `admin/app/plugin/` 下创建 `module_<name>/` 和 `module_<name>/<name>/` 目录
 2. 在每层目录添加空的 `__init__.py`
 3. 创建 `plugin.toml`
 4. 创建 `model.py`（继承 `ModelMixin`，定义字段）
@@ -558,8 +558,8 @@ async def delete_<module_name>_controller(
 
 ### 文件位置
 
-- 菜单配置文件：`backend/app/scripts/data/sys_menu.json`
-- 数据初始化脚本：`backend/app/scripts/initialize.py`（后端启动时自动运行）
+- 菜单配置文件：`admin/app/scripts/data/sys_menu.json`
+- 数据初始化脚本：`admin/app/scripts/initialize.py`（后端启动时自动运行）
 
 ### 菜单 JSON 结构
 
@@ -636,7 +636,7 @@ curl -s -X POST http://127.0.0.1:8001/api/v1/system/auth/login \
   | python3 -c "import json,sys; open('/tmp/token.txt','w').write(json.load(sys.stdin)['data']['access_token'])"
 
 # 运行 e2e 测试脚本
-cd /path/to/project/backend
+cd /path/to/project/admin
 TOKEN=$(cat /tmp/token.txt) .venv/bin/python app/scripts/e2e_test.py
 ```
 

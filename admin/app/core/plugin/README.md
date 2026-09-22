@@ -71,7 +71,7 @@
 
 8. `add_seed_file(...)` 的声明顺序满足外键依赖（如 tenant → user → user_roles）。
    幂等性由 `tests/core/test_seed.py`、`tests/test_seed_pipeline.py` 覆盖。
-9. **自带迁移的插件必须登记到 `backend/alembic.ini`**
+9. **自带迁移的插件必须登记到 `admin/alembic.ini`**
    把 `%(here)s/app/plugin/module_<name>/migrations` 追加进 `version_locations`
    （空格分隔）。原因见该文件注释：`alembic heads`/`history` **不执行 `env.py`**，
    只在 `env.py` 里 `set_main_option` 会让插件迁移**静默不出现**。
