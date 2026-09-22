@@ -1,4 +1,4 @@
-<!-- 用户菜单：合并旧版顶栏（配置中心、Gitee、引导）+ 新版 Popover 与链接结构 -->
+<!-- 用户菜单：个人中心、更新日志、配置中心、文档、引导、锁屏、退出 -->
 <template>
   <!-- inline-flex + items-center：与顶栏 FaIconButton 同一中线对齐，避免 Popover 触发层基线偏移 -->
   <div class="fa-user-menu inline-flex shrink-0 items-center leading-none">
@@ -57,14 +57,6 @@
             <li class="btn-item" @click="toDocs()">
               <FaSvgIcon icon="ri:book-2-line" />
               <span>{{ $t('topBar.user.docs') }}</span>
-            </li>
-            <li class="btn-item" @click="toGithub()">
-              <FaSvgIcon icon="ri:github-line" />
-              <span>{{ $t('topBar.user.github') }}</span>
-            </li>
-            <li class="btn-item" @click="toGitee">
-              <FaSvgIcon icon="ri:git-branch-line" />
-              <span>{{ $t('topBar.user.gitee') }}</span>
             </li>
             <li class="btn-item" @click="startTour">
               <FaSvgIcon icon="ri:compass-3-line" />
@@ -148,14 +140,6 @@ function goChangeLog(): void {
 
 function toDocs(): void {
   window.open(WEB_LINKS.DOCS)
-}
-
-function toGithub(): void {
-  window.open(WEB_LINKS.GITHUB)
-}
-
-function toGitee(): void {
-  window.open(WEB_LINKS.GITEE)
 }
 
 function lockScreen(): void {
