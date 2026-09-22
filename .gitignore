@@ -124,11 +124,6 @@ frontend/flutter/**/Generated.xcconfig
 frontend/flutter/**/flutter_export_environment.sh
 
 # ============================
-# Docker 构建产物
-# ============================
-docker/nginx/app/dist/
-
-# ============================
 # 本地缓存 / 依赖下载
 # ============================
 .cache/

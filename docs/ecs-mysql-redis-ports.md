@@ -11,7 +11,7 @@
 | MySQL 库名 | `fastapiadmin` | **`mystabx_vnpy`** |
 | MySQL 用户 | `fastapiadmin` | **`root`**（RDS） |
 | MySQL 端口 | `3306` | `3306` |
-| Redis | compose 容器 | ECS `redis-server`：`127.0.0.1:6379`（同机）/ 公网 IP（本机开发） |
+| Redis | 本地自建 / 容器（历史） | ECS `redis-server`：`127.0.0.1:6379`（同机）/ 公网 IP（本机开发） |
 | Redis 密码键 | `REDIS_PASSWORD` | 运维侧 `REDIS_PWD` → 后端 `REDIS_PASSWORD` |
 
 ## RDS MySQL（非机密）
@@ -38,7 +38,7 @@ FastapiAdmin：`DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` / `DATABASE_P
 ## Nginx
 
 历史 mystabx：公网 `80` → `127.0.0.1:18080`（见 `vnpy` 分支 `scripts/nginx-mystabx.conf`）。  
-Docker 方式 A：`docker/nginx/nginx.conf` upstream `backend:18080`。
+本仓库已移除 Docker Compose；反向代理请用宿主机 Nginx 指到本机 `18080`。
 
 ## ECS 切流注意（勿打断线上交易）
 
@@ -53,5 +53,4 @@ Docker 方式 A：`docker/nginx/nginx.conf` upstream `backend:18080`。
 
 - `.env.ecs.example`
 - `backend/env/.env.example` / `.env.prod.example`
-- `docker/.env.example`、`docker/docker-compose*.yaml`
 - `frontend/web/env/*.example`、`frontend/uniapp/env/*.example`

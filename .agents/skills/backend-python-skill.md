@@ -80,8 +80,7 @@ backend/
 │       ├── upload_util.py      # 文件上传
 │       ├── sm_crypto_util.py  # 密码加密（国密唯一入口）
 │       └── ...
-├── tests/                      # 测试
-└── Dockerfile                  # 生产部署镜像
+└── tests/                      # 测试
 ```
 
 ## 核心架构设计
@@ -225,15 +224,9 @@ python main.py revision    # 生成迁移脚本
 python main.py upgrade     # 应用迁移
 ```
 
-### 9. Docker 部署
+### 9. 部署说明
 
-```yaml
-services:
-  mysql: # MySQL 8.0，健康检查
-  redis: # Redis 7，AOF 持久化
-  backend: # FastAPI + Gunicorn + Uvicorn，生产多 worker
-  nginx: # 反向代理，静态资源服务
-```
+本仓库已移除 Docker Compose / Dockerfile。本地与 ECS 请直接用 `uv` 跑后端（见根目录 README「快速开始」）；反向代理用宿主机 Nginx。
 
 ## 关于文档
 

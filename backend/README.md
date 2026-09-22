@@ -2,7 +2,7 @@
 
 一个基于 FastAPI 框架构建企业级后端架构解决方案，为前端 Vue3 管理系统提供完整的 API 服务支持。
 
-> **和仓库根目录文档的关系**：**一键前后端启动、演示账号、Docker 部署、新手导航、Mermaid 架构图与默认端口（5180 / 8001 等）** 请以仓库根目录 [**README.md**](../README.md) 为准；**本文档**侧重 `backend/` 目录结构、迁移命令与开发约定。
+> **和仓库根目录文档的关系**：**一键前后端启动、演示账号、新手导航、Mermaid 架构图与默认端口** 请以仓库根目录 [**README.md**](../README.md) 为准；**本文档**侧重 `backend/` 目录结构、迁移命令与开发约定。Docker 部署已从本仓库移除。
 
 与 **`env/.env.dev.example`** 对齐时：**`SERVER_PORT=8001`**（本机 **`http://127.0.0.1:8001`**），**`ROOT_PATH=/api/v1`**，Swagger **`/docs`**；前端开发端口见 **`../frontend/.env.development.example`** 中的 **`VITE_APP_PORT=5180`**、`VITE_API_BASE_URL=http://127.0.0.1:8001`。
 

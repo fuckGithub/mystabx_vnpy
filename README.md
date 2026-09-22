@@ -21,7 +21,7 @@
 | 开发工具 | 代码生成、表单构建、接口文档 |
 | 文件 / AI | 统一文件存储、Agno 智能体扩展 |
 | 三端客户端 | Web 管理后台、UniApp 小程序、Flutter App |
-| 部署 | Docker Compose + Nginx |
+| 部署 | 本机 / ECS 直接运行（非 Docker） |
 
 ---
 
@@ -37,10 +37,11 @@ mystabx_vnpy/
 │   ├── web/                 → Vue3 + Element Plus 管理后台
 │   ├── uniapp/              → UniApp + Wot UI
 │   └── flutter/             → Flutter + Riverpod + TDesign
-├── docker/                  → Compose + Nginx
 ├── docs/                    → 设计与运维文档
 └── licenses/                → 上游 MIT 等第三方许可
 ```
+
+> Docker Compose / Dockerfile 已从本仓库移除；请按下方「快速开始」用本机或 ECS 直接跑前后端。
 
 ---
 
@@ -103,14 +104,6 @@ pnpm dev
 | UniApp H5 | `http://127.0.0.1:6120` |
 | Flutter Web | `http://127.0.0.1:6150` |
 | 后端 API（各端目标） | `http://127.0.0.1:18080` |
-
-### 4. Docker（可选）
-
-```bash
-cd docker
-cp .env.example .env
-docker compose up -d
-```
 
 ---
 

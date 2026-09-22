@@ -1,6 +1,6 @@
 # Mystabx Admin — 全栈开发框架模板
 
-基于 FastapiAdmin 迁入的 FastAPI + Vue3 + UniApp + Docker 全栈开发框架模板（本仓库 `main`）。
+基于 FastapiAdmin 迁入的 FastAPI + Vue3 + UniApp 全栈开发框架模板（本仓库 `main`）。
 
 > 📖 **项目结构详情见 [README.md](./README.md#-工程结构)**，本文档仅包含 Agent 开发所需的快捷参考。
 
@@ -12,7 +12,7 @@
 | 管理后台        | Vue 3 + Element Plus + TypeScript + Vite           | 动态路由/菜单，权限控制         |
 | 移动端(UniApp)  | UniApp + Wot UI + UnoCSS + Pinia                   | 跨平台（H5/微信小程序/App）     |
 | 移动端(Flutter) | Flutter + Riverpod + GoRouter + TDesign            | 跨平台（Android/iOS/Web/桌面）  |
-| 部署            | Docker Compose + Nginx                             | MySQL + Redis + Backend + Nginx |
+| 部署            | 本机 / ECS 直接运行（非 Docker）                   | MySQL + Redis + Backend；反向代理可用宿主机 Nginx |
 | 包管理          | 后端: uv / pip                                     | 前端: pnpm                      |
 | 数据库迁移      | Alembic                                            | 自动生成迁移脚本                |
 | 认证            | JWT + OAuth2                                       | 滑动过期 + 多租户               |
@@ -87,7 +87,8 @@
 详细信息见各子目录的 `AGENTS.md`：
 
 - `backend/AGENTS.md` — 后端专用指令
-- `docker/AGENTS.md` — Docker 部署指令
 - `frontend/web/AGENTS.md` — 管理后台指令
 - `frontend/uniapp/AGENTS.md` — UniApp 移动端指令
 - `frontend/flutter/AGENTS.md` — Flutter 移动端指令
+
+> Docker 相关目录与编排已移除；部署请用本机 `uv` / `pnpm` 或 ECS 上的 systemd / 进程方式，勿再引用 `docker/`。

@@ -599,7 +599,7 @@ async def delete_<module_name>_controller(
    - 页面菜单（type=2）：`component_path` 指向 `module_<name>/<name>/index`
    - 按钮权限（type=3）：create / update / delete / detail / patch / query，`permission` 格式为 `module_<name>:<name>:<action>`
    - Vue 页面中使用的权限字符串格式：`module_<plugin>:<submodule>:<action>`（如 `module_product:product:create`）
-4. **重启后端**：`docker compose restart backend`
+4. **重启后端**：停止后重新执行 `python main.py run --env=dev`（本仓库已无 Docker）
    - 后端启动时 `initialize.py` 会自动读取 `sys_menu.json` 写入数据库
    - 如果表已有数据会跳过，如需强制重新导入需先清空 `sys_menu` 表
 5. **重新关联管理员角色**（如果清空过菜单表）：
@@ -646,20 +646,16 @@ TOKEN=$(cat /tmp/token.txt) .venv/bin/python app/scripts/e2e_test.py
 | --------------- | ------------------------------------------------------------- |
 | 菜单树可见      | 刷新管理后台（http://127.0.0.1:5174），确认新菜单出现在侧边栏 |
 | 新模块 API 可用 | 使用 Swagger 文档 `http://127.0.0.1:8001/api/v1/docs`         |
-| 路由注册        | 检查后端日志 `docker logs backend \| grep "注册容器"`         |
+| 路由注册        | 检查后端进程日志中是否出现「注册容器」相关输出                |
 
 ### 3. 常用调试命令
 
 ```bash
-# 查看后端日志
-docker logs backend --tail 50
-
-# 查看菜单数据
-cd /path/to/project/docker
-docker compose exec mysql mysql -u root -pfastapiadmin_root fastapiadmin \
+# 查看菜单数据（本机 / RDS MySQL，按 env 填写账号库名）
+mysql -h <host> -u root -p mystabx_vnpy \
   -e "SELECT id, name, route_path, type FROM sys_menu WHERE type=1 ORDER BY \`order\`;"
 
 # 重新关联角色权限（清空菜单后需执行）
-docker compose exec mysql mysql -u root -pfastapiadmin_root fastapiadmin \
+mysql -h <host> -u root -p mystabx_vnpy \
   -e "INSERT IGNORE INTO sys_role_menus (role_id, menu_id) SELECT 1, id FROM sys_menu;"
 ```
