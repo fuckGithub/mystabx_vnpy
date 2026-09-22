@@ -34,7 +34,7 @@ argument-hint: '页面开发、组件选型、路由配置、表格逻辑'
 ## 项目结构
 
 ```
-frontend/web/
+web/
 ├── src/
 │   ├── main.ts                       # 应用入口
 │   ├── App.vue                       # 根组件
@@ -312,7 +312,7 @@ Dialog/Drawer（表单弹窗：新增/编辑详情）
  
  ### Prettier
  
- 配置：`frontend/web/.prettierrc.yaml`
+ 配置：`web/.prettierrc.yaml`
  
  - `printWidth: 120` — 每行最大 120 字符
  - `singleQuote: true` — 字符串使用单引号
@@ -324,7 +324,7 @@ Dialog/Drawer（表单弹窗：新增/编辑详情）
  
  ### ESLint
  
- 配置：`frontend/web/eslint.config.mjs`
+ 配置：`web/eslint.config.mjs`
  
  - 基于 `@eslint/js` + `typescript-eslint` + `eslint-plugin-vue`
  - 集成 `eslint-plugin-prettier`，格式化冲突以 Prettier 为准
@@ -340,7 +340,7 @@ Dialog/Drawer（表单弹窗：新增/编辑详情）
  
  ### Stylelint
  
- 配置：`frontend/web/.stylelintrc.cjs`
+ 配置：`web/.stylelintrc.cjs`
  
  - SCSS + Vue 双解析器（postcss-html + postcss-scss）
  - 继承 `stylelint-config-recess-order`（CSS 属性排序）

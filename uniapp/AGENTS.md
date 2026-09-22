@@ -634,11 +634,11 @@ uni.createSelectorQuery().select('#app')
 
 ## Code Style（Prettier + ESLint 约束）
 
-- **Prettier**：`frontend/app-unibest/.prettierrc.yaml`
+- **Prettier**：`uniapp/.prettierrc.yaml`
   - `printWidth: 120`，`singleQuote: true`，`tabWidth: 2`
   - `semi: false`（无分号），`trailingComma: es5`
   - `endOfLine: lf`，`bracketSameLine: true`
-- **ESLint**：`frontend/app-unibest/eslint.config.mjs`
+- **ESLint**：`uniapp/eslint.config.mjs`
   - 基于 `@uni-helper/eslint-config`（Antfu 风格）
   - 集成 `eslint-plugin-prettier`，`eslint-config-prettier`
   - 启用 `unocss`、`vue` 规则集

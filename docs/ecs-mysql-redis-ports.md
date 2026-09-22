@@ -53,4 +53,4 @@ FastapiAdmin：`DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` / `DATABASE_P
 
 - `.env.ecs.example`
 - `backend/env/.env.example` / `.env.prod.example`
-- `frontend/web/env/*.example`、`frontend/uniapp/env/*.example`
+- `web/env/*.example`、`uniapp/env/*.example`

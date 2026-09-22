@@ -9,7 +9,7 @@
 ## Project Structure
 
 ```
-frontend/web/
+web/
 ├── src/
 │   ├── views/            # 页面
 │   ├── components/       # 公共组件
@@ -66,18 +66,18 @@ pnpm test:watch  # 监听模式
 
 ## Code Style（Prettier + ESLint + Stylelint 约束）
 
-- **Prettier**：`frontend/web/.prettierrc.yaml`
+- **Prettier**：`web/.prettierrc.yaml`
   - `printWidth: 120`，`singleQuote: true`，`tabWidth: 2`
   - `semi: false`（无分号），`trailingComma: es5`
   - `jsxSingleQuote: true`，`endOfLine: auto`
-- **ESLint**：`frontend/web/eslint.config.mjs`
+- **ESLint**：`web/eslint.config.mjs`
   - 基于 `@eslint/js` + `typescript-eslint` + `eslint-plugin-vue`
   - 集成 `eslint-plugin-prettier`，格式化冲突以 Prettier 为准
   - 全局注册 Element Plus 组件（ElInput、ElTable 等），避免 no-undef
   - `vue/block-order` → 固定 `template → script → style`
   - `vue/component-name-in-template-casing: PascalCase`
   - `vue/html-self-closing` → 自闭合标签统一风格
-- **Stylelint**：`frontend/web/.stylelintrc.cjs`
+- **Stylelint**：`web/.stylelintrc.cjs`
   - SCSS + Vue 语法支持，postcss-html / postcss-scss 双解析器
   - 继承 `stylelint-config-recess-order`（CSS 属性排序）
   - Tailwind CSS v4 `@reference` / `@custom-variant` 等 at-rule 白名单

@@ -87,8 +87,8 @@
 详细信息见各子目录的 `AGENTS.md`：
 
 - `backend/AGENTS.md` — 后端专用指令
-- `frontend/web/AGENTS.md` — 管理后台指令
-- `frontend/uniapp/AGENTS.md` — UniApp 移动端指令
-- `frontend/flutter/AGENTS.md` — Flutter 移动端指令
+- `web/AGENTS.md` — 管理后台指令
+- `uniapp/AGENTS.md` — UniApp 移动端指令
+- `flutter/AGENTS.md` — Flutter 移动端指令
 
 > Docker 相关目录与编排已移除；部署请用本机 `uv` / `pnpm` 或 ECS 上的 systemd / 进程方式，勿再引用 `docker/`。

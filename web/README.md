@@ -38,7 +38,7 @@ main.ts 启动
 在 **仓库根目录** 下进入本工程（路径以你的克隆位置为准）：
 
 ```bash
-cd frontend/web
+cd web
 pnpm install
 pnpm dev
 ```

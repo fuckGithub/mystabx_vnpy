@@ -255,15 +255,15 @@ const backendModuleDirPreview = computed(() => {
 const frontendViewDirPreview = computed(() => {
   const pkg = effectivePackageName.value
   const mod = (props.info.module_name || '').trim()
-  if (!pkg || !mod) return 'frontend/src/views/<module_xxx>/<module>/'
-  return `frontend/src/views/${pkg}/${mod}/`
+  if (!pkg || !mod) return 'web/src/views/<module_xxx>/<module>/'
+  return `web/src/views/${pkg}/${mod}/`
 })
 
 const frontendApiFilePreview = computed(() => {
   const pkg = effectivePackageName.value
   const mod = (props.info.module_name || '').trim()
-  if (!pkg || !mod) return 'frontend/src/api/<module_xxx>/<module>.ts'
-  return `frontend/src/api/${pkg}/${mod}.ts`
+  if (!pkg || !mod) return 'web/src/api/<module_xxx>/<module>.ts'
+  return `web/src/api/${pkg}/${mod}.ts`
 })
 
 const emit = defineEmits<{

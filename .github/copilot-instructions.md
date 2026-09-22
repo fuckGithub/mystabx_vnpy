@@ -24,5 +24,5 @@
 ## 入口文件优先级
 
 1. `AGENTS.md`（根目录）— 项目统一规范入口
-2. `backend/AGENTS.md` / `frontend/web/AGENTS.md` / `frontend/uniapp/AGENTS.md` / `frontend/flutter/AGENTS.md` — 子项目详细指令
+2. `backend/AGENTS.md` / `web/AGENTS.md` / `uniapp/AGENTS.md` / `flutter/AGENTS.md` — 子项目详细指令
 3. `.agents/skills/*.md` — 按需加载的完整 skill 文档

@@ -33,10 +33,9 @@ mystabx_vnpy/
 │   ├── app/plugin/          → 业务插件 module_*
 │   ├── app/core/            → DB / Auth / CRUD / 限流 / 插件发现
 │   └── main.py              → typer CLI 入口
-├── frontend/
-│   ├── web/                 → Vue3 + Element Plus 管理后台
-│   ├── uniapp/              → UniApp + Wot UI
-│   └── flutter/             → Flutter + Riverpod + TDesign
+├── web/                     → Vue3 + Element Plus 管理后台
+├── uniapp/                  → UniApp + Wot UI
+├── flutter/                 → Flutter + Riverpod + TDesign
 ├── docs/                    → 设计与运维文档
 └── licenses/                → 上游 MIT 等第三方许可
 ```
@@ -88,7 +87,7 @@ python main.py run --env=dev
 ### 2. Web 管理后台
 
 ```bash
-cd frontend/web
+cd web
 pnpm install
 pnpm dev
 ```
@@ -97,7 +96,7 @@ pnpm dev
 
 ### 3. UniApp / Flutter（可选）
 
-见 `frontend/uniapp/README.md`、`frontend/flutter/README.md`：
+见 `uniapp/README.md`、`flutter/README.md`：
 
 | 组件 | 地址 |
 | --- | --- |

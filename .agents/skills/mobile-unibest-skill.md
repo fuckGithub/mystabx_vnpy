@@ -33,7 +33,7 @@ argument-hint: '页面开发、组件使用、跨端适配、样式规范'
 ## 项目结构
 
 ```
-frontend/app-unibest/
+uniapp/
 ├── src/
 │   ├── main.ts                       # 应用入口（SSR 模式）
 │   ├── App.vue                       # 根组件（全局样式、全局配置）
@@ -607,7 +607,7 @@ uni.createSelectorQuery().select('#app')
  
  ### Prettier
  
- 配置：`frontend/app-unibest/.prettierrc.yaml`
+ 配置：`uniapp/.prettierrc.yaml`
  
  - `printWidth: 120` — 每行最大 120 字符
  - `singleQuote: true` — 字符串使用单引号
@@ -619,7 +619,7 @@ uni.createSelectorQuery().select('#app')
  
  ### ESLint
  
- 配置：`frontend/app-unibest/eslint.config.mjs`
+ 配置：`uniapp/eslint.config.mjs`
  
  - 基于 `@uni-helper/eslint-config`（Antfu 风格），集成 `eslint-plugin-prettier` + `eslint-config-prettier`
  - 启用 `unocss`、`vue` 规则集

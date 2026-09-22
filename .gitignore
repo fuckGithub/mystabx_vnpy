@@ -94,9 +94,9 @@ cython_debug/
 # ============================
 node_modules/
 **/node_modules/
-frontend/**/dist/
-frontend/web/dist/
-frontend/uniapp/dist/
+web/dist/
+uniapp/dist/
+**/dist/
 *.local
 
 # ============================
@@ -115,13 +115,13 @@ frontend/uniapp/dist/
 # ============================
 # Flutter
 # ============================
-frontend/flutter/build/
-frontend/flutter/.dart_tool/
-frontend/flutter/.packages
-frontend/flutter/.flutter-plugins
-frontend/flutter/.flutter-plugins-dependencies
-frontend/flutter/**/Generated.xcconfig
-frontend/flutter/**/flutter_export_environment.sh
+flutter/build/
+flutter/.dart_tool/
+flutter/.packages
+flutter/.flutter-plugins
+flutter/.flutter-plugins-dependencies
+flutter/**/Generated.xcconfig
+flutter/**/flutter_export_environment.sh
 
 # ============================
 # 本地缓存 / 依赖下载

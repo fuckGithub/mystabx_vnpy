@@ -292,7 +292,7 @@ SM4_KEY="your_32_char_key_hex"
 
 ```bash
 # 测试加密登录
-cd frontend/web && node -e "
+cd web && node -e "
 const { sm2 } = require('sm-crypto');
 const key = '${SM2_PUBLIC_KEY}';  # 130 chars
 console.log(sm2.doEncrypt('123456', key));

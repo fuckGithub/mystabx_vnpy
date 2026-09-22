@@ -589,7 +589,7 @@ async def delete_<module_name>_controller(
 ### 完整添加步骤
 
 1. **确认后端模块已创建**（按上方"完整新建模块步骤"完成）
-2. **确认管理后台 Vue 页面已创建**，路径为 `frontend/web/src/views/module_<name>/<name>/index.vue`
+2. **确认管理后台 Vue 页面已创建**，路径为 `web/src/views/module_<name>/<name>/index.vue`
 3. **在 `sys_menu.json` 中添加菜单配置**：
    - 顶部目录（type=1）：
      - 查看当前最后一个 PC 菜单的 `order` 值（如 `订单管理 order=10`）

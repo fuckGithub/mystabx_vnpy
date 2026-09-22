@@ -45,7 +45,7 @@ class Jinja2TemplateUtil:
         return ct
 
     # 项目路径
-    FRONTEND_PROJECT_PATH = "frontend"
+    FRONTEND_PROJECT_PATH = "web"
     BACKEND_PROJECT_PATH = "backend"
 
     # 插件骨架模板（验收 A10）：输出到插件根 module_xxx/，与子表无关，只随主表渲染一次

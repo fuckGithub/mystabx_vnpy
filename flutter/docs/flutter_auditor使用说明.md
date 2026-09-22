@@ -1,6 +1,6 @@
 # flutter_auditor 使用说明
 
-> 面向 FastapiAdmin Flutter 移动端（`frontend/flutter/`）的 `flutter_auditor` 审计工具使用指南。
+> 面向 FastapiAdmin Flutter 移动端（`flutter/`）的 `flutter_auditor` 审计工具使用指南。
 > 关联实施计划：`docs/superpowers/plans/2026-07-31-flutter-auditor-managed-check.md`
 
 ## 简介
@@ -59,7 +59,7 @@ flutter_auditor audit --html build/audit_report.html --open --fail-on medium
 
 ## 本项目已集成的命令（Makefile）
 
-在 `frontend/flutter/` 下：
+在 `flutter/` 下：
 
 ```bash
 # 运行审计门禁（文本断言，见下方"已知问题"）
@@ -91,7 +91,7 @@ make audit-report
 
 ## 忽略 / 压制配置（.flutter_auditor_ignore.yaml）
 
-在项目根目录（`frontend/flutter/`）放置 `.flutter_auditor_ignore.yaml` 可压制有依据的发现项，支持三种维度：
+在项目根目录（`flutter/`）放置 `.flutter_auditor_ignore.yaml` 可压制有依据的发现项，支持三种维度：
 
 ```yaml
 # 按 audit id 压制整个审计
@@ -163,7 +163,7 @@ audit:
   run: |
     dart pub global activate flutter_auditor
     export PATH="$PATH:$HOME/.pub-cache/bin"
-    cd frontend/flutter && make audit
+    cd flutter && make audit
 ```
 
 > 注意：CI 无 `key.properties` 时 `--fail-on high` 不会触发签名检查的退出码（上游 bug），但 release 构建会失败——这属于预期的安全行为。
