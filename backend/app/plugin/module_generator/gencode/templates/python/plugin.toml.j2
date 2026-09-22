@@ -1,0 +1,8 @@
+{# 插件元数据（验收 A10）：输出到插件根 backend/app/plugin/{{ package_name }}/plugin.toml #}
+name = "{{ plugin_name }}"
+title = "{{ function_name }}"
+version = "1.0.0"
+description = "{{ function_name }}（表 {{ table_name }}，由代码生成器创建）。路由由 {{ package_name }}/**/controller 动态注册到 /{{ api_route_prefix }}。"
+optional = true
+depends = ["system"]
+tags = ["{{ plugin_name }}"{% if module_name and module_name != plugin_name %}, "{{ module_name }}"{% endif %}]

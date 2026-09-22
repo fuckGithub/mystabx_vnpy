@@ -1,0 +1,11 @@
+name = "ai"
+title = "AI 子系统"
+version = "1.1.0"
+description = """
+AI 能力集成（Agno）：供应商管理（ai_provider）+ 模型管理（ai_model），
+两级结构支持不同供应商下同名模型；按 api_type 协议映射构建模型实例；
+聊天会话（ai/chat）按 model_id 选择模型。路由由 module_ai/**/controller 动态注册。
+"""
+optional = true
+depends = ["system"]
+tags = ["ai", "chat", "agno", "model", "provider", "llm"]

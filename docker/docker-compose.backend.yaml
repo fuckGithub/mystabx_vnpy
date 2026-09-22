@@ -1,0 +1,65 @@
+# ============================================
+# 方式 B：只运行后端镜像（服务器已有 MySQL/Redis/Nginx）
+#
+# 服务器目录只需这些文件：
+#   docker-compose.backend.yaml      本文件
+#   .env                             BACKEND_PORT / IMAGE_TAG（从 .env.example 拷）
+#   env.prod                         应用配置（从 backend/env/.env.prod.example 拷）
+#   backend-<tag>.tar.gz             离线镜像包（deploy.sh image:export 产出）
+#
+# 用法：
+#   bash deploy.sh image:load     # 加载镜像
+#   bash deploy.sh db:migrate     # 首次部署 / 升级后执行
+#   bash deploy.sh start          # 启动（连服务器已有数据库）
+#
+# 本机没有 MySQL/Redis 时叠加上本地依赖覆盖文件：
+#   bash deploy.sh start --local-deps
+#
+# 注意：本文件刻意不写 depends_on —— base 文件一旦引用未定义的 service，
+# 不带 local-deps 覆盖文件时整份 compose 项目会解析失败。
+# ============================================
+
+services:
+  # ==================== 后端服务 ====================
+  backend:
+    container_name: backend
+    image: fastapiadmin-backend:${IMAGE_TAG:-3.1.0}
+    restart: unless-stopped
+    platform: linux/amd64
+    environment:
+      TZ: "Asia/Shanghai"
+      ENVIRONMENT: "prod" # 决定 pydantic 加载 env/.env.prod（本模式用 env_file 注入）
+      SERVER_PORT: "6100" # 与 Dockerfile EXPOSE 口径一致
+      CAPTCHA_ENABLE: "false"
+    # 应用配置（含 DATABASE_HOST / REDIS_HOST，指向服务器已有实例）
+    # 文件缺失时 compose 直接报错退出
+    env_file:
+      - ./env.prod
+    ports:
+      # 只绑回环：外层交给服务器已有 nginx 反代 /api/v1
+      - "127.0.0.1:${BACKEND_PORT:-6100}:6100"
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:6100/common/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+        reservations:
+          memory: 256m
+
+# ==================== 网络 ====================
+networks:
+  app_network:
+    driver: bridge

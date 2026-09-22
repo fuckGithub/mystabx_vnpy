@@ -1,0 +1,20 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
+  "chat.tools.terminal.autoApprove": {
+    "npx eslint": true,
+    "/Users/jerome/Library/FlyEnv/env/flutter/bin/flutter": true
+  },
+  // 抑制 Java 扩展在 Flutter android 目录上的误报
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "java.errors.incompleteClasspath.severity": "ignore",
+  "java.project.resourceFilters": [
+    ".git",
+    "node_modules",
+    "target",
+    "build",
+    ".gradle",
+    "bin"
+  ],
+  "java.compile.nullAnalysis.mode": "disabled"
+}

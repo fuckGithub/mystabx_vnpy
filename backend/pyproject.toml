@@ -1,0 +1,156 @@
+[project]
+name = "mystabx-admin-backend"
+version = "3.1.0"
+description = "mystabx 管理平台后端（复用 FastapiAdmin 能力）"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "agno[pgvector]>=3.0.0",
+    "aiofiles==25.1.0",                         # 文件操作
+    "aiosqlite==0.22.1",                        # sqlite 异步操作数据库
+    "alembic==1.20.0",                          # 数据库迁移
+    "apscheduler==3.11.3",                      # 定时任务
+    "asyncmy==0.2.14",                          # mysql 异步操作数据库：基于 mysqlclient：asyncmy 是 mysqlclient 的异步版本，mysqlclient 是一个 C 语言编写的 MySQL 客户端，性能较高。性能：asyncmy 通常在性能上优于 aiomysql，特别是在高并发和大数据量的场景下。
+    "asyncpg==0.31.0",                          # postgresql 异步操作数据库基于 psycopg2：asyncpg 是 psycopg2 的异步版本，psycopg2 是一个 pure-Python PostgreSQL 数据库适配器。性能：asyncpg 通常在性能上优于 psycopg2，特别是在高并发和大数据量的场景下。
+    "bleach==6.4.0",                            # 过滤 HTML 标签
+    "click==8.5.0",                             # 命令行参数解析
+    "cryptography==50.0.1",                     # mysql8 密码加密
+    "fastapi==0.141.1",                         # fastapi 框架
+    "fastapi-limiter>=0.2.0",                   # 接口限流（0.2.0 改用 pyrate-limiter 后端，不再遍历 app.routes，彻底解决 FastAPI ≥ 0.141 的 _IncludedRouter 兼容问题）
+    "pyrate-limiter>=4.0.0",                    # 限流桶后端（fastapi-limiter 0.2.0 的传递依赖，显式声明以锁定主版本）
+    "greenlet==3.5.5",                          # 协程框架
+    "gunicorn==26.2.0",                         # 协程框架
+    "httpx==0.28.1",                            # HTTP 客户端
+    "jinja2==3.1.6",                            # 模板引擎
+    "loguru==0.7.3",                            # 日志
+    "openai==2.28.0",                           # OpenAI API 客户端
+    "openpyxl==3.1.5",                          # Excel
+    "pandas==2.3.3",                            # 数据处理
+    "prefect>=3.5.0,<4",                        # 工作流编排（与 typer>=0.19 兼容；部署与 requirements.txt 一致）
+    "pillow==12.3.0",                           # 图片处理（3.14 下 fastembed 0.8.0 要求 pillow>=12.0.0）
+    "psutil==7.2.2",                            # 系统信息
+    "psycopg[binary]==3.3.5",                   # postgresql 同步操作数据库基于 psycopg是psycopg2升级版：psycopg2 是一个 pure-Python PostgreSQL 适配器。
+    "psycopg-binary==3.3.5",
+    "pydantic-settings==2.15.0",                # 配置设置
+    "pydantic-validation-decorator==0.1.5",     # 模型验证
+    "pyjwt==2.14.0",                            # OAuth2
+    "pymysql==1.2.0",                           # mysql 同步步操作数据库基于 pymysql：aiomysql 是 pymysql 的异步版本，pymysql 是一个纯 Python 实现的 MySQL 客户端。成熟度：aiomysql 相对较为成熟，社区支持较好，文档也比较完善。
+    "python-multipart==0.0.32",                 # request.form() 对表单进行「解析」时安装
+    "redis==8.1.0",                             # redis 同/异步操作数据库(用户celery配套使用)redis 异步操作数据库 redis已经完全具备了aioredis的功能，无需重复安全,且aioredis已经不再维护也不兼容3.10+的版本
+    "rich==15.0.0",                             # 终端打印美化
+    "sqlalchemy==2.0.52",                       # 数据库ORM
+    "sqlglot==27.8.0",                          # sql 解析
+    "typer==0.27.2",                            # 命令行工具
+    "user-agents==2.2.0",                       # 获取用户UA
+    "uvicorn==0.53.0",                          # uvicorn web 框架
+    "websockets>=15.0.1,<17.0",                # websocket（上限随 prefect 的 <17.0；15.0.1 在 3.14 上只有 py3-none-any 纯 Python 轮子、无原生 cp314，16.x 起才有原生轮子）
+    "snowland-smx==1.0.0.post2",                # 国密 SM2/SM3/SM4（导入名 pysmx）。替代已停更的 gmssl（末次发布 2023-02）：纯 Python 跨平台无需编译，BSD-3-Clause；SM2 密文/签名格式与旧库一致，存量数据经测试仍可解可验
+    "fastembed==0.8.0",                         # 3.14 下需 pillow>=12；无上界会在下次重解析时静默降级到 0.7.4
+]
+
+[dependency-groups]
+dev = [
+    "fakeredis[lua]>=2.21.0,<3",    # 测试：内存 Redis，配合 TESTING；lua extra 提供
+                                    # SCRIPT LOAD（FastAPILimiter.init 预加载限流 Lua 脚本所需）
+    "pyright>=1.1.414",             # 静态类型检查
+    "pytest==9.0.2",                # 单元测试
+    "ruff==0.14.13",                # 代码检查/格式化
+]
+
+[tool.uv]
+default-groups = ["dev"]            # 本地 uv sync 含 dev；生产 pip -r requirements.txt 不含 pytest/ruff/fakeredis
+
+[[tool.uv.index]]
+name = "tuna"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]                  # 让 tests/ 能以 `import app.*` 导入应用包（uv run pytest 不自动加 CWD）
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+preview = true
+fix = true
+show-fixes = true
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+extend-include = ["*.pyw"]
+
+[tool.ruff.lint]
+# 规则集选择说明（2026-09 按实测校准；ruff 与 pyright 双门禁均须全绿）：
+#
+# 刻意**不启用**以下规则（均有实测成本依据）：
+#   RUF001 / RUF003 —— 歧义 Unicode 字符；中文注释与全角标点必然触发，实测 2000+ 误报
+#   RUF012          —— 可变类属性默认值；70 处多为 ORM / Pydantic 的有意写法
+#   RUF029          —— "async 无 await"：只检查模块级裸函数，**跳过 @classmethod /
+#                      @staticmethod 与实例方法**。实测既漏掉真实缺陷（download_file
+#                      是 @classmethod）又误报 FastAPI 依赖/异常处理器 11 处，净负收益
+#   ASYNC240        —— async 中调用阻塞 Path 方法；35 处，属性能议题而非正确性
+select = [
+    "FAST",
+    "F",
+    "E",
+    "W",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "RUF010",  # f-string 内显式类型转换（用 !s 而非 str()）
+    "RUF022",  # __all__ 未排序
+    "RUF100",  # 无用的 noqa 指令（避免失效抑制长期潜伏、掩盖后续真实告警）
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "W191",  # indentation contains tabs
+    "B904",  # Within an `except` clause
+    "B010",  # Do not call with a constant attribute value.
+    "B009",  # Do not use getattr() with a constant attribute value.
+    "E712",  # Avoid equality comparisons to `False`; use `not getattr(self.model, "is_deleted"):` for false checks
+    "W293",  # blank line with whitespace
+    "UP042",  # str,Enum -> StrEnum 会改变 str(member) 结果（'X.A' -> 'A'），影响 API 序列化，须单独评估
+    "UP046",  # Generic[T] -> PEP 695 会改变 __type_params__/__orig_bases__，影响 Pydantic/SQLAlchemy 解析，须单独评估
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/conftest.py" = ["E402"]  # 先设置 TESTING/SQLite 环境再 import 应用
+
+[tool.ruff.format]
+docstring-code-format = true
+preview = true
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

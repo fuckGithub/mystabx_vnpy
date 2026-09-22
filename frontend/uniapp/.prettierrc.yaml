@@ -1,0 +1,35 @@
+# 箭头函数参数始终加括号
+arrowParens: always
+# JSX 右尖括号与最后一行属性同行
+bracketSameLine: true
+# 对象大括号内部首尾保留空格
+bracketSpacing: true
+# 换行符使用 LF (Unix/Linux/macOS 风格)
+endOfLine: lf
+# 自动格式化嵌入的代码（如 Markdown 和 HTML 内的代码）
+embeddedLanguageFormatting: auto
+# HTML 忽略空白敏感性，结合bracketSameLine: true
+htmlWhitespaceSensitivity: ignore
+# JSX 中使用单引号
+jsxSingleQuote: true
+# 一行最多字符数
+printWidth: 120
+# 对象属性引号仅在必要时添加
+quoteProps: as-needed
+# 行尾不使用分号
+semi: false
+# 使用单引号
+singleQuote: true
+# 每个缩进级别的空格数
+tabWidth: 2
+# 是否添加多余逗号 none|es5|all
+trailingComma: es5
+# 使用空格而不是制表符缩进
+useTabs: false
+# Vue 文件中 script 和 style 标签内的代码也进行缩进
+vueIndentScriptAndStyle: false
+# 对 HTML 文件应用特定格式化规则
+overrides:
+  - files: '*.html'
+    options:
+      parser: html

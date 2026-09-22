@@ -1,0 +1,68 @@
+[
+  {
+    "name": "DeepSeek",
+    "vendor": "deepseek",
+    "api_type": "chat-completions",
+    "api_key": "",
+    "base_url": "https://api.deepseek.com",
+    "is_default": true,
+    "sort_order": 100,
+    "status": "0",
+    "description": "DeepSeek 官方 API 供应商"
+  },
+  {
+    "name": "OpenAI",
+    "vendor": "openai",
+    "api_type": "chat-completions",
+    "api_key": "",
+    "base_url": "https://api.openai.com/v1",
+    "is_default": false,
+    "sort_order": 90,
+    "status": "0",
+    "description": "OpenAI 官方 API 供应商"
+  },
+  {
+    "name": "硅基流动",
+    "vendor": "siliconflow",
+    "api_type": "chat-completions",
+    "api_key": "",
+    "base_url": "https://api.siliconflow.cn/v1",
+    "is_default": false,
+    "sort_order": 80,
+    "status": "0",
+    "description": "硅基流动 SiliconFlow 供应商（国内直连，支持 DeepSeek/Qwen 等模型）"
+  },
+  {
+    "name": "阿里云百炼",
+    "vendor": "dashscope",
+    "api_type": "chat-completions",
+    "api_key": "",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "is_default": false,
+    "sort_order": 70,
+    "status": "0",
+    "description": "阿里云百炼 DashScope 供应商（通义千问系列）"
+  },
+  {
+    "name": "智谱AI",
+    "vendor": "zhipu",
+    "api_type": "chat-completions",
+    "api_key": "",
+    "base_url": "https://open.bigmodel.cn/api/paas/v4",
+    "is_default": false,
+    "sort_order": 60,
+    "status": "0",
+    "description": "智谱 AI 供应商（GLM 系列）"
+  },
+  {
+    "name": "本地 Ollama",
+    "vendor": "ollama",
+    "api_type": "ollama",
+    "api_key": "",
+    "base_url": "http://localhost:11434",
+    "is_default": false,
+    "sort_order": 50,
+    "status": "0",
+    "description": "本地 Ollama 供应商（需本地部署 Ollama 服务）"
+  }
+]

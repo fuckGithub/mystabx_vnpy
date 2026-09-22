@@ -1,0 +1,10 @@
+name = "system"
+title = "系统管理"
+version = "1.0.0"
+description = """
+最小可运行集成员：用户/角色/菜单/部门/岗位/字典/参数/公告/租户/日志与认证。
+向内核提供 auth.user_resolver、auth.data_scope_models、log.operation_sink、
+config.params_provider 四个槽位实现；路由由 module_system/**/controller 动态注册到 /system。
+"""
+optional = false
+tags = ["system", "auth", "user", "role", "menu", "dict", "params", "log"]

@@ -1,0 +1,62 @@
+# ============================
+# Python 专属配置
+# ============================
+
+# Python 编译产生的字节码和缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境 (根据你的实际命名选择)
+venv/
+# env/*
+# !env/*.example
+.venv/
+
+# 包管理与构建产物
+build/
+dist/
+*.egg-info/
+*.egg
+pip-log.txt
+Pipfile.lock
+poetry.lock
+
+# ============================
+# 测试与覆盖率报告
+# ============================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+nosetests.xml
+coverage.xml
+
+# ============================
+# IDE 与编辑器配置
+# ============================
+# PyCharm
+.idea/
+*.iml
+# VS Code
+.vscode/
+*.code-workspace
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# ============================
+# 环境变量与敏感信息 (极其重要！)
+# ============================
+
+**/.env
+**/.env.prod
+!**/.env.example
+!**/.env.prod.example
+
+*.log
+*.log.**
+
+dump.rdb

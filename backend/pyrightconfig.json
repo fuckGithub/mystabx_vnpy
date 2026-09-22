@@ -1,0 +1,33 @@
+{
+  // Pyright / Pylance 共用配置 —— 保证命令行与编辑器结论一致。
+  //
+  // 为什么必须有这个文件：
+  // ruff 只做 lint，**不做类型检查**。历史上 `FileResponse(method=...)` 这类
+  // "多余关键字参数"、bool 未拦导致的属性访问错误、以及"调用协程漏 await"
+  // 全部逃过了 ruff，只有类型诊断能发现（详见 AGENTS.md「验证门禁」）。
+  //
+  // 关键：venvPath + venv 必须指向本目录 .venv，否则解析不到任何第三方包，
+  // 会凭空冒出三百多条 reportMissingImports（实测 360 → 36）。
+
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "standard",
+
+  "include": ["app", "main.py", "tests"],
+  "exclude": ["**/node_modules", "**/__pycache__", "**/.*", "logs", "static"],
+
+  // 测试用 sys.path.insert 引入 scripts/route_walker.py，静态分析无法跟踪。
+  "extraPaths": ["scripts"],
+
+  // ── 重点规则 ────────────────────────────────────────────────
+  // 调用协程却忘了 await —— 值会变成 "<coroutine object ...>" 且协程从不执行。
+  // 这是最隐蔽的一类缺陷，standard 模式下**默认关闭**，必须显式打开。
+  "reportUnusedCoroutine": "error",
+  // 未使用的 import / 变量：由 ruff F401/F841 兜底，避免重复报错。
+  "reportUnusedImport": "none",
+  "reportUnusedVariable": "none",
+  // 显式标注重载 / 覆盖错误，防止签名漂移。
+  "reportIncompatibleMethodOverride": "error",
+  "reportIncompatibleVariableOverride": "error"
+}

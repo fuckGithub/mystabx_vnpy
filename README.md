@@ -1,28 +1,119 @@
 # mystabx_vnpy
 
-`main` 正在按开源项目风格重构，当前仅为脚手架起点。
+基于 [FastapiAdmin](https://gitee.com/jeromexiong/fastapiadmin)（v3.1.0）能力迁入本仓库 `main` 的现代化全栈管理平台脚手架。  
+架构保持 FastAPI 插件化后端 + Vue3 管理后台 + UniApp + Flutter 三端统一，便于在此基础上继续演进交易/业务能力。
 
-## 完整实现（归档）
+> 历史完整交易产品实现仍归档在 **`vnpy`** 分支（未改写历史）。本分支以 fastapiadmin 为重构底座。
 
-截至分支创建当日的完整产品代码保留在 **`vnpy`** 分支，未做历史改写。
+上游源码许可见 [`licenses/fastapiadmin-LICENSE`](licenses/fastapiadmin-LICENSE)（MIT）。本仓库整体许可见 [`LICENSE`](LICENSE)。
 
-查看或运行旧版：
+---
 
-```bash
-git fetch origin
-git checkout vnpy
+## 功能一览（自 fastapiadmin 迁入）
+
+| 模块 | 能力 |
+| --- | --- |
+| 仪表盘 | 工作台、分析页 |
+| 系统管理 | 用户、角色、菜单、部门、岗位、字典、配置、公告 |
+| 监控管理 | 在线用户、服务器监控、缓存监控 |
+| 任务管理 | 定时任务（APScheduler） |
+| 日志管理 | 操作日志审计 |
+| 开发工具 | 代码生成、表单构建、接口文档 |
+| 文件 / AI | 统一文件存储、Agno 智能体扩展 |
+| 三端客户端 | Web 管理后台、UniApp 小程序、Flutter App |
+| 部署 | Docker Compose + Nginx |
+
+---
+
+## 工程结构
+
+```
+mystabx_vnpy/
+├── backend/                 → FastAPI + SQLAlchemy + Alembic（uv）
+│   ├── app/plugin/          → 业务插件 module_*
+│   ├── app/core/            → DB / Auth / CRUD / 限流 / 插件发现
+│   └── main.py              → typer CLI 入口
+├── frontend/
+│   ├── web/                 → Vue3 + Element Plus 管理后台
+│   ├── uniapp/              → UniApp + Wot UI
+│   └── flutter/             → Flutter + Riverpod + TDesign
+├── docker/                  → Compose + Nginx
+├── docs/                    → 设计与运维文档
+└── licenses/                → 上游 MIT 等第三方许可
 ```
 
-远程：
+---
 
-- Gitee `origin`：`vnpy` / `main`
-- GitHub `github`：若网络可达，同步同名分支
+## 环境要求
 
-## 本分支保留
+| 类型 | 版本 |
+| --- | --- |
+| Python | ≥ 3.14（与上游 fastapiadmin 一致） |
+| Node.js / pnpm | ≥ 20 / ≥ 9 |
+| Flutter（可选） | ≥ 3.44 |
+| MySQL / PostgreSQL / SQLite | 见 `backend/env` |
+| Redis | ≥ 6.x（建议 7.x） |
 
-- `LICENSE`
-- `.gitignore`
-- 最小 `package.json` / `pyproject.toml`（占位，待重构填充）
-- 本地 `.cursor/rules`（若存在；通常被 gitignore）
+---
+
+## 快速开始
+
+### 1. 后端
+
+```bash
+cd backend
+cp env/.env.example env/.env
+# 按需填写数据库与 Redis
+
+uv sync
+source .venv/bin/activate
+
+# MySQL 示例
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS fastapiadmin DEFAULT CHARACTER SET utf8mb4;"
+
+python main.py upgrade --env=dev
+python main.py run --env=dev
+```
+
+- API：`http://127.0.0.1:6100`
+- Swagger：`http://127.0.0.1:6100/api/v1/docs`
+
+### 2. Web 管理后台
+
+```bash
+cd frontend/web
+pnpm install
+pnpm dev
+```
+
+访问：`http://127.0.0.1:6110`
+
+### 3. UniApp / Flutter（可选）
+
+见 `frontend/uniapp/README.md`、`frontend/flutter/README.md`，或根目录历史文档约定端口：
+
+| 组件 | 地址 |
+| --- | --- |
+| UniApp H5 | `http://127.0.0.1:6120` |
+| Flutter Web | `http://127.0.0.1:6150` |
+
+### 4. Docker（可选）
+
+```bash
+cd docker
+cp .env.example .env
+docker compose up -d
+```
+
+---
+
+## 分支说明
+
+| 分支 | 内容 |
+| --- | --- |
+| `main` | 本脚手架（fastapiadmin 能力迁入后的重构底座） |
+| `vnpy` | 迁入前完整交易产品代码归档 |
+
+远程：Gitee `origin`、GitHub `github`（若可达则同步同名分支）。
 
 请勿将 `.env` / `.env.ecs` 等密钥提交入库。

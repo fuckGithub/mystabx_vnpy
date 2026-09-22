@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+static/
+public/
+scripts/
+vite-plugins/
+*.min.js
+*.min.css
+*.map
+.gitignore
+.curosr/
+.trae/

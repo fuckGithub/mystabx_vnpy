@@ -1,0 +1,44 @@
+# This file configures the analyzer, which statically analyzes Dart code to
+# check for errors, warnings, and lints.
+#
+# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
+# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
+# invoked from the command line by running `flutter analyze`.
+
+# The following line activates a set of recommended lints for Flutter apps,
+# packages, and plugins designed to encourage good coding practices.
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  # The lint rules applied to this project can be customized in the
+  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
+  # included above or to enable additional rules. A list of all available lints
+  # and their documentation is published at https://dart.dev/lints.
+  #
+  # Instead of disabling a lint rule for the entire project in the
+  # section below, it can also be suppressed for a single line of code
+  # or a specific dart file by using the `// ignore: name_of_lint` and
+  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
+  # producing the lint.
+  rules:
+    # 流程控制一律使用大括号（见 AGENTS.md「编码铁律」）
+    curly_braces_in_flow_control_structures: error
+    # 构造调用全为字面量/编译期常量时强制加 const（性能，见 AGENTS.md「编码铁律」）
+    prefer_const_constructors: true
+    # `final x = const [...]` 收敛为 `const x = [...]`（与上一条配合）
+    prefer_const_declarations: true
+    # 禁止使用 print 调试输出，改用日志/调试器
+    avoid_print: true
+    # 字符串优先使用单引号（Dart 标准风格）
+    prefer_single_quotes: true
+    # widget 构造函数中 child 属性置于末尾（可读性）
+    sort_child_properties_last: true
+    # 公共 widget 构造函数必须显式声明 key 参数
+    use_key_in_widget_constructors: true
+    # 不可变集合（List/Map/Set）字面量优先声明为 const
+    prefer_const_literals_to_create_immutables: true
+    # 避免多余的 Container 包裹（纯透明/无装饰时用 SizedBox 等替代）
+    avoid_unnecessary_containers: true
+
+# Additional information about this file can be found at
+# https://dart.dev/guides/language/analysis-options

@@ -1,0 +1,7 @@
+name = "generator"
+title = "代码生成"
+version = "1.0.0"
+description = "基于数据表与模板的代码生成（gencode）。"
+optional = true
+depends = ["system"]
+tags = ["generator", "codegen"]

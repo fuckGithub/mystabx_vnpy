@@ -1,0 +1,18 @@
+# flutter_auditor 有依据的压制（每条均注明原因，避免"静默消失"）
+#
+# 1) .MainActivity 是启动器 Activity（含 MAIN/LAUNCHER intent-filter），
+#    Android 12+ 强制要求 exported=true，否则无法作为桌面入口启动。
+#    项目内无其他 exported 组件。
+ids:
+  - android_exported_components_activity_.MainActivity
+
+# 2) CAMERA / RECORD_AUDIO / READ_MEDIA_* / READ/WRITE_EXTERNAL_STORAGE
+#    对应真实功能（头像拍摄、相册选图、视频通话），运行时请求由
+#    flutter_permission_wizard 统一处理；legacy 存储权限均以 maxSdkVersion 收敛。
+audits:
+  - android_manifest_permissions
+
+# 3) lib/env/.env.{dev,test,prod} 由 AppEnv.init() 运行时按 ENV 动态
+#    dotenv.load() 加载，静态引用检测为误报，禁止从 pubspec.yaml 移除。
+files:
+  - lib/env/.env.*

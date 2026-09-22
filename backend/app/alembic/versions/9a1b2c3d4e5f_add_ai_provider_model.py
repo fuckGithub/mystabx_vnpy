@@ -1,0 +1,418 @@
+"""add ai_provider + ai_model two-level tables
+
+Revision ID: 9a1b2c3d4e5f
+Revises: 13efd604ba30
+Create Date: 2026-08-26
+
+说明：
+    将原先扁平的 ai_model_config 单表重构为「供应商 + 模型」两级表，
+    对应参考配置：
+    {
+        "name": "mimo-tp",
+        "vendor": "customendpoint",
+        "apiKey": "${input:...}",
+        "apiType": "messages",
+        "models": [
+            { "id": "mimo-v2.5", "name": "mimo-v2.5-tp", "url": "...",
+              "toolCalling": true, "vision": true,
+              "maxInputTokens": 1024000, "maxOutputTokens": 128000,
+              "thinking": true }
+        ]
+    }
+
+    设计要点：
+    - provider 决定 API 协议（api_type），而非 vendor；
+      例如 vendor=customendpoint + api_type=messages → Anthropic/Claude 协议。
+    - 不同供应商可有相同模型名，通过 provider_id 归属区分。
+    - 模型级 url/api_key 覆盖供应商级。
+"""
+
+from collections.abc import Sequence
+
+import sqlalchemy as sa
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = "9a1b2c3d4e5f"
+down_revision: str | None = "13efd604ba30"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+
+def upgrade() -> None:
+    """创建两级表（供应商 + 模型）并写入种子数据（含 mimo-tp 示例）。"""
+    op.create_table(
+        "ai_provider",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True, comment="主键ID"),
+        sa.Column("uuid", sa.String(length=64), nullable=False, unique=True, comment="UUID全局唯一标识"),
+        sa.Column("name", sa.String(length=64), nullable=False, comment="供应商名称（如 mimo-tp / DeepSeek）"),
+        sa.Column("vendor", sa.String(length=32), nullable=False, comment="厂商类型(openai/anthropic/google/ollama/deepseek/customendpoint等)"),
+        sa.Column("api_type", sa.String(length=32), nullable=False, server_default="chat-completions", comment="API协议类型(chat-completions/messages/gemini/ollama/azure等)"),
+        sa.Column("api_key", sa.String(length=255), nullable=True, comment="供应商API密钥（模型级可覆盖）"),
+        sa.Column("base_url", sa.String(length=255), nullable=True, comment="供应商默认API地址（模型可覆盖）"),
+        sa.Column("is_default", sa.Boolean(), nullable=True, default=False, comment="是否为默认供应商"),
+        sa.Column("sort_order", sa.Integer(), nullable=True, default=0, comment="排序号（越大越靠前）"),
+        sa.Column("status", sa.String(length=10), nullable=False, server_default="0", comment="状态(0:正常 1:禁用)"),
+        sa.Column("description", sa.Text(), nullable=True, comment="备注描述"),
+        sa.Column("created_time", sa.DateTime(), nullable=False, comment="创建时间"),
+        sa.Column("updated_time", sa.DateTime(), nullable=False, comment="更新时间"),
+        sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.false(), comment="是否已删除"),
+        sa.Column("deleted_time", sa.DateTime(), nullable=True, comment="删除时间"),
+        sa.Column(
+            "created_id",
+            sa.Integer(),
+            nullable=True,
+            comment="创建人ID",
+        ),
+        sa.Column("updated_id", sa.Integer(), nullable=True, comment="更新人ID"),
+        comment="AI供应商表",
+    )
+
+    op.create_table(
+        "ai_model",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True, comment="主键ID"),
+        sa.Column("uuid", sa.String(length=64), nullable=False, unique=True, comment="UUID全局唯一标识"),
+        sa.Column(
+            "provider_id",
+            sa.Integer(),
+            sa.ForeignKey("ai_provider.id", ondelete="CASCADE"),
+            nullable=False,
+            comment="所属供应商ID",
+        ),
+        sa.Column("model_key", sa.String(length=128), nullable=False, comment="模型id（如 mimo-v2.5）"),
+        sa.Column("name", sa.String(length=128), nullable=False, comment="模型显示名（如 mimo-v2.5-tp）"),
+        sa.Column("url", sa.String(length=255), nullable=True, comment="模型端点地址（可覆盖供应商默认）"),
+        sa.Column("tool_calling", sa.Boolean(), nullable=True, default=False, comment="是否支持工具调用"),
+        sa.Column("vision", sa.Boolean(), nullable=True, default=False, comment="是否支持视觉/图片输入"),
+        sa.Column("max_input_tokens", sa.Integer(), nullable=True, default=131072, comment="最大输入token数"),
+        sa.Column("max_output_tokens", sa.Integer(), nullable=True, default=4096, comment="最大输出token数"),
+        sa.Column("thinking", sa.Boolean(), nullable=True, default=False, comment="是否启用思考模式（推理模型）"),
+        sa.Column("temperature", sa.Float(), nullable=True, default=0.7, comment="温度（默认0.7）"),
+        sa.Column("is_default", sa.Boolean(), nullable=True, default=False, comment="是否为默认模型"),
+        sa.Column("sort_order", sa.Integer(), nullable=True, default=0, comment="排序号（越大越靠前）"),
+        sa.Column("status", sa.String(length=10), nullable=False, server_default="0", comment="状态(0:正常 1:禁用)"),
+        sa.Column("description", sa.Text(), nullable=True, comment="备注描述"),
+        sa.Column("created_time", sa.DateTime(), nullable=False, comment="创建时间"),
+        sa.Column("updated_time", sa.DateTime(), nullable=False, comment="更新时间"),
+        sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.false(), comment="是否已删除"),
+        sa.Column("deleted_time", sa.DateTime(), nullable=True, comment="删除时间"),
+        sa.Column(
+            "created_id",
+            sa.Integer(),
+            nullable=True,
+            comment="创建人ID",
+        ),
+        sa.Column("updated_id", sa.Integer(), nullable=True, comment="更新人ID"),
+        comment="AI模型表",
+    )
+
+    # 种子数据
+    now = sa.func.now()
+    op.bulk_insert(
+        sa.table(
+            "ai_provider",
+            sa.column("uuid", sa.String),
+            sa.column("name", sa.String),
+            sa.column("vendor", sa.String),
+            sa.column("api_type", sa.String),
+            sa.column("api_key", sa.String),
+            sa.column("base_url", sa.String),
+            sa.column("is_default", sa.Boolean),
+            sa.column("sort_order", sa.Integer),
+            sa.column("status", sa.String),
+            sa.column("description", sa.String),
+            sa.column("created_time", sa.DateTime),
+            sa.column("updated_time", sa.DateTime),
+            sa.column("is_deleted", sa.Boolean),
+        ),
+        [
+            {
+                "uuid": "seed-mimo-tp",
+                "name": "mimo-tp",
+                "vendor": "customendpoint",
+                "api_type": "messages",
+                "api_key": "",
+                "base_url": "https://token-plan-cn.xiaomimimo.com",
+                "is_default": False,
+                "sort_order": 80,
+                "status": "0",
+                "description": "mimo 供应商（customendpoint + messages 协议，即 Anthropic 协议）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            {
+                "uuid": "seed-deepseek",
+                "name": "DeepSeek",
+                "vendor": "deepseek",
+                "api_type": "chat-completions",
+                "api_key": "",
+                "base_url": "https://api.deepseek.com",
+                "is_default": True,
+                "sort_order": 100,
+                "status": "0",
+                "description": "DeepSeek 官方（OpenAI 兼容协议，默认供应商）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            {
+                "uuid": "seed-openai",
+                "name": "OpenAI",
+                "vendor": "openai",
+                "api_type": "chat-completions",
+                "api_key": "",
+                "base_url": "https://api.openai.com/v1",
+                "is_default": False,
+                "sort_order": 90,
+                "status": "0",
+                "description": "OpenAI 官方",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            {
+                "uuid": "seed-anthropic",
+                "name": "Anthropic",
+                "vendor": "anthropic",
+                "api_type": "messages",
+                "api_key": "",
+                "base_url": "https://api.anthropic.com",
+                "is_default": False,
+                "sort_order": 85,
+                "status": "0",
+                "description": "Anthropic 官方（需安装 anthropic SDK）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            {
+                "uuid": "seed-google",
+                "name": "Google",
+                "vendor": "google",
+                "api_type": "gemini",
+                "api_key": "",
+                "base_url": "https://generativelanguage.googleapis.com",
+                "is_default": False,
+                "sort_order": 70,
+                "status": "0",
+                "description": "Google Gemini（需安装 google-genai SDK）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            {
+                "uuid": "seed-ollama",
+                "name": "Ollama",
+                "vendor": "ollama",
+                "api_type": "ollama",
+                "api_key": None,
+                "base_url": "http://localhost:11434",
+                "is_default": False,
+                "sort_order": 60,
+                "status": "0",
+                "description": "本地 Ollama（无需 API 密钥）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+        ],
+    )
+
+    op.bulk_insert(
+        sa.table(
+            "ai_model",
+            sa.column("uuid", sa.String),
+            sa.column("provider_id", sa.Integer),
+            sa.column("model_key", sa.String),
+            sa.column("name", sa.String),
+            sa.column("url", sa.String),
+            sa.column("tool_calling", sa.Boolean),
+            sa.column("vision", sa.Boolean),
+            sa.column("max_input_tokens", sa.Integer),
+            sa.column("max_output_tokens", sa.Integer),
+            sa.column("thinking", sa.Boolean),
+            sa.column("temperature", sa.Float),
+            sa.column("is_default", sa.Boolean),
+            sa.column("sort_order", sa.Integer),
+            sa.column("status", sa.String),
+            sa.column("description", sa.String),
+            sa.column("created_time", sa.DateTime),
+            sa.column("updated_time", sa.DateTime),
+            sa.column("is_deleted", sa.Boolean),
+        ),
+        [
+            # mimo-tp 的两个模型（对应参考配置 models[]，同一供应商下两个模型）
+            {
+                "uuid": "seed-mimo-v25",
+                "provider_id": 1,
+                "model_key": "mimo-v2.5",
+                "name": "mimo-v2.5-tp",
+                "url": "https://token-plan-cn.xiaomimimo.com/anthropic",
+                "tool_calling": True,
+                "vision": True,
+                "max_input_tokens": 1024000,
+                "max_output_tokens": 128000,
+                "thinking": True,
+                "temperature": 0.7,
+                "is_default": False,
+                "sort_order": 100,
+                "status": "0",
+                "description": "mimo-v2.5 思考+视觉+工具调用",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            {
+                "uuid": "seed-mimo-v25-pro",
+                "provider_id": 1,
+                "model_key": "mimo-v2.5-pro",
+                "name": "mimo-v2.5-pro-tp",
+                "url": "https://token-plan-cn.xiaomimimo.com/anthropic",
+                "tool_calling": True,
+                "vision": False,
+                "max_input_tokens": 1024000,
+                "max_output_tokens": 128000,
+                "thinking": True,
+                "temperature": 0.7,
+                "is_default": False,
+                "sort_order": 90,
+                "status": "0",
+                "description": "mimo-v2.5-pro 思考+工具调用（无视觉）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            # DeepSeek 模型（默认模型的归属）
+            {
+                "uuid": "seed-deepseek-chat",
+                "provider_id": 2,
+                "model_key": "deepseek-chat",
+                "name": "DeepSeek V3 Chat",
+                "url": None,
+                "tool_calling": True,
+                "vision": False,
+                "max_input_tokens": 65536,
+                "max_output_tokens": 8192,
+                "thinking": False,
+                "temperature": 0.7,
+                "is_default": True,
+                "sort_order": 100,
+                "status": "0",
+                "description": "DeepSeek-V3 对话模型（默认模型）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            {
+                "uuid": "seed-deepseek-reasoner",
+                "provider_id": 2,
+                "model_key": "deepseek-reasoner",
+                "name": "DeepSeek R1 Reasoner",
+                "url": None,
+                "tool_calling": False,
+                "vision": False,
+                "max_input_tokens": 65536,
+                "max_output_tokens": 8192,
+                "thinking": True,
+                "temperature": 0.7,
+                "is_default": False,
+                "sort_order": 90,
+                "status": "0",
+                "description": "DeepSeek-R1 推理模型（思考模式）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            # OpenAI GPT-4o
+            {
+                "uuid": "seed-openai-gpt4o",
+                "provider_id": 3,
+                "model_key": "gpt-4o",
+                "name": "OpenAI GPT-4o",
+                "url": None,
+                "tool_calling": True,
+                "vision": True,
+                "max_input_tokens": 128000,
+                "max_output_tokens": 4096,
+                "thinking": False,
+                "temperature": 0.7,
+                "is_default": False,
+                "sort_order": 80,
+                "status": "0",
+                "description": "OpenAI GPT-4o",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            # Anthropic Claude 3.5 Sonnet
+            {
+                "uuid": "seed-anthropic-sonnet",
+                "provider_id": 4,
+                "model_key": "claude-3-5-sonnet",
+                "name": "Claude 3.5 Sonnet",
+                "url": None,
+                "tool_calling": True,
+                "vision": True,
+                "max_input_tokens": 200000,
+                "max_output_tokens": 8192,
+                "thinking": True,
+                "temperature": 0.7,
+                "is_default": False,
+                "sort_order": 70,
+                "status": "0",
+                "description": "Anthropic Claude 3.5 Sonnet（思考模式）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            # Google Gemini 1.5 Pro
+            {
+                "uuid": "seed-google-gemini",
+                "provider_id": 5,
+                "model_key": "gemini-1.5-pro",
+                "name": "Gemini 1.5 Pro",
+                "url": None,
+                "tool_calling": True,
+                "vision": True,
+                "max_input_tokens": 1048576,
+                "max_output_tokens": 8192,
+                "thinking": False,
+                "temperature": 0.7,
+                "is_default": False,
+                "sort_order": 60,
+                "status": "0",
+                "description": "Google Gemini 1.5 Pro",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+            # Ollama Llama3
+            {
+                "uuid": "seed-ollama-llama3",
+                "provider_id": 6,
+                "model_key": "llama3",
+                "name": "Llama 3 (Local)",
+                "url": None,
+                "tool_calling": True,
+                "vision": False,
+                "max_input_tokens": 8192,
+                "max_output_tokens": 4096,
+                "thinking": False,
+                "temperature": 0.7,
+                "is_default": False,
+                "sort_order": 50,
+                "status": "0",
+                "description": "本地 Ollama Llama3（无需 API 密钥）",
+                "created_time": now,
+                "updated_time": now,
+                "is_deleted": False,
+            },
+        ],
+    )
+
+
+def downgrade() -> None:
+    """删除两级表（先删模型表，再删供应商表）。"""
+    op.drop_table("ai_model")
+    op.drop_table("ai_provider")

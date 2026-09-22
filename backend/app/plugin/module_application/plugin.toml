@@ -1,0 +1,11 @@
+name = "application"
+title = "应用管理"
+version = "1.0.0"
+description = """
+门户应用管理（/application/portal/*）：应用增删改查、状态切换与插件清单查询。
+路由由 module_application/**/controller 动态注册到 /application；含 ORM 模型
+app_portal。
+"""
+optional = false
+depends = ["system"]
+tags = ["application", "portal"]

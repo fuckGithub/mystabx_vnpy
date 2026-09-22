@@ -1,0 +1,112 @@
+name: fastapiadmin_mobile
+description: "Mystabx Flutter 移动端（底座来自 FastapiAdmin）"
+publish_to: "none"
+
+# 仅作构建兜底（无 --dart-define=ENV 时使用）；正常构建版本号由 lib/env/.env.<ENV> 的 APP_VERSION/APP_BUILD 决定
+version: 3.1.0+310
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 国际化（i18n）：Material 组件本地化 + gen_l10n（见 l10n.yaml / lib/l10n/）
+  flutter_localizations:
+    sdk: flutter
+  # intl 版本需对齐 flutter_localizations（Flutter 3.44 要求 ^0.20.2）
+  intl: ^0.20.2
+  cupertino_icons: ^1.0.8
+
+  # 状态管理
+  flutter_riverpod: ^3.3.2
+
+  # 路由
+  go_router: ^17.3.0
+
+  # HTTP
+  dio: ^5.9.2
+
+  # 网络状态监听
+  connectivity_plus: ^6.1.4
+
+  # UI 库
+  #  tdesign_flutter: ^0.2.7
+  tdesign_flutter:
+    git:
+      url: https://github.com/runoob-coder/tdesign-flutter
+      ref: fix-IconData-for-0.2.7
+      path: tdesign-component
+  # tdesign(0.2.7 fork) 的 swiper/image_viewer 组件依赖该包，需显式声明以确保解析
+  flutter_swiper_null_safety: ^1.0.2
+
+  # 屏幕适配
+  flutter_screenutil: ^5.9.3
+
+  # 本地存储
+  shared_preferences: ^2.5.5
+
+  # 加密（SM2/SM3/SM4）
+  gm_crypto: ^1.0.0
+
+  # 加载动画
+  flutter_easyloading: ^3.0.5
+
+  # JSON 序列化
+  json_annotation: ^4.9.0
+  flutter_dotenv: ^6.0.1
+
+  # 权限管理
+  flutter_permission_wizard: ^0.1.4
+
+  # 图片选择（用于头像上传场景验证）
+  image_picker: ^1.1.2
+
+  # WebView相关
+  web: ^1.1.1
+  webview_flutter: ^4.14.1
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.12
+  json_serializable: ^6.8.0
+
+flutter:
+  # i18n：gen_l10n 自动生成 AppLocalizations（配合 l10n.yaml / lib/l10n/）
+  generate: true
+  uses-material-design: true
+  assets:
+    - assets/images/fastapiadmin_logo.png
+    - lib/env/.env.dev
+    - lib/env/.env.prod
+    - lib/env/.env.test
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package

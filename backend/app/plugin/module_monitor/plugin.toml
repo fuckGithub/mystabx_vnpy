@@ -1,0 +1,10 @@
+name = "monitor"
+title = "系统监控"
+version = "1.0.0"
+description = """
+在线用户、缓存、服务器与资源监控（cache / online / resource / server）。
+路由由 module_monitor/**/controller 动态注册到 /monitor；本插件无 ORM 模型。
+"""
+optional = false
+depends = ["system"]
+tags = ["monitor", "online", "cache", "server", "resource"]

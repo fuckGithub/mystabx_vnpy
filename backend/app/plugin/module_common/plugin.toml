@@ -1,0 +1,9 @@
+name = "common"
+title = "通用模块"
+version = "1.0.0"
+description = """
+最小可运行集成员：文件上传/下载与健康检查。路由由 module_common/**/controller 动态注册到 /common。
+"""
+optional = false
+depends = ["system"]
+tags = ["common", "file", "health"]

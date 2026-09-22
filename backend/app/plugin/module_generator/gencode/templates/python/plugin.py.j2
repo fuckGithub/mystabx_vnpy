@@ -1,0 +1,35 @@
+{# 插件入口（验收 A10）：输出到插件根 backend/app/plugin/{{ package_name }}/plugin.py #}
+"""{{ function_name }}插件入口（由代码生成器创建）。
+
+HTTP 路由由 ``app/core/discover.py`` 目录扫描挂载（``{{ package_name }}/**/controller.py``
+→ 容器前缀 ``/{{ api_route_prefix }}``）；本文件的 ``setup()`` 声明目录扫描扫不到的 ORM 模型。
+"""
+
+from __future__ import annotations
+
+from app.core.plugin.base import PluginBase
+from app.core.plugin.context import PluginContext
+
+MODEL_PATHS: tuple[str, ...] = {{ model_paths_literal }}
+"""本插件声明的 ORM 模型模块（相对 ``app.plugin.{{ package_name }}`` 的点分路径）。"""
+
+
+class Plugin(PluginBase):
+    """{{ function_name }}插件。"""
+
+    def setup(self, ctx: PluginContext) -> None:
+        """声明 ORM 模型。
+
+        参数:
+        - ctx (PluginContext): 注册接口。
+
+        返回:
+        - None
+        """
+        ctx.add_models(*MODEL_PATHS)
+
+
+# 插件运行时按 ``runtime.ENTRY_VAR == "PLUGIN"`` 取模块级实例；
+# 缺少该绑定时入口会被判为不可用（ERROR + 降级为无实例）：``setup()``/``start()``
+# 都不会执行，本插件声明的模型与路由将静默丢失。
+PLUGIN = Plugin()

@@ -1,0 +1,61 @@
+/* ============================================
+   Design System — CSS 自定义属性
+   所有页面统一引用此文件，无需在各页面重复定义
+   ============================================ */
+
+:root {
+  /* ===== 品牌色 ===== */
+  --brand: #ff6b35;
+  --brand-gradient: linear-gradient(135deg, #ff6b35, #ff8a50, #ffa877);
+  --brand-light: #fff5f0;
+
+  /* ===== 页面基础 ===== */
+  --page-bg: #f7f7f7;
+  --card-bg: #ffffff;
+
+  /* ===== 文本层级 ===== */
+  --text-primary: #1a1a2e;
+  --text-secondary: #666680;
+  --text-tertiary: #999aad;
+  --text-disabled: #ccc;
+
+  /* ===== 边框 & 阴影 ===== */
+  --border: #ebeef5;
+  --border-light: #f4f5f7;
+  --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
+
+  /* ===== 语义色 ===== */
+  --success: #07c160;
+  --warning: #ff9500;
+  --danger: #ff4d4f;
+  --info: #1890ff;
+
+  /* ===== 字号 ===== */
+  --fs-xs: 20rpx;
+  --fs-sm: 22rpx;
+  --fs-base: 26rpx;
+  --fs-md: 28rpx;
+  --fs-lg: 30rpx;
+  --fs-xl: 34rpx;
+  --fs-2xl: 40rpx;
+
+  /* ===== 间距（4px 基准）===== */
+  --sp-xs: 8rpx;
+  --sp-sm: 16rpx;
+  --sp-md: 24rpx;
+  --sp-lg: 32rpx;
+  --sp-xl: 48rpx;
+
+  /* ===== 圆角 ===== */
+  --radius-sm: 8rpx;
+  --radius-md: 16rpx;
+  --radius-lg: 20rpx;
+  --radius-full: 40rpx;
+}
+
+/* ===== 全局页面背景 ===== */
+page {
+  background-color: var(--page-bg);
+}

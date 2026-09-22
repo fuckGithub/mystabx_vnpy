@@ -1,0 +1,6 @@
+name = "storage"
+title = "存储管理"
+version = "1.0.0"
+description = "存储节点、传输任务、存储工作流。"
+optional = true
+tags = ["storage", "transfer", "workflow"]

@@ -1,0 +1,13 @@
+# 国际化（i18n）gen_l10n 配置
+# 官方方案：ARB 为唯一事实源 → flutter gen-l10n 生成类型安全 AppLocalizations
+# 设计参照 docs/2026-08-13-i18n-design.md（启运网司机端沉淀，已适配本项目）
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+# Flutter 3.44 起 gen_l10n 以 synthetic package 输出（package:flutter_gen/gen_l10n/...）
+# 旧参数 synthetic-package 已废弃；设置 output-dir 时生成真实文件进仓库，相对路径导入
+output-dir: lib/l10n/generated
+# of(context) 返回非空（缺本地化即报错而非返回 null，尽早暴露缺 key）
+nullable-getter: false
+# 占位符参数用命名参数（loginFailedDetail(message: ...)），多占位符时更可读
+use-named-parameters: true

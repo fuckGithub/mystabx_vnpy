@@ -1,12 +1,47 @@
-# Byte-compiled / optimized / DLL files
+# ============================
+# macOS / 编辑器临时文件
+# ============================
+**/.DS_Store
+*.swp
+*.swo
+*~
+.AppleDouble
+.LSOverride
+._*
+
+# ============================
+# IDE（本机路径不入库）
+# ============================
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+cmake-build-*/
+out/
+# fastapiadmin 自带共享 launch/settings，允许入库；本机覆盖仍忽略
+# .vscode/
+*.code-workspace
+.cursor/
+
+# ============================
+# 环境变量 / 密钥（永不提交）
+# ============================
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+.envrc
+docs/ecs-rds.local.md
+docs/ecs&rds.md
+
+# ============================
+# Python
+# ============================
 __pycache__/
 *.py[codz]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -22,146 +57,99 @@ var/
 wheels/
 share/python-wheels/
 *.egg-info/
-*.egg-info
-.installed.cfg
 *.egg
+.installed.cfg
 MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py.cover
-*.lcov
-.hypothesis/
-.pytest_cache/
-cover/
-
-# Translations
-*.mo
-*.pot
-
-# Logs / local DBs
-*.log
-db.sqlite3
-db.sqlite3-journal
-
-# Flask / Scrapy / Sphinx / PyBuilder
-instance/
-.webassets-cache
-.scrapy
-docs/_build/
-.pybuilder/
-target/
-
-# Jupyter / IPython
-.ipynb_checkpoints
-profile_default/
-ipython_config.py
-tempCodeRunnerFile.py
-
-# Package managers / PEP 582
-.pdm-python
-.pdm-build/
-.pixi/*
-!.pixi/config.toml
-__pypackages__/
-
-# Environments
-.env
-.env.*
-!.env.ecs.example
-.envrc
-.venv
-env/
+.venv/
 venv/
 ENV/
 env.bak/
 venv.bak/
-
-# 运维凭据（从 cumustabilis 迁移；本仓库公开勿提交）
-docs/ecs-rds.local.md
-docs/ecs&rds.md
-
-# Type checkers / linters
 .mypy_cache/
 .dmypy.json
 dmypy.json
 .pyre/
 .pytype/
 .ruff_cache/
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+cover/
+*.cover
+*.py.cover
+*.lcov
+.hypothesis/
 cython_debug/
 
-# PyPI / IDE helpers
-.pypirc
-.spyderproject
-.spyproject
-.ropeproject
-/site
-
-# PyCharm / JetBrains
-# Python 项目以本机 SDK、工作区为主，整目录忽略，避免提交个人路径。
-# 参考：https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-.idea/
-*.iml
-*.iws
-*.ipr
-cmake-build-*/
-out/
-.idea_modules/
-atlassian-ide-plugin.xml
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-# Cursor 本地配置、规则与 hooks（不提交；保留本机文件）
-.cursor/
-
-# 本地部署防抖状态 / 日志（勿提交）
-.cache/
-
-# VS Code 本机工作区配置（不提交）
-.vscode/
-
-# 前端构建（含 ui/node_modules 符号链接，供 IDE 在 Vite root 下解析依赖）
+# ============================
+# Node / 前端构建
+# ============================
 node_modules/
-ui/node_modules
-dist/
-ui/auto-imports.d.ts
-ui/components.d.ts
+**/node_modules/
+frontend/**/dist/
+frontend/web/dist/
+frontend/uniapp/dist/
+*.local
 
-# 本地编译的 CTP 源码（运行时也可能依赖其中的 framework）
+# ============================
+# 数据库 / 运行时
+# ============================
+*.db
+*.sqlite
+*.sqlite3
+*.mdb
+*.dat
+.vntrader/
+*.log
+*.log.**
+/tmp/
+
+# ============================
+# Flutter
+# ============================
+frontend/flutter/build/
+frontend/flutter/.dart_tool/
+frontend/flutter/.packages
+frontend/flutter/.flutter-plugins
+frontend/flutter/.flutter-plugins-dependencies
+frontend/flutter/**/Generated.xcconfig
+frontend/flutter/**/flutter_export_environment.sh
+
+# ============================
+# Docker 构建产物
+# ============================
+docker/nginx/app/dist/
+
+# ============================
+# 本地缓存 / 依赖下载
+# ============================
+.cache/
 .deps/
+.pdm-python
+.pdm-build/
+.pixi/*
+!.pixi/config.toml
+__pypackages__/
+.pypirc
 
-# 上期技术 CTP 二进制（SimNow 官网下载，勿提交）
+# ============================
+# AI / agent 本地产物
+# ============================
+.claude/
+**/superpowers/*
+.worktrees/
+.playwright-mcp/
+**/plans/
+
+# ============================
+# 历史 vnpy 物料（若本地残留）
+# ============================
 vendor/simnow-ctp/macos/
 vendor/simnow-ctp/linux/
 vendor/simnow-ctp/windows/
 vendor/simnow-ctp/**/*.zip
-
-# vnpy 运行时数据
-.vntrader/
-*.db
-*.mdb
-*.dat
-
-# 系列文章与视频素材（不公开；仅本机）
 docs/articles/
 docs/video/

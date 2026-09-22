@@ -1,0 +1,39 @@
+# ============================================
+# Docker 构建上下文过滤
+# 作用：① 上下文从数 GB 降到几十 MB ② 阻止开发态密钥被 COPY 进镜像层
+# 注意：backend/env/.env 含真实密钥；否定规则（!）必须写在其排除规则之后
+# ============================================
+
+.git/
+.github/
+.vscode/
+
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+
+backend/.venv/
+backend/logs/
+# 本地开发数据库（SQLite，含真实数据；被 git 忽略但会被 COPY 进镜像）
+backend/*.db
+backend/*.sqlite
+backend/*.sqlite3
+backend/static/upload/
+backend/env/.env
+backend/env/.env.*
+!backend/env/.env.example
+!backend/env/.env.prod.example
+
+frontend/**/node_modules/
+frontend/**/dist/
+frontend/**/build/
+frontend/**/.dart_tool/
+
+docker/mysql/data/
+docker/redis/data/
+docker/dist/
+docker/nginx/ssl/
+
+docs/screenshots/
