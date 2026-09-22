@@ -10,15 +10,23 @@
 import { watch } from 'vue'
 import { useConfigStore } from '@stores/modules/config.store'
 
+/** 与 Swagger 文档页签一致的本地闪电 favicon（public/favicon.png） */
+const LOCAL_FAVICON = `${import.meta.env.BASE_URL}favicon.png`
+
 const updateFavicon = (url: string) => {
-  const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-  if (link) link.href = url
+  const links = document.querySelectorAll<HTMLLinkElement>(
+    'link[rel="icon"], link[rel="shortcut icon"]'
+  )
+  links.forEach((link) => {
+    link.href = url
+  })
 }
 
 const syncFromConfig = () => {
-  const { sys_web_title, sys_web_favicon } = useConfigStore().configData
+  const { sys_web_title } = useConfigStore().configData
   if (sys_web_title?.config_value) document.title = sys_web_title.config_value
-  if (sys_web_favicon?.config_value) updateFavicon(sys_web_favicon.config_value)
+  // 页签图标固定为与 Swagger 相同的 FastAPI 闪电图，避免被远程 FA logo 覆盖
+  updateFavicon(LOCAL_FAVICON)
 }
 
 export function useSiteConfig() {
