@@ -46,7 +46,7 @@ backend/
 
 ## Default Port
 
-后端 API: `http://127.0.0.1:6100` | Swagger: `http://127.0.0.1:6100/api/v1/docs`
+后端 API: `http://127.0.0.1:18080` | Swagger: `http://127.0.0.1:18080/api/v1/docs`
 
 ## Key Commands
 

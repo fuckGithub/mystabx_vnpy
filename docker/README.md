@@ -20,7 +20,7 @@ docker/
 ├── docker-compose.backend.yaml      # 方式 B：仅 backend
 ├── docker-compose.local-deps.yaml   # 方式 B 可选：本机 mysql + redis
 ├── .env.example                     # Compose 变量模板（密码、端口、镜像 tag）
-├── backend/Dockerfile               # 后端镜像（源码 COPY 进镜像，监听 6100）
+├── backend/Dockerfile               # 后端镜像（源码 COPY 进镜像，监听 18080）
 ├── nginx/                           # Nginx 配置 + 静态资源 + SSL
 ├── mysql/data/  redis/data/         # 方式 A 的数据目录
 └── dist/                            # image:export 产物（已 gitignore）
@@ -28,7 +28,7 @@ docker/
 
 ## 端口口径（重要）
 
-**容器内统一监听 6100**，宿主机端口由 `.env` 的 `BACKEND_PORT` 决定（默认 6100）。
+**容器内统一监听 18080**，宿主机端口由 `.env` 的 `BACKEND_PORT` 决定（默认 18080）。
 改端口必须三处同步：`Dockerfile` 的 `EXPOSE`、编排的 `SERVER_PORT` 与环境变量、`nginx.conf` 的 `proxy_pass`。
 `backend/tests/test_docker_deploy_config.py` 会把这些口径钉住，改漏任一处测试即红。
 
@@ -108,7 +108,7 @@ bash deploy.sh logs backend
 
 ```nginx
 location /api/v1 {
-    proxy_pass http://127.0.0.1:6100;   # backend 容器只绑回环
+    proxy_pass http://127.0.0.1:18080;   # backend 容器只绑回环
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -179,9 +179,9 @@ bash ../deploy.sh cert:renew         # 建议 crontab: 0 3 * * 0
 | 组合 | `config -q` | 解析出的服务 |
 |------|-------------|--------------|
 | `-f docker-compose.yaml` | exit 0 | `mysql` `redis` `backend` `nginx`（`certbot` 属 `profiles: ["manual"]`，不列） |
-| `-f docker-compose.yaml -f docker-compose.dev.yaml` | exit 0 | 同上；`backend` 多出 `source: <repo>/backend → target: /home`，端口仍 `6100` |
+| `-f docker-compose.yaml -f docker-compose.dev.yaml` | exit 0 | 同上；`backend` 多出 `source: <repo>/backend → target: /home`，端口仍 `18080` |
 | `-f docker-compose.backend.yaml` | exit 0 | 仅 `backend` |
-| `-f docker-compose.backend.yaml -f docker-compose.local-deps.yaml` | exit 0 | `mysql` `redis` `backend`；`DATABASE_HOST: mysql`、`REDIS_HOST: redis`、`host_ip: 127.0.0.1`、`target: 6100` |
+| `-f docker-compose.backend.yaml -f docker-compose.local-deps.yaml` | exit 0 | `mysql` `redis` `backend`；`DATABASE_HOST: mysql`、`REDIS_HOST: redis`、`host_ip: 127.0.0.1`、`target: 18080` |
 
 #### 构建上下文探针
 
@@ -236,12 +236,12 @@ podman run --rm localhost/fastapiadmin-backend:task0 sh -c 'ls -a /home; find /h
 cd docker && cp .env.example .env
 cp ../backend/env/.env.prod.example ../backend/env/.env.prod
 bash ../deploy.sh
-curl -sL -o /dev/null -w '%{http_code}\n' http://127.0.0.1:6100/api/v1/common/health   # 期望 200
-docker compose exec backend printenv SERVER_PORT                                      # 期望 6100
+curl -sL -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18080/api/v1/common/health   # 期望 200
+docker compose exec backend printenv SERVER_PORT                                      # 期望 18080
 
 # 方式 B（在服务器上）
 bash deploy.sh image:load && bash deploy.sh db:migrate && bash deploy.sh start
-curl -sL -o /dev/null -w '%{http_code}\n' http://127.0.0.1:6100/api/v1/common/health   # 期望 200
+curl -sL -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18080/api/v1/common/health   # 期望 200
 docker inspect -f '{{json .Mounts}}' backend                                          # 应无源码挂载
 ```
 

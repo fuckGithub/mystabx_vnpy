@@ -57,7 +57,8 @@ mystabx_vnpy/
 运维用 Redis / RDS 主机见根目录 `.env.ecs.example`（复制为 `.env.ecs`，勿提交密钥）。
 ECS `47.102.208.231` 上 `redis-server` 监听 `0.0.0.0:6379` 且启用 `requirepass`；
 同机应用用 `REDIS_HOST=127.0.0.1`，本机开发用公网 IP（需安全组放行 TCP 6379）。
-FastapiAdmin 键名为 `REDIS_PASSWORD`（对应运维文件里的 `REDIS_PWD`）。
+后端键名 `REDIS_PASSWORD`（对应运维 `REDIS_PWD`）；库名 **mystabx_vnpy**；API 端口 **18080**。
+对齐明细见 [`docs/ecs-mysql-redis-ports.md`](docs/ecs-mysql-redis-ports.md)（含 ECS 切流注意：勿打断现网 18080 交易服务）。
 
 ---
 
@@ -68,20 +69,20 @@ FastapiAdmin 键名为 `REDIS_PASSWORD`（对应运维文件里的 `REDIS_PWD`�
 ```bash
 cd backend
 cp env/.env.example env/.env
-# 按需填写数据库与 Redis（或直连 ECS，见上文）
+# 填写 DATABASE_PASSWORD / REDIS_PASSWORD（与 .env.ecs 一致）
 
 uv sync
 source .venv/bin/activate
 
-# MySQL 示例
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS fastapiadmin DEFAULT CHARACTER SET utf8mb4;"
+# 业务库已在 RDS；若本地自建：
+# mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS mystabx_vnpy DEFAULT CHARACTER SET utf8mb4;"
 
 python main.py upgrade --env=dev
 python main.py run --env=dev
 ```
 
-- API：`http://127.0.0.1:6100`
-- Swagger：`http://127.0.0.1:6100/api/v1/docs`
+- API：`http://127.0.0.1:18080`
+- Swagger：`http://127.0.0.1:18080/api/v1/docs`
 
 ### 2. Web 管理后台
 
@@ -91,16 +92,17 @@ pnpm install
 pnpm dev
 ```
 
-访问：`http://127.0.0.1:6110`
+访问：`http://127.0.0.1:5173`
 
 ### 3. UniApp / Flutter（可选）
 
-见 `frontend/uniapp/README.md`、`frontend/flutter/README.md`，或根目录历史文档约定端口：
+见 `frontend/uniapp/README.md`、`frontend/flutter/README.md`：
 
 | 组件 | 地址 |
 | --- | --- |
 | UniApp H5 | `http://127.0.0.1:6120` |
 | Flutter Web | `http://127.0.0.1:6150` |
+| 后端 API（各端目标） | `http://127.0.0.1:18080` |
 
 ### 4. Docker（可选）
 

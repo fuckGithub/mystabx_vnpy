@@ -29,7 +29,7 @@ services:
     environment:
       TZ: "Asia/Shanghai"
       ENVIRONMENT: "prod" # 决定 pydantic 加载 env/.env.prod（本模式用 env_file 注入）
-      SERVER_PORT: "6100" # 与 Dockerfile EXPOSE 口径一致
+      SERVER_PORT: "18080" # 与 Dockerfile EXPOSE 口径一致
       CAPTCHA_ENABLE: "false"
     # 应用配置（含 DATABASE_HOST / REDIS_HOST，指向服务器已有实例）
     # 文件缺失时 compose 直接报错退出
@@ -37,11 +37,11 @@ services:
       - ./env.prod
     ports:
       # 只绑回环：外层交给服务器已有 nginx 反代 /api/v1
-      - "127.0.0.1:${BACKEND_PORT:-6100}:6100"
+      - "127.0.0.1:${BACKEND_PORT:-18080}:18080"
     networks:
       - app_network
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:6100/common/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:18080/common/health"]
       interval: 15s
       timeout: 10s
       retries: 5

@@ -1,10 +1,9 @@
 """Docker 部署配置一致性守卫（无需 Docker 即可运行）。
 
-背景：部署链路上的端口口径曾三处不一致——compose 映射 8001、nginx 反代 8001，
-而应用实际监听 ``settings.SERVER_PORT``（本地 ``.env`` 为 6100、代码默认为 8001）。
-任一处漂移在本地静态检查里都发现不了，只在线上表现为 502。
+背景：部署链路上的端口口径曾三处不一致——compose / nginx / 应用监听端口漂移会导致 502。
 
-真值以 ``docker/README.md`` 与根 ``AGENTS.md`` 默认端口表为准：容器内统一 6100。
+真值以 ``docker/README.md`` 与根 ``AGENTS.md`` 默认端口表为准：容器内统一 **18080**
+（对齐 mystabx ``STABX_PORT``；原上游 fastapiadmin 为 6100）。
 """
 
 from __future__ import annotations
@@ -16,8 +15,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "docker"
-CONTAINER_PORT = "6100"
-LEGACY_PORT = "8001"
+CONTAINER_PORT = "18080"
+LEGACY_PORT = "6100"
 IMAGE_REF = "fastapiadmin-backend:${IMAGE_TAG:-3.1.0}"
 
 COMPOSE_FULL = DOCKER_DIR / "docker-compose.yaml"

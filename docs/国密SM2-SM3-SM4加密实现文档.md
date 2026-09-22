@@ -296,7 +296,7 @@ cd frontend/web && node -e "
 const { sm2 } = require('sm-crypto');
 const key = '${SM2_PUBLIC_KEY}';  # 130 chars
 console.log(sm2.doEncrypt('123456', key));
-" | curl -X POST "http://127.0.0.1:6100/api/v1/system/auth/login" \
+" | curl -X POST "http://127.0.0.1:18080/api/v1/system/auth/login" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=admin&password=\$(cat)&login_type=account&captcha_key=&captcha="
 ```

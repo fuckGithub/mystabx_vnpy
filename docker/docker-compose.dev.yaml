@@ -4,7 +4,7 @@
 # 用法（在 docker/ 目录下）：
 #   docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up -d
 #
-# 只覆盖 volumes —— 端口（6100）、env_file 等全部沿用主文件。
+# 只覆盖 volumes —— 端口（18080）、env_file 等全部沿用主文件。
 # 生产环境与镜像交付场景（docker-compose.backend.yaml）不要使用本文件。
 #
 # 注意：覆盖文件无法移除主文件里的 env_file，因此本模式同样需要

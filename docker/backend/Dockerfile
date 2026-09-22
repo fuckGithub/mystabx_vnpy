@@ -45,6 +45,6 @@ USER app
 # 源码进镜像（COPY --chown 确保 app 用户有权限）
 COPY --chown=app:app ./backend/ ./
 
-EXPOSE 6100
+EXPOSE 18080
 
 CMD ["python", "main.py", "run", "--env=prod"]

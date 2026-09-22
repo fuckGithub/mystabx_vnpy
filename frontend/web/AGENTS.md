@@ -62,7 +62,7 @@ pnpm test:watch  # 监听模式
 
 ## Default Port
 
-管理后台: `http://127.0.0.1:6110`
+管理后台: `http://127.0.0.1:5173`（API 代理目标 `http://127.0.0.1:18080`）
 
 ## Code Style（Prettier + ESLint + Stylelint 约束）
 

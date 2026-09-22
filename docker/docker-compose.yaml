@@ -21,8 +21,8 @@ services:
     environment:
       TZ: "Asia/Shanghai"
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?错误: 请设置 MYSQL_ROOT_PASSWORD 环境变量}"
-      MYSQL_DATABASE: "${MYSQL_DATABASE:-fastapiadmin}"
-      MYSQL_USER: "${MYSQL_USER:-fastapiadmin}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-mystabx_vnpy}"
+      MYSQL_USER: "${MYSQL_USER:-root}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:?错误: 请设置 MYSQL_PASSWORD 环境变量}"
     ports:
       # 只绑回环：backend 容器通过 Docker 网络直连，宿主机端口仅供本地调试
@@ -104,12 +104,12 @@ services:
     environment:
       TZ: "Asia/Shanghai"
       ENVIRONMENT: "prod" # 决定 pydantic 加载 env/.env.prod
-      SERVER_PORT: "6100" # OS 环境变量优先级最高，压住配置文件里的旧值
+      SERVER_PORT: "18080" # OS 环境变量优先级最高，压住配置文件里的旧值
       DATABASE_HOST: "mysql"
       DATABASE_PASSWORD: "${MYSQL_PASSWORD}"
       DATABASE_PORT: "3306"
-      DATABASE_NAME: "${MYSQL_DATABASE:-fastapiadmin}"
-      DATABASE_USER: "${MYSQL_USER:-fastapiadmin}"
+      DATABASE_NAME: "${MYSQL_DATABASE:-mystabx_vnpy}"
+      DATABASE_USER: "${MYSQL_USER:-root}"
       REDIS_HOST: "redis"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
       REDIS_PORT: "6379"
@@ -120,7 +120,7 @@ services:
     env_file:
       - ../backend/env/.env.prod
     ports:
-      - "${BACKEND_PORT:-6100}:6100"
+      - "${BACKEND_PORT:-18080}:18080"
     # 源码不再挂载（镜像已自包含）；热更新请叠加 docker-compose.dev.yaml
     depends_on:
       mysql:
@@ -130,7 +130,7 @@ services:
     networks:
       - app_network
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:6100/common/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:18080/common/health"]
       interval: 15s
       timeout: 10s
       retries: 5

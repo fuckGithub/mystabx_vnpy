@@ -7,7 +7,7 @@ description: UniApp 移动端开发规范。当开发 UniApp + Vue3 移动应用
 
 ## Default Port
 
-UniApp H5: `http://127.0.0.1:6120`
+UniApp H5: `http://127.0.0.1:6120`（API：`http://127.0.0.1:18080`）
 
 # UniApp 移动端开发规范
 
