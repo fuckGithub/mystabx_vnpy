@@ -86,6 +86,20 @@
 .channel-row-actions .el-button {
   padding: 4px 6px;
   margin: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.channel-row-actions .el-button:hover,
+.channel-row-actions .el-button:focus,
+.channel-row-actions .el-button:focus-visible,
+.channel-row-actions .el-button:active {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .el-form-item:last-of-type {
