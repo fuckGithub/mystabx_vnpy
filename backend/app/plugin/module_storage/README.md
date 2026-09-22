@@ -24,7 +24,14 @@
 
 - 内核槽位：无消费、无提供。
 - 其它插件：无（`plugin.toml` 未声明 `depends`）。
-- 第三方：无直接依赖。
+- 第三方：阿里云 OSS（`oss2`，经全局 `OSS_*` 环境变量；`OSS_READY` 时启动会种子节点「Aliyun OSS」）。
+
+## OSS 对接
+
+开启 `OSS_ENABLE=true` 并配置 `OSS_ACCESS_KEY` / `OSS_SECRET_KEY` / `OSS_BUCKET_NAME` 后：
+
+- 「文件管理」（`module_monitor/resource`）浏览/上传/下载走 OSS；
+- 本插件默认种子节点 `type=oss`，`config.use_settings=true`，浏览接口 `/storage/browse/list` 列举桶内 `OSS_PREFIX` 下对象。
 
 ## 删除影响
 

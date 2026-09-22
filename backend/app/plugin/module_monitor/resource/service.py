@@ -30,12 +30,18 @@ from .schema import (
 class ResourceService:
     """
     资源管理模块服务层 - 管理系统静态文件目录（仅管理 upload 目录）
+    OSS 就绪时（settings.OSS_READY）改走阿里云对象存储。
     """
 
     # 配置常量
     MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB
     MAX_SEARCH_RESULTS = 1000  # 最大搜索结果数
     MAX_PATH_DEPTH = 20  # 最大路径深度
+
+    @classmethod
+    def _use_oss(cls) -> bool:
+        """是否使用 OSS 后端。"""
+        return settings.OSS_READY
 
     @classmethod
     def _get_resource_root(cls) -> str:
@@ -427,6 +433,13 @@ class ResourceService:
         返回:
         - list[dict]: 资源详情字典列表。
         """
+        if cls._use_oss():
+            from .oss_backend import OssResourceBackend
+
+            return await OssResourceBackend.list_resources(
+                search=search, order_by=order_by, base_url=base_url
+            )
+
         try:
             # 确定搜索路径
             if search and hasattr(search, "path") and search.path and isinstance(search.path, str):
@@ -630,6 +643,13 @@ class ResourceService:
         返回:
         - dict: 包含文件信息的字典。
         """
+        if cls._use_oss():
+            from .oss_backend import OssResourceBackend
+
+            return await OssResourceBackend.upload(
+                file=file, target_path=target_path, base_url=base_url
+            )
+
         if not file or not file.filename:
             raise CustomException(msg="请选择要上传的文件")
 
@@ -731,6 +751,8 @@ class ResourceService:
         """
         下载文件（返回本地文件系统路径）
 
+        OSS 模式下会先拉取到临时文件再返回路径，由调用方流式响应。
+
         参数:
         - file_path (str): 文件路径（可为相对路径、绝对路径或完整URL）。
         - base_url (str | None): 基础URL，用于生成完整URL（不再直接返回URL）。
@@ -738,6 +760,22 @@ class ResourceService:
         返回:
         - str: 本地文件系统路径。
         """
+        if cls._use_oss():
+            import tempfile
+            from pathlib import Path
+
+            from .oss_backend import OssResourceBackend
+
+            data, filename = await OssResourceBackend.download_bytes(file_path)
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{filename}")
+            tmp_path = Path(tmp.name)
+            try:
+                tmp.write(data)
+            finally:
+                tmp.close()
+            log.info(f"OSS 文件已缓存到临时路径: {tmp_path}")
+            return str(tmp_path)
+
         try:
             safe_path = cls._get_safe_path(file_path)
 
@@ -799,6 +837,12 @@ class ResourceService:
         - 此方法遇到第一个错误就会抛出异常并停止
         - 如需批量删除并收集结果，请使用 batch_delete_service
         """
+        if cls._use_oss():
+            from .oss_backend import OssResourceBackend
+
+            await OssResourceBackend.delete(paths)
+            return
+
         if not paths:
             raise CustomException(msg="删除失败，删除路径不能为空")
 
@@ -846,6 +890,12 @@ class ResourceService:
         返回:
         - None
         """
+        if cls._use_oss():
+            from .oss_backend import OssResourceBackend
+
+            await OssResourceBackend.move(data)
+            return
+
         try:
             source_path = cls._get_safe_path(data.source_path)
             target_path = cls._get_safe_path(data.target_path)
@@ -888,6 +938,12 @@ class ResourceService:
         返回:
         - None
         """
+        if cls._use_oss():
+            from .oss_backend import OssResourceBackend
+
+            await OssResourceBackend.copy(data)
+            return
+
         try:
             source_path = cls._get_safe_path(data.source_path)
             target_path = cls._get_safe_path(data.target_path)
@@ -928,6 +984,12 @@ class ResourceService:
         返回:
         - None
         """
+        if cls._use_oss():
+            from .oss_backend import OssResourceBackend
+
+            await OssResourceBackend.rename(data)
+            return
+
         try:
             old_path = cls._get_safe_path(data.old_path)
 
@@ -979,6 +1041,12 @@ class ResourceService:
         返回:
         - None
         """
+        if cls._use_oss():
+            from .oss_backend import OssResourceBackend
+
+            await OssResourceBackend.create_dir(data)
+            return
+
         try:
             parent_path = cls._get_safe_path(data.parent_path)
 

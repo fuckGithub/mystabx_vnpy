@@ -46,6 +46,7 @@ dependencies = [
     "websockets>=15.0.1,<17.0",                # websocket（上限随 prefect 的 <17.0；15.0.1 在 3.14 上只有 py3-none-any 纯 Python 轮子、无原生 cp314，16.x 起才有原生轮子）
     "snowland-smx==1.0.0.post2",                # 国密 SM2/SM3/SM4（导入名 pysmx）。替代已停更的 gmssl（末次发布 2023-02）：纯 Python 跨平台无需编译，BSD-3-Clause；SM2 密文/签名格式与旧库一致，存量数据经测试仍可解可验
     "fastembed==0.8.0",                         # 3.14 下需 pillow>=12；无上界会在下次重解析时静默降级到 0.7.4
+    "oss2>=2.18.0",                             # 阿里云 OSS SDK（文件管理对象存储）
 ]
 
 [dependency-groups]

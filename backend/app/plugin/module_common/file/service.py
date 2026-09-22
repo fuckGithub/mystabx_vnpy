@@ -1,4 +1,7 @@
 import os
+import tempfile
+from datetime import datetime
+from pathlib import Path
 
 from fastapi import UploadFile
 
@@ -24,7 +27,7 @@ class FileService:
         参数:
         - base_url (str): 基础访问 URL。
         - file (UploadFile): 上传文件对象。
-        - upload_type (str): 上传类型，'local' 或 'oss'，默认 'local'。
+        - upload_type (str): 上传类型，'local' 或 'oss'；全局 OSS_READY 时默认走对象存储。
 
         返回:
         - Dict: 上传响应字典。
@@ -32,13 +35,41 @@ class FileService:
         异常:
         - CustomException: 当未选择文件或上传类型错误时抛出。
         """
-        if upload_type == "local":
-            filename, filepath, file_url = await UploadUtil.upload_file(
-                file=file, base_url=base_url
-            )
+        use_oss = settings.OSS_READY
+        if upload_type == "oss":
+            if not settings.OSS_READY:
+                raise CustomException(msg="OSS 未配置或未启用")
+            use_oss = True
+        elif upload_type == "local":
+            # 显式 local：仅当全局未就绪时走磁盘；就绪时仍走 OSS（文件管理统一后端）
+            use_oss = settings.OSS_READY
         else:
             raise CustomException(msg="上传类型错误")
 
+        if use_oss:
+            from app.utils.oss_util import OssUtil
+
+            if not file or not file.filename:
+                raise CustomException(msg="请选择要上传的文件")
+            content = await file.read()
+            ext = UploadUtil.get_extension_from_filename(file.filename)
+            if not ext:
+                raise CustomException(msg="无法识别文件类型")
+            UploadUtil.validate_file_extension(ext)
+            safe_name = UploadUtil.generate_safe_filename(file.filename, ext)
+            rel = f"{datetime.now().strftime('%Y/%m/%d')}/{safe_name}"
+            key = await OssUtil.put_bytes(rel, content)
+            file_url = OssUtil.public_or_signed_url(key)
+            return UploadResponseSchema(
+                file_path=key,
+                file_name=safe_name,
+                origin_name=file.filename,
+                file_url=file_url,
+            ).model_dump()
+
+        filename, filepath, file_url = await UploadUtil.upload_file(
+            file=file, base_url=base_url
+        )
         return UploadResponseSchema(
             file_path=f"{filepath}",
             file_name=filename,
@@ -92,13 +123,24 @@ class FileService:
         异常:
         - CustomException: 当未选择文件或文件不存在时抛出。
         """
+        # OSS 对象键：非绝对本地路径时尝试从 OSS 拉取
+        if settings.OSS_READY and not os.path.isabs(file_path):
+            from app.utils.oss_util import OssUtil
+
+            data = await OssUtil.get_bytes(file_path)
+            name = Path(file_path).name
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{name}")
+            try:
+                tmp.write(data)
+            finally:
+                tmp.close()
+            return DownloadFileSchema(file_path=tmp.name, file_name=name)
+
         safe_path = cls._validate_download_path(file_path)
 
         if not UploadUtil.check_file_exists(safe_path):
             raise CustomException(msg="文件不存在")
 
-        # 必须 await：download_file 是协程，漏 await 会把 file_name 变成
-        # "<coroutine object ...>" 字符串，下载文件名随之损坏。
         file_name = await UploadUtil.download_file(safe_path)
 
         return DownloadFileSchema(

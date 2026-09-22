@@ -286,6 +286,29 @@ class Settings(BaseSettings):
     """最大上传文件大小（字节）"""
 
     # ================================================= #
+    # ***************** 阿里云 OSS ***************** #
+    # ================================================= #
+    # 与 mystabx UPMS 对齐：OSS_ACCESS_KEY / OSS_SECRET_KEY；开启后「文件管理」走对象存储。
+    OSS_ENABLE: bool = False
+    """是否启用阿里云 OSS（True 且凭证齐全时，文件管理/上传走 OSS）"""
+    OSS_ACCESS_KEY: str = ""
+    """阿里云 AccessKey ID（勿提交真实值）"""
+    OSS_SECRET_KEY: str = ""
+    """阿里云 AccessKey Secret（勿提交真实值）"""
+    OSS_ENDPOINT: str = "https://oss-cn-beijing.aliyuncs.com"
+    """OSS Endpoint（含协议，如 https://oss-cn-beijing.aliyuncs.com）"""
+    OSS_BUCKET_NAME: str = ""
+    """Bucket 名称"""
+    OSS_REGION: str = "cn-beijing"
+    """区域（如 cn-beijing）"""
+    OSS_CUSTOM_DOMAIN: str = ""
+    """自定义域名 / CDN（可选，用于生成公开访问 URL）"""
+    OSS_PREFIX: str = "upload/"
+    """对象键前缀（默认 upload/，与本地 static/upload 语义对齐）"""
+    OSS_SIGN_URL_EXPIRE_SECONDS: int = 3600
+    """私有桶签名 URL 有效期（秒）"""
+
+    # ================================================= #
     # ***************** Swagger资源 ***************** #
     # ================================================= #
     SWAGGER_CSS_URL: str = "static/swagger/swagger-ui/swagger-ui.css"
@@ -336,6 +359,17 @@ class Settings(BaseSettings):
     def STATIC_ROOT(self) -> Path:
         """静态文件绝对路径（由 STATIC_DIR + BASE_DIR 派生）。"""
         return BASE_DIR.joinpath(self.STATIC_DIR)
+
+    @property
+    def OSS_READY(self) -> bool:
+        """OSS 已开启且 AccessKey / Secret / Bucket 均已配置。"""
+        return bool(
+            self.OSS_ENABLE
+            and self.OSS_ACCESS_KEY.strip()
+            and self.OSS_SECRET_KEY.strip()
+            and self.OSS_BUCKET_NAME.strip()
+            and self.OSS_ENDPOINT.strip()
+        )
 
     # ================================================= #
     # ******************* 重构配置 ******************* #

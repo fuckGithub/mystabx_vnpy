@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Form, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from app.common.request import PaginationService
@@ -98,26 +98,37 @@ async def upload_file_controller(
     dependencies=[Depends(AuthPermission(["module_monitor:resource:download"]))],
 )
 async def download_file_controller(
-    request: Request, path: Annotated[str, Query(description="文件路径")]
+    request: Request,
+    background_tasks: BackgroundTasks,
+    path: Annotated[str, Query(description="文件路径")],
 ) -> FileResponse:
     """
     下载文件
 
     参数:
     - request (Request): FastAPI请求对象，用于获取基础URL。
+    - background_tasks (BackgroundTasks): 后台任务（OSS 临时文件清理）。
     - path (str): 文件路径。
 
     返回:
     - FileResponse: 包含文件内容的文件响应。
     """
+    import os
+    from pathlib import Path
+
+    from app.config.setting import settings
+    from app.utils.upload_util import UploadUtil
+
     file_path = await ResourceService.download_file_service(
         file_path=path, base_url=str(request.base_url)
     )
 
-    # 获取文件名
-    import os
-
-    filename = os.path.basename(file_path)
+    # OSS 模式写入临时文件：用原始路径的 basename，并在响应后删除临时文件
+    if settings.OSS_READY:
+        filename = os.path.basename(path.rstrip("/")) or os.path.basename(file_path)
+        background_tasks.add_task(UploadUtil.delete_file, Path(file_path))
+    else:
+        filename = os.path.basename(file_path)
 
     log.info(f"下载文件成功: {filename}")
     return UploadFileResponse(

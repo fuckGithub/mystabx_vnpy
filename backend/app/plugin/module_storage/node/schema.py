@@ -12,7 +12,7 @@ class StorageNodeCreateSchema(BaseModel):
     """存储节点创建模型。"""
 
     name: str = Field(..., max_length=100, description="节点名称")
-    type: str = Field(..., max_length=50, description="存储类型: local/s3/ftp/sftp")
+    type: str = Field(..., max_length=50, description="存储类型: local/oss/s3/ftp/sftp")
     config: str | None = Field(default=None, description="连接配置 JSON")
     description: str | None = Field(default=None, max_length=500, description="描述")
 

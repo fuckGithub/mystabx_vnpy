@@ -14,6 +14,6 @@ class StorageNodeModel(ModelMixin, UserMixin):
     __loader_options__: list[str] = ["created_by", "updated_by", "deleted_by"]
 
     name: Mapped[str] = mapped_column(String(100), nullable=False, comment="节点名称")
-    type: Mapped[str] = mapped_column(String(50), nullable=False, comment="存储类型: local/s3/ftp/sftp")
+    type: Mapped[str] = mapped_column(String(50), nullable=False, comment="存储类型: local/oss/s3/ftp/sftp")
     config: Mapped[str | None] = mapped_column(Text, nullable=True, comment="连接配置 JSON")
     description: Mapped[str | None] = mapped_column(String(500), nullable=True, comment="描述")
