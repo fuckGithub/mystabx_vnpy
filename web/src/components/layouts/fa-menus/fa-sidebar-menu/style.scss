@@ -149,7 +149,12 @@
     cursor: pointer;
 
     .logo {
-      margin-left: 22px;
+      margin-left: 18px;
+    }
+
+    &.header--wordmark .logo {
+      margin-left: 14px;
+      max-width: calc(100% - 28px);
     }
 
     p {

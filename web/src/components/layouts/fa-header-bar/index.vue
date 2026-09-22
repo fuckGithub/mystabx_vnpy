@@ -15,14 +15,14 @@
       <div class="flex-c flex-1 min-w-0 leading-15" style="display: flex">
         <!-- 系统信息：Logo + 标题一并受「显示应用 Logo」控制 -->
         <div class="flex-c c-p" @click="toHome" v-if="isTopMenu && showAppLogo">
-          <FaLogo class="pl-4.5" :src="headerLogoSrc" />
-          <p v-if="width >= 1400" class="my-0 mx-2 ml-2 text-lg">{{ headerSystemName }}</p>
+          <FaLogo class="pl-4.5" variant="wordmark" :size="32" />
         </div>
 
         <FaLogo
           v-if="showAppLogo"
           class="!hidden pl-3.5 overflow-hidden align-[-0.15em] fill-current"
-          :src="headerLogoSrc"
+          variant="mark"
+          :size="28"
           @click="toHome" />
 
         <!-- 菜单按钮 -->
@@ -161,8 +161,6 @@ import { LanguageEnum, MenuTypeEnum } from '@/enums/appEnum'
 import { useSettingsStore } from '@stores/modules/setting.store'
 import { useUserStore } from '@stores/modules/user.store'
 import { useMenuStore } from '@stores/modules/menu.store'
-import AppEnv from '@/config'
-import { useConfigStore } from '@stores/modules/config.store'
 import { languageOptions } from '@/locales'
 import { mittBus } from '@utils/sys'
 import { themeAnimation } from '@utils/ui'
@@ -183,19 +181,6 @@ const { width } = useWindowSize()
 const settingStore = useSettingsStore()
 const userStore = useUserStore()
 const menuStore = useMenuStore()
-const configStore = useConfigStore()
-
-/** 与侧栏一致：参数配置 sys_web_logo / sys_web_title */
-const headerLogoSrc = computed(() => {
-  const raw = configStore.configData.sys_web_logo?.config_value
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined
-})
-
-const headerSystemName = computed(() => {
-  const raw = configStore.configData.sys_web_title?.config_value
-  if (typeof raw === 'string' && raw.trim()) return raw.trim()
-  return AppEnv.systemInfo.name
-})
 
 // 顶部栏功能配置
 const {

@@ -14,42 +14,26 @@
       :title="t('common.menu')"
       :description="t('common.menuDes')"
       :placement="placementMenu"
-      :prev-button-props="{
-        children: t('common.prevLabel'),
-        onClick: handlePrevClick,
-      }"
-      :next-button-props="{
-        children: t('common.nextLabel'),
-        onClick: handleNextClick,
-      }" />
+      :prev-button-props="prevBtn"
+      :next-button-props="nextBtn" />
     <ElTourStep
       :target="targetToolbar"
       :title="t('common.tool')"
       :description="t('common.toolDes')"
       placement="bottom"
-      :prev-button-props="{
-        children: t('common.prevLabel'),
-        onClick: handlePrevClick,
-      }"
-      :next-button-props="{
-        children: t('common.nextLabel'),
-        onClick: handleNextClick,
-      }" />
+      :prev-button-props="prevBtn"
+      :next-button-props="nextBtn" />
     <ElTourStep
       :target="targetTags"
       :title="t('common.tagsView')"
       :description="t('common.tagsViewDes')"
       placement="bottom"
-      :prev-button-props="{
-        children: t('common.prevLabel'),
-        onClick: handlePrevClick,
-      }"
-      :next-button-props="{
-        children: lastStepNextLabel,
-        onClick: handleNextClick,
-      }" />
+      :prev-button-props="prevBtn"
+      :next-button-props="doneBtn" />
     <template #indicators>
-      <ElButton size="small" @click="handleSkip">{{ t('common.skipLabel') }}</ElButton>
+      <ElButton class="fa-guide-skip" size="small" text @click="handleSkip">
+        {{ t('common.skipLabel') }}
+      </ElButton>
     </template>
   </ElTour>
 </template>
@@ -146,7 +130,22 @@ const placementMenu = computed((): 'top' | 'bottom' | 'left' | 'right' => {
   return mt === MenuTypeEnum.LEFT || mt === MenuTypeEnum.DUAL_MENU ? 'right' : 'bottom'
 })
 
-const lastStepNextLabel = computed(() => t('common.doneLabel'))
+const prevBtn = computed(() => ({
+  children: t('common.prevLabel'),
+  onClick: handlePrevClick,
+}))
+
+const nextBtn = computed(() => ({
+  children: t('common.nextLabel'),
+  type: 'primary' as const,
+  onClick: handleNextClick,
+}))
+
+const doneBtn = computed(() => ({
+  children: t('common.doneLabel'),
+  type: 'primary' as const,
+  onClick: handleNextClick,
+}))
 
 function handleChange(step: number) {
   emit('change', step)
@@ -175,10 +174,86 @@ function handleNextClick() {
 }
 </script>
 
-<style scoped>
-.el-tour__content .el-tour-indicators {
+<!-- Tour 挂到 body，需全局样式（ElTour 内容根节点为 .el-tour） -->
+<style lang="scss">
+.el-tour {
+  --el-tour-width: 300px;
+  --el-tour-padding-primary: 18px 20px;
+  --el-tour-border-radius: 12px;
+  --el-tour-title-font-size: 16px;
+  --el-tour-title-font-weight: 600;
+  --el-tour-title-text-color: #1e293b;
+  --el-tour-font-size: 13.5px;
+  --el-tour-color: #64748b;
+  --el-tour-bg-color: #ffffff;
+}
+
+.el-tour__content {
+  border: 1px solid #e2e8f0;
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.1),
+    0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.el-tour__arrow {
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+
+.el-tour__header {
+  padding-bottom: 8px;
+}
+
+.el-tour__title {
+  letter-spacing: 0.01em;
+}
+
+.el-tour__body {
+  line-height: 1.55;
+}
+
+.el-tour__footer {
+  align-items: center;
+  padding-top: 14px;
+  gap: 8px;
+}
+
+.el-tour .el-tour-indicators {
   display: flex;
-  justify-content: flex-end;
-  margin-right: 5px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-right: 0;
+}
+
+.el-tour .fa-guide-skip {
+  color: #94a3b8 !important;
+  font-weight: 500;
+  padding: 4px 8px !important;
+
+  &:hover {
+    color: #64748b !important;
+    background: #f1f5f9 !important;
+  }
+}
+
+.el-tour__footer .el-button {
+  border-radius: 8px;
+  font-weight: 500;
+  min-width: 72px;
+}
+
+.el-tour__footer .el-button--primary {
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--el-color-primary) 28%, transparent);
+}
+
+.dark .el-tour {
+  --el-tour-title-text-color: #f1f5f9;
+  --el-tour-color: #94a3b8;
+  --el-tour-bg-color: #1e293b;
+}
+
+.dark .el-tour__content {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
 }
 </style>

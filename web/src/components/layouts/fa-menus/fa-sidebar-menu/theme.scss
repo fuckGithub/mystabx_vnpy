@@ -1,23 +1,48 @@
 @use '@styles/core/mixin.scss' as *;
 
-// 菜单样式变量
-$menu-height: 42px;
-$menu-icon-size: 20px;
+// 侧栏菜单：对齐 vnpy layout-aside-menu（胶囊 + 左激活条）
+$menu-height: 48px;
+$menu-icon-size: 18px;
 $menu-font-size: 14px;
-$hover-bg-color: var(--fa-gray-200);
+$menu-item-radius: 6px;
+$hover-bg-color: #f8fafc;
 $popup-menu-height: 40px;
 $popup-menu-padding: 8px;
 $popup-menu-margin: 5px;
 $popup-menu-radius: 6px;
 
-// 通用菜单项样式
+// 通用菜单项样式（胶囊）
 @mixin menu-item-base {
+  position: relative;
   width: calc(100% - 16px);
   margin-left: 8px;
-  border-radius: 6px;
+  overflow: hidden;
+  border-radius: $menu-item-radius;
 
   .menu-icon {
-    margin-left: -7px;
+    margin-left: -2px;
+  }
+}
+
+// 左激活条（hover/active 动效）
+@mixin menu-active-bar {
+  &::before {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    z-index: 1;
+    width: 3px;
+    height: 0;
+    pointer-events: none;
+    content: '';
+    background-color: var(--theme-color);
+    border-radius: 0 3px 3px 0;
+    transform: translateY(-50%);
+    transition: height 0.2s ease;
+  }
+
+  &.is-active::before {
+    height: 60%;
   }
 }
 
@@ -32,11 +57,13 @@ $popup-menu-radius: 6px;
 // 通用选中样式
 @mixin menu-active($color, $bg-color, $icon-color: var(--theme-color)) {
   .el-menu-item.is-active {
+    font-weight: 600;
     color: $color !important;
     background-color: $bg-color;
 
     .menu-icon {
-      .art-svg-icon {
+      .art-svg-icon,
+      .menu-route-icon {
         color: $icon-color !important;
       }
     }
@@ -58,11 +85,15 @@ $popup-menu-radius: 6px;
   }
 }
 
-// 主题菜单通用样式（合并 design 和 dark 主题的共同逻辑）
+// 主题菜单通用样式
 @mixin theme-menu-base {
   .el-sub-menu__title,
   .el-menu-item {
     @include menu-item-base;
+  }
+
+  .el-menu-item {
+    @include menu-active-bar;
   }
 }
 
@@ -81,6 +112,7 @@ $popup-menu-radius: 6px;
       @include popup-menu-item;
 
       &.is-active {
+        font-weight: 600;
         color: $active-color !important;
         background-color: $active-bg !important;
       }
@@ -113,18 +145,37 @@ $popup-menu-radius: 6px;
 
   // 菜单图标
   .menu-icon {
-    margin-right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
     font-size: $menu-icon-size;
+    flex-shrink: 0;
+
+    .art-svg-icon,
+    .menu-route-icon,
+    .el-icon {
+      font-size: $menu-icon-size !important;
+      color: inherit;
+      transition: color 0.15s ease;
+    }
   }
 
-  // 菜单高度
+  // 菜单高度与间距（对齐 vnpy 48px 胶囊）
   .el-sub-menu__title,
   .el-menu-item {
     height: $menu-height !important;
     margin-bottom: 4px;
     line-height: $menu-height !important;
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease,
+      font-weight 0.15s ease;
 
-    span {
+    span,
+    .menu-name {
       font-size: $menu-font-size !important;
 
       @include ellipsis();
@@ -142,8 +193,8 @@ $popup-menu-radius: 6px;
     .el-sub-menu.is-active {
       .el-sub-menu__title {
         .menu-icon {
-          .art-svg-icon {
-            // 选中菜单图标颜色
+          .art-svg-icon,
+          .menu-route-icon {
             color: var(--theme-color) !important;
           }
         }
@@ -154,11 +205,16 @@ $popup-menu-radius: 6px;
   // ---------------------- Design theme menu ----------------------
   .el-menu-design {
     @include theme-menu-base;
-    @include menu-active(var(--theme-color), var(--el-color-primary-light-9));
+    @include menu-active(var(--theme-color), color-mix(in srgb, var(--theme-color) 10%, #fff));
     @include menu-hover($hover-bg-color);
 
+    .el-sub-menu__title,
+    .el-menu-item {
+      color: #475569;
+    }
+
     .el-sub-menu__icon-arrow {
-      color: var(--fa-gray-600);
+      color: #94a3b8;
     }
   }
 
@@ -171,39 +227,40 @@ $popup-menu-radius: 6px;
     .el-sub-menu__icon-arrow {
       color: var(--fa-gray-400);
     }
+
+    .el-menu-item.is-active::before {
+      background-color: #fff;
+    }
   }
 
   // ---------------------- Light theme menu ----------------------
   .el-menu-light {
+    @include theme-menu-base;
+
     .el-sub-menu__title,
     .el-menu-item {
+      color: #475569;
+
       .menu-icon {
         margin-left: 1px;
       }
     }
 
     .el-menu-item.is-active {
-      background-color: var(--el-color-primary-light-9);
+      font-weight: 600;
+      color: var(--theme-color) !important;
+      background-color: color-mix(in srgb, var(--theme-color) 10%, #fff);
 
-      .art-svg-icon {
+      .art-svg-icon,
+      .menu-route-icon {
         color: var(--theme-color) !important;
-      }
-
-      &::before {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        content: '';
-        background: var(--theme-color);
       }
     }
 
     @include menu-hover($hover-bg-color);
 
     .el-sub-menu__icon-arrow {
-      color: var(--fa-gray-600);
+      color: #94a3b8;
     }
   }
 }
@@ -218,6 +275,21 @@ $popup-menu-radius: 6px;
       .el-sub-menu {
         width: 100% !important;
       }
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-sidebar {
+    .el-sub-menu__title,
+    .el-menu-item,
+    .menu-icon .art-svg-icon,
+    .menu-icon .menu-route-icon {
+      transition: none !important;
+    }
+
+    .el-menu-item::before {
+      transition: none !important;
     }
   }
 }
@@ -238,6 +310,7 @@ $popup-menu-radius: 6px;
   .layout-sidebar {
     // 图标颜色、文字颜色
     .menu-icon .art-svg-icon,
+    .menu-icon .menu-route-icon,
     .menu-name {
       color: var(--fa-gray-800) !important;
     }
@@ -245,7 +318,8 @@ $popup-menu-radius: 6px;
     // 选中的文字颜色跟图标颜色
     .el-menu-item.is-active {
       span,
-      .menu-icon .art-svg-icon {
+      .menu-icon .art-svg-icon,
+      .menu-icon .menu-route-icon {
         color: var(--theme-color) !important;
       }
     }

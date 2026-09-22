@@ -6,7 +6,7 @@
       v-if="isDualMenu"
       class="dual-menu-left"
       :style="{ width: dualMenuShowText ? '80px' : '64px', background: getMenuTheme.background }">
-      <FaLogo v-if="showAppLogo" class="logo" :src="sidebarLogoSrc" @click="navigateToHome" />
+      <FaLogo v-if="showAppLogo" class="logo" variant="mark" :size="32" @click="navigateToHome" />
 
       <ElScrollbar style="height: calc(100% - 135px)">
         <ul>
@@ -51,18 +51,24 @@
       class="menu-left"
       :class="`menu-left-${getMenuTheme.theme} menu-left-${!menuOpen ? 'close' : 'open'}`"
       :style="{ background: getMenuTheme.background }">
-      <!-- Logo、系统名称（开关同时控制 Logo 与标题） -->
+      <!-- Logo：展开用 vnpy 横版字标，折叠用方标（不再叠 FastApiAdmin 文案） -->
       <div
         v-if="showAppLogo"
         class="header"
+        :class="{ 'header--wordmark': !isDualMenu && menuOpen }"
         @click="navigateToHome"
         :style="{
           background: getMenuTheme.background,
         }">
-        <FaLogo v-if="!isDualMenu" class="logo" :src="sidebarLogoSrc" />
+        <FaLogo
+          v-if="!isDualMenu"
+          class="logo"
+          :variant="menuOpen ? 'wordmark' : 'mark'"
+          :size="menuOpen ? 34 : 32" />
 
         <p
-          :class="{ 'is-dual-menu-name': isDualMenu }"
+          v-if="isDualMenu"
+          class="is-dual-menu-name"
           :style="{
             color: getMenuTheme.systemNameColor,
             opacity: !menuOpen ? 0 : 1,
@@ -126,12 +132,7 @@ const router = useRouter()
 const settingStore = useSettingsStore()
 const configStore = useConfigStore()
 
-/** 与旧版 layouts/old/components/AppLogo 一致：参数 sys_web_logo / sys_web_title */
-const sidebarLogoSrc = computed(() => {
-  const raw = configStore.configData.sys_web_logo?.config_value
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined
-})
-
+/** 双列右侧标题：接口 sys_web_title，缺省 Stabx */
 const sidebarTitle = computed(() => {
   const raw = configStore.configData.sys_web_title?.config_value
   if (typeof raw === 'string' && raw.trim()) return raw.trim()

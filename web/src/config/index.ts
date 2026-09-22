@@ -38,7 +38,7 @@ import { headerBarConfig } from './modules/headerBar'
 const AppEnv: SystemConfig = {
   // 系统信息
   systemInfo: {
-    name: 'Mystabx', // 系统名称（底座来自 FastapiAdmin）
+    name: 'Stabx', // 与 vnpy / Cumustabilis 品牌一致
   },
   // 系统主题
   systemThemeStyles: {
