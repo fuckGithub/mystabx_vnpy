@@ -310,7 +310,7 @@ const forgetRules = computed<FormRules<ForgetPasswordForm>>(() => ({
 }))
 
 const loginForm = reactive<LoginFormData>({
-  username: 'admin',
+  username: 'super',
   password: '',
   captcha: '',
   captcha_key: '',
@@ -377,11 +377,14 @@ const handleSubmit = async () => {
   if (!accountFormRef.value) return
 
   try {
-    const valid = await accountFormRef.value.validate?.()
-    if (!valid) return
+    await accountFormRef.value.validate?.()
+  } catch {
+    ElMessage.warning('请完善登录信息（用户名与密码）')
+    return
+  }
 
-    loading.value = true
-
+  loading.value = true
+  try {
     await userStore.login(loginForm)
 
     await waitForDynamicRoutesReady()
@@ -392,7 +395,12 @@ const handleSubmit = async () => {
       appStore.showGuide(true)
     }
   } catch (error) {
-    console.debug('[Login] login failed:', (error as any)?.data?.msg || error)
+    const msg =
+      (error as any)?.data?.msg ||
+      (error as any)?.message ||
+      t('login.message.password.required')
+    ElMessage.error(String(msg))
+    console.debug('[Login] login failed:', msg)
   } finally {
     loading.value = false
   }

@@ -15,7 +15,9 @@
           v-model="loginForm.tenant_id"
           class="login-input login-input--auth login-tenant-select w-full"
           popper-class="login-tenant-popper"
-          filterable
+          placement="bottom-start"
+          :teleported="true"
+          :fit-input-width="true"
           :placeholder="tenantPlaceholder"
           :loading="tenantLoading">
           <template #prefix>

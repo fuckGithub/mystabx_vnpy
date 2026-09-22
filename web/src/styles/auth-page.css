@@ -357,7 +357,7 @@
 	justify-content: flex-start;
 	width: 100%;
 	min-height: 0;
-	overflow: hidden;
+	overflow: visible;
 }
 
 .form-bottom {
@@ -897,6 +897,7 @@
 		0 2px 8px rgba(15, 23, 42, 0.04) !important;
 	overflow: hidden;
 	padding: 0 !important;
+	z-index: 4000 !important;
 }
 
 .login-tenant-popper .el-select-dropdown {
@@ -1542,16 +1543,14 @@
 	}
 }
 
-/* 小屏电脑：等比缩放，保留全部内容 */
+/* 小屏电脑：仅缩放品牌侧，避免 form-wrapper zoom 打乱 ElSelect 浮层定位造成遮挡 */
 @media (min-width: 960px) {
-	.brand-panel-inner,
-	.form-wrapper {
+	.brand-panel-inner {
 		zoom: var(--auth-content-scale, 1);
 	}
 
 	@supports not (zoom: 1) {
-		.brand-panel-inner,
-		.form-wrapper {
+		.brand-panel-inner {
 			transform: scale(var(--auth-content-scale, 1));
 			transform-origin: center center;
 		}
