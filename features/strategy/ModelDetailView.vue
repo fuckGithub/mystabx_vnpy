@@ -61,7 +61,7 @@
     <div class="sd-body">
       <aside v-if="showSubnav" class="sd-subnav">
         <button
-          v-for="item in subnavItems"
+          v-for="item in reportSubnavItems"
           :key="item.key"
           type="button"
           class="sd-subnav__item"
@@ -73,8 +73,8 @@
         </button>
       </aside>
 
-      <!-- 回测 / 详情 -->
-      <section v-if="mainTab === 'backtest' || mainTab === 'report'" class="sd-main">
+      <!-- 策略回测：配置参数、启动任务、看运行日志 -->
+      <section v-if="mainTab === 'backtest'" class="sd-main">
         <div class="sd-bt-bar">
           <el-date-picker
             v-model="btRange"
@@ -127,6 +127,43 @@
           >
             运行回测
           </el-button>
+          <el-button size="small" text type="primary" @click="setMainTab('report')">
+            查看详情分析 →
+          </el-button>
+        </div>
+
+        <div class="sd-kpi">
+          <div v-for="item in kpiItems" :key="item.key" class="sd-kpi__item">
+            <div class="sd-kpi__label">{{ item.label }}</div>
+            <div class="sd-kpi__value" :class="kpiClass(item)">{{ item.display }}</div>
+          </div>
+        </div>
+
+        <div class="sd-panel-scroll sd-console-full">
+          <pre v-if="consoleLines.length">{{ consoleLines.join("\n") }}</pre>
+          <pre v-else class="sd-console__empty">配置区间与合约后点「运行回测」；完成后到「详情分析」查看指标与成交</pre>
+        </div>
+
+        <div v-if="backtestRuns.length" class="sd-history sd-history--inline">
+          <h4>历史运行</h4>
+          <el-table :data="backtestRuns.slice(0, 12)" size="small" max-height="200">
+            <el-table-column prop="created_at" label="时间" width="170" />
+            <el-table-column prop="status" label="状态" width="80" />
+            <el-table-column prop="model_version_id" label="版本ID" width="90" />
+            <el-table-column prop="note" label="备注" min-width="140" show-overflow-tooltip />
+          </el-table>
+        </div>
+      </section>
+
+      <!-- 详情分析：浏览最近一次回测的指标 / 每日 / 成交（不含启动控件） -->
+      <section v-else-if="mainTab === 'report'" class="sd-main">
+        <div class="sd-report-banner">
+          <span v-if="btRunning">回测仍在运行，结果就绪后会自动刷新。</span>
+          <span v-else-if="btHasResult">展示最近一次回测结果；如需重跑请到「策略回测」。</span>
+          <span v-else>暂无可用结果。请先到「策略回测」运行。</span>
+          <el-button size="small" text type="primary" @click="setMainTab('backtest')">
+            去策略回测
+          </el-button>
         </div>
 
         <div v-if="subTab === 'overview'" class="sd-panel-scroll">
@@ -146,7 +183,7 @@
               </el-table>
             </template>
             <div v-else class="sd-empty-hint">
-              {{ btRunning ? "回测运行中…" : "请先运行回测；结果将写入本模型详情（绑定所选版本）" }}
+              {{ btRunning ? "回测运行中，请稍候…" : "尚无结果可分析" }}
             </div>
           </div>
           <div v-if="backtestRuns.length" class="sd-history">
@@ -169,7 +206,7 @@
           </el-table>
         </div>
 
-        <div v-else-if="subTab === 'trades'" class="sd-panel-scroll">
+        <div v-else class="sd-panel-scroll">
           <el-table :data="btTrades" size="small" height="100%" empty-text="暂无回测成交">
             <el-table-column prop="datetime" label="时间" min-width="160" show-overflow-tooltip />
             <el-table-column prop="direction" label="方向" width="70" />
@@ -177,11 +214,6 @@
             <el-table-column prop="price" label="价格" width="90" />
             <el-table-column prop="volume" label="量" width="70" />
           </el-table>
-        </div>
-
-        <div v-else class="sd-panel-scroll sd-console-full">
-          <pre v-if="consoleLines.length">{{ consoleLines.join("\n") }}</pre>
-          <pre v-else class="sd-console__empty">暂无日志 — 保存 / 运行后将显示输出</pre>
         </div>
       </section>
 
@@ -421,7 +453,7 @@ import { listSubscribedContractOptions } from "../market/contracts";
 import { paramLabelZh } from "./paramLabels";
 
 type MainTab = "backtest" | "report" | "code" | "settings";
-type SubTab = "overview" | "daily" | "trades" | "logs";
+type SubTab = "overview" | "daily" | "trades";
 
 type ModelRow = {
   id: number;
@@ -490,11 +522,10 @@ const topTabs: { key: MainTab; label: string }[] = [
   { key: "report", label: "详情分析" },
 ];
 
-const subnavItems: { key: SubTab; label: string; icon: string }[] = [
+const reportSubnavItems: { key: SubTab; label: string; icon: string }[] = [
   { key: "overview", label: "结果概览", icon: "概" },
   { key: "daily", label: "每日明细", icon: "日" },
   { key: "trades", label: "成交记录", icon: "成" },
-  { key: "logs", label: "运行日志", icon: "志" },
 ];
 
 const modelId = computed(() => Number(route.params.id || 0));
@@ -515,11 +546,11 @@ const mainTab = computed<MainTab>(() => {
 
 const subTab = computed<SubTab>(() => {
   const raw = String(route.query.sub || "overview").toLowerCase();
-  if (raw === "daily" || raw === "trades" || raw === "logs") return raw;
+  if (raw === "daily" || raw === "trades") return raw;
   return "overview";
 });
 
-const showSubnav = computed(() => mainTab.value === "backtest" || mainTab.value === "report");
+const showSubnav = computed(() => mainTab.value === "report");
 
 const subscribedContractOptions = computed(() => {
   const opts = listSubscribedContractOptions(
@@ -616,8 +647,8 @@ function goList() {
 function setMainTab(tab: MainTab) {
   const q: Record<string, string> = { ...route.query } as Record<string, string>;
   q.tab = tab;
-  if (tab === "backtest" || tab === "report") {
-    if (!q.sub) q.sub = "overview";
+  if (tab === "report") {
+    q.sub = q.sub === "daily" || q.sub === "trades" ? q.sub : "overview";
   } else {
     delete q.sub;
   }
@@ -627,7 +658,7 @@ function setMainTab(tab: MainTab) {
 function setSubTab(sub: SubTab) {
   router.replace({
     path: route.path,
-    query: { ...route.query, tab: mainTab.value === "backtest" ? "backtest" : "report", sub },
+    query: { ...route.query, tab: "report", sub },
   });
 }
 

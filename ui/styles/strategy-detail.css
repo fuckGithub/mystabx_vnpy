@@ -178,6 +178,39 @@
   font-weight: 600;
 }
 
+.sd-history {
+  margin-top: 16px;
+  padding: 0 14px 14px;
+}
+
+.sd-history h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sd-text);
+}
+
+.sd-history--inline {
+  flex-shrink: 0;
+  border-top: 1px solid var(--sd-border);
+  background: var(--sd-panel);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.sd-report-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--sd-muted);
+  background: var(--sd-panel-2);
+  border-bottom: 1px solid var(--sd-border);
+}
+
 .sd-main {
   flex: 1;
   min-width: 0;
