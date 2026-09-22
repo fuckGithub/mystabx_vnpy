@@ -36,7 +36,8 @@ docker/
 
 ## Production
 
-- **服务器**：47.100.136.197（阿里云 ECS）
+- **服务器（历史 Docker 站）**：47.100.136.197（阿里云 ECS）
+- **服务器（本仓库运维 / Redis）**：47.102.208.231 — 宿主机 `redis-server`（非 compose）；方式 B 同机填 `REDIS_HOST=127.0.0.1`
 - **域名**：service.xxcdjl.xyz
 - **部署路径**：`/path/to/docker`
 - **一键部署**：根目录 `bash deploy.sh`

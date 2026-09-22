@@ -52,7 +52,12 @@ mystabx_vnpy/
 | Node.js / pnpm | ≥ 20 / ≥ 9 |
 | Flutter（可选） | ≥ 3.44 |
 | MySQL / PostgreSQL / SQLite | 见 `backend/env` |
-| Redis | ≥ 6.x（建议 7.x） |
+| Redis | ≥ 6.x（建议 7.x；ECS 已装 8.x） |
+
+运维用 Redis / RDS 主机见根目录 `.env.ecs.example`（复制为 `.env.ecs`，勿提交密钥）。
+ECS `47.102.208.231` 上 `redis-server` 监听 `0.0.0.0:6379` 且启用 `requirepass`；
+同机应用用 `REDIS_HOST=127.0.0.1`，本机开发用公网 IP（需安全组放行 TCP 6379）。
+FastapiAdmin 键名为 `REDIS_PASSWORD`（对应运维文件里的 `REDIS_PWD`）。
 
 ---
 
@@ -63,7 +68,7 @@ mystabx_vnpy/
 ```bash
 cd backend
 cp env/.env.example env/.env
-# 按需填写数据库与 Redis
+# 按需填写数据库与 Redis（或直连 ECS，见上文）
 
 uv sync
 source .venv/bin/activate
