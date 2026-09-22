@@ -1,38 +1,7 @@
 {
-  "name": "mystabx-web",
+  "name": "mystabx-vnpy",
   "private": true,
-  "version": "0.1.0",
-  "license": "SEE LICENSE IN LICENSE",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@codemirror/autocomplete": "^6.20.3",
-    "@codemirror/commands": "^6.11.1",
-    "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/language": "^6.12.4",
-    "@codemirror/state": "^6.7.5",
-    "@codemirror/view": "^6.43.12",
-    "@element-plus/icons-vue": "^2.3.2",
-    "axios": "^1",
-    "codemirror": "^6.0.2",
-    "echarts": "^5",
-    "element-plus": "^2",
-    "pinia": "^2",
-    "vue": "^3.4",
-    "vue-router": "^4"
-  },
-  "devDependencies": {
-    "@types/node": "^22",
-    "@vitejs/plugin-vue": "^5",
-    "sass-embedded": "^1.104.0",
-    "typescript": "^5",
-    "unplugin-auto-import": "^0.18",
-    "unplugin-vue-components": "^0.27",
-    "vite": "^5",
-    "vue-tsc": "^2"
-  }
+  "version": "0.0.0",
+  "description": "Scaffold on main; full prior app lives on branch vnpy.",
+  "license": "SEE LICENSE IN LICENSE"
 }
