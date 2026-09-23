@@ -18,7 +18,8 @@ th, td {
   vertical-align: middle;
 }
 th { font-weight: 500; color: var(--dash-text-muted); background: var(--dash-surface-soft); }
-.col-contract :deep(.inst) { align-items: center; max-width: 100%; }
+.col-contract { text-align: left; }
+.col-contract :deep(.inst) { align-items: flex-start; max-width: 100%; }
 .col-qty, .col-avg, .col-pnl { font-variant-numeric: tabular-nums; overflow: visible; }
 .muted { color: var(--dash-text-muted); }
 .side { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; }

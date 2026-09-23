@@ -11,7 +11,7 @@
       <table class="positions-table">
         <thead>
           <tr>
-            <th>合约</th>
+            <th class="col-contract">合约</th>
             <th class="col-side">方向</th>
             <th class="col-qty">手数</th>
             <th class="col-avg">均价</th>
