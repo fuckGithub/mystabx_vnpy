@@ -16,8 +16,7 @@
             <th class="col-qty">手数</th>
             <th class="col-avg">均价</th>
             <th class="col-pnl">浮盈</th>
-            <th>冻结</th>
-            <th>账户</th>
+            <th class="col-account">账户</th>
           </tr>
         </thead>
         <tbody>
@@ -29,8 +28,7 @@
             <td class="col-qty">{{ item.qty ?? "--" }}</td>
             <td class="col-avg">{{ fmtPriceOrDash(item.avgPrice) }}</td>
             <td class="col-pnl" :class="pnlClass(item.pnl)">{{ fmtSigned(item.pnl, 2) }}</td>
-            <td class="col-num muted">{{ item.frozen ?? "--" }}</td>
-            <td><code>{{ item.gateway }}</code></td>
+            <td class="col-account"><code>{{ item.gateway }}</code></td>
           </tr>
         </tbody>
       </table>
@@ -71,7 +69,6 @@ const rows = computed(() => {
         qty,
         avgPrice: finitePrice(p.price),
         pnl: finiteNumber(p.pnl),
-        frozen: finiteNumber(p.frozen),
         gateway: String(p.gateway_name || ""),
       };
     })
