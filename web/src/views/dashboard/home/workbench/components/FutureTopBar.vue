@@ -1,14 +1,6 @@
 <template>
   <header class="topbar glass">
     <div class="topbar-left">
-      <div class="brand">
-        <span class="brand-icon">{{ brand.icon }}</span>
-        <div class="brand-copy">
-          <span class="brand-text">{{ brand.text }}</span>
-          <span class="brand-en">{{ brand.en }}</span>
-        </div>
-      </div>
-      <span class="topbar-divider" aria-hidden="true" />
       <div class="env-chip" :class="`env-chip--${selectedEnvKind}`">
         <div class="env-chip__cell">
           <span class="env-chip__caption">交易环境</span>
@@ -110,7 +102,7 @@ import {
 } from '../gatewayStatus'
 
 defineProps<{
-  brand: { icon: string; text: string; en: string };
+  brand?: { icon: string; text: string; en: string };
 }>();
 
 const trade = useTradeStore();

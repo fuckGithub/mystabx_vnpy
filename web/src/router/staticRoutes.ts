@@ -15,7 +15,7 @@ import { RouterView, useRoute } from 'vue-router'
 /** 首页 / 仪表盘父级 meta（侧栏、静态子路由共用） */
 export const HOME_MENU_META: RouteMeta = {
   title: 'menus.home.title',
-  icon: 'ri:home-smile-2-line',
+  icon: 'ri:home-4-line',
   keepAlive: true,
 }
 

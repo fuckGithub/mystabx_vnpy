@@ -329,10 +329,10 @@ export const MANUAL_MODULES_AFTER_SYSTEM: ManualModuleSection[] = [
     pages: [
       {
         anchor: 'page-home',
-        title: '首页',
+        title: '工作台',
         path: 'dashboard/index.vue',
         notes: [
-          '路由 `/home`：样式类 `workplace-page` — 问候与用户信息卡片、模块入口网格（按权限灰显）、其它工作台分区（与文件内组件一致）。',
+          '路由 `/home`：工作台交易环境条、持仓/行情/风控卡片（与文件内组件一致）。',
           '完整性：模块卡片点击跳转、无权限入口禁用或提示；接口失败时有容错。',
         ],
       },

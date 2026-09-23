@@ -180,7 +180,7 @@
                         <li>
                           <ElLink href="#mod-dashboard" type="primary" :underline="false">八、仪表盘</ElLink>
                           <div class="toc-l2">
-                            <ElLink href="#page-home" type="primary" :underline="false">首页</ElLink>
+                            <ElLink href="#page-home" type="primary" :underline="false">工作台</ElLink>
                             ·
                             <ElLink href="#page-profile" type="primary" :underline="false">个人中心</ElLink>
                             ·
@@ -662,7 +662,7 @@ const MANUAL_TOC: ManualModule[] = [
     anchor: 'mod-dashboard',
     title: '八、仪表盘',
     pages: [
-      { anchor: 'page-home', title: '首页' },
+      { anchor: 'page-home', title: '工作台' },
       { anchor: 'page-profile', title: '个人中心' },
       { anchor: 'page-changelog', title: '更新日志' },
       { anchor: 'page-db-workplace', title: '工作台' },

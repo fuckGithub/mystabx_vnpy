@@ -1,7 +1,7 @@
 <!-- 用户菜单：个人中心、更新日志、配置中心、文档、引导、锁屏、退出 -->
 <template>
-  <!-- inline-flex + items-center：与顶栏 FaIconButton 同一中线对齐，避免 Popover 触发层基线偏移 -->
-  <div class="fa-user-menu inline-flex shrink-0 items-center leading-none">
+  <!-- inline-flex + items-center：与顶栏 FaIconButton 同一中线对齐 -->
+  <div class="fa-user-menu inline-flex shrink-0 items-center leading-none gap-1.5 pl-1">
     <ElPopover
       ref="userMenuPopover"
       placement="bottom-end"
@@ -13,17 +13,21 @@
       popper-class="user-menu-popover"
       popper-style="padding: 5px 16px;">
       <template #reference>
-        <div
-          class="fa-user-menu__avatar-ref mr-1.5 max-sm:mr-1.5 c-p flex size-8.5 max-sm:w-6.5 max-sm:h-6.5 shrink-0 items-center justify-center">
-          <img
-            v-if="userAvatar"
-            :key="userAvatar"
-            class="size-full rounded-full object-cover block"
-            :src="userAvatar"
-            alt="avatar" />
-          <img v-else class="size-full rounded-full block" src="@imgs/user/avatar.webp" alt="avatar" />
-          <!-- 与旧版 NavbarActions.user-profile__online-indicator 一致 -->
-          <span class="fa-user-menu__online-dot" aria-hidden="true" />
+        <div class="fa-user-menu__trigger c-p flex shrink-0 items-center gap-2" :class="showName ? 'pr-1' : ''">
+          <div
+            class="fa-user-menu__avatar-ref flex size-8.5 max-sm:w-6.5 max-sm:h-6.5 shrink-0 items-center justify-center">
+            <img
+              v-if="userAvatar"
+              :key="userAvatar"
+              class="size-full rounded-full object-cover block"
+              :src="userAvatar"
+              alt="avatar" />
+            <img v-else class="size-full rounded-full block" src="@imgs/user/avatar.webp" alt="avatar" />
+            <span class="fa-user-menu__online-dot" aria-hidden="true" />
+          </div>
+          <span v-if="showName" class="fa-user-menu__name max-sm:!hidden text-[13px] text-g-700 truncate max-w-24">
+            {{ displayName }}
+          </span>
         </div>
       </template>
       <template #default>
@@ -99,6 +103,14 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 defineOptions({ name: 'FaUserMenu' })
+
+withDefaults(
+  defineProps<{
+    /** 是否在头像旁展示用户名（顶栏参考布局） */
+    showName?: boolean
+  }>(),
+  { showName: false }
+)
 
 const router = useRouter()
 const { t } = useI18n()
@@ -225,14 +237,12 @@ function closeUserMenu(): void {
   }
 }
 
-/* ElPopover 基于 Tooltip：触发层默认 inline-block，与顶栏 flex 图标中线对齐 */
 .fa-user-menu .el-tooltip__trigger {
   display: inline-flex !important;
   align-items: center;
   line-height: 1;
 }
 
-/* 顶栏头像右下角在线状态（对齐旧版顶栏）；占位与 FaIconButton size-8.5 一致 */
 .fa-user-menu__avatar-ref {
   position: relative;
   box-sizing: border-box;
@@ -249,5 +259,9 @@ function closeUserMenu(): void {
   background-color: var(--el-color-success);
   border-radius: 50%;
   box-shadow: 0 0 2px rgb(0 0 0 / 20%);
+}
+
+.fa-user-menu__name {
+  font-weight: 500;
 }
 </style>

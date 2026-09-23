@@ -514,11 +514,11 @@
     "403": "Sorry, you do not have permission to access this page",
     "404": "Sorry, the page you are trying to access does not exist",
     "500": "Sorry, there was an error on the server",
-    "gohome": "Go Home",
+    "gohome": "Back to Workbench",
     "noPermission": "Sorry, you don't have permission to access this page.",
     "pageError": "Sorry, the page you visited does not exist.",
     "networkError": "Sorry, the server reported an error.",
-    "returnToHome": "Return to home"
+    "returnToHome": "Back to Workbench"
   },
   "menus": {
     "login": {
@@ -534,10 +534,10 @@
       "title": "Outside"
     },
     "home": {
-      "title": "Home"
+      "title": "Workbench"
     },
     "workplace": {
-      "title": "Workbench"
+      "title": "Overview"
     },
     "changelog": {
       "title": "Release notes"
@@ -627,7 +627,7 @@
     }
   },
   "navbar": {
-    "dashboard": "Dashboard",
+    "dashboard": "Workbench",
     "logout": "Logout",
     "document": "Document",
     "gitee": "Gitee",
@@ -645,7 +645,7 @@
     "refreshCache": "Refresh Cache"
   },
   "route": {
-    "dashboard": "Dashboard",
+    "dashboard": "Workbench",
     "document": "Document"
   },
   "sizeSelect": {
@@ -666,6 +666,6 @@
     "noPermission": "Sorry, you don't have permission to access this page.",
     "pageError": "Sorry, the page you visited does not exist.",
     "networkError": "Sorry, the server reported an error.",
-    "returnToHome": "Return to home"
+    "returnToHome": "Back to Workbench"
   }
 }

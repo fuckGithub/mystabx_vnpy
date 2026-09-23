@@ -1,7 +1,7 @@
 <template>
   <el-config-provider size="small">
     <div class="equilibrix-dashboard quant-theme home-workbench">
-      <FutureTopBar :brand="topBarBrand" />
+      <FutureTopBar />
       <div class="equilibrix-dashboard-body" :class="{ 'calendar-open': calendarExpanded }">
         <main class="equilibrix-dashboard-main">
           <div class="future-cards-grid layout-containers">
@@ -19,7 +19,6 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { topBarBrand } from './mockData'
 import { useMarketStore, useTradeStore } from './stores'
 import FutureTopBar from './components/FutureTopBar.vue'
 import FuturePositionsCard from './components/FuturePositionsCard.vue'
@@ -43,8 +42,8 @@ onMounted(() => {
 
 <style scoped>
 .home-workbench {
-  min-height: calc(100vh - 140px);
-  height: calc(100vh - 140px);
+  min-height: calc(100vh - 120px);
+  height: calc(100vh - 120px);
   margin: -12px;
   border-radius: 0;
 }

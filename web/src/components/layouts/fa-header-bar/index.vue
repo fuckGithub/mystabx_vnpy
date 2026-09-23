@@ -1,79 +1,70 @@
-<!-- 顶部栏 -->
+<!-- 顶部栏：H-work 风格白底顶栏（品牌 + 主导航 + 工具区） -->
 <template>
   <div
-    class="w-full bg-[var(--default-bg-color)]"
+    class="fa-header-bar w-full bg-[var(--default-box-color,#fff)]"
     :class="[
-      tabStyle === 'tab-card' || tabStyle === 'tab-google' || tabStyle === 'tab-default' ? 'max-sm:mb-3 !bg-box' : '',
+      tabStyle === 'tab-card' || tabStyle === 'tab-google' || tabStyle === 'tab-default' ? 'max-sm:mb-3' : '',
     ]">
-    <!-- 单行全宽：左控件贴内容区左边，右工具栏贴右边（space-between，不换行） -->
     <div
-      class="fa-header-bar__row relative box-border flex h-15 w-full min-w-0 flex-nowrap items-center justify-between leading-15 select-none"
-      :class="[
-        tabStyle === 'tab-card' || tabStyle === 'tab-google' || tabStyle === 'tab-default'
-          ? 'border-b border-[var(--fa-card-border)]'
-          : '',
-      ]">
-      <div class="fa-header-bar__left flex min-w-0 flex-1 flex-nowrap items-center overflow-hidden leading-15">
-        <!-- 系统信息：Logo + 标题一并受「显示应用 Logo」控制 -->
-        <div class="flex shrink-0 items-center c-p" @click="toHome" v-if="isTopMenu && showAppLogo">
-          <FaLogo class="pl-1.5" variant="wordmark" :size="32" />
+      class="fa-header-bar__row relative box-border flex h-14 w-full min-w-0 flex-nowrap items-center justify-between leading-14 select-none border-b border-[var(--fa-card-border,#eef0f3)] px-3 max-sm:px-2">
+      <div class="fa-header-bar__left flex min-w-0 flex-1 flex-nowrap items-center overflow-hidden">
+        <!-- 品牌：顶栏 / 混合布局始终展示；侧栏布局仅展示菜单按钮旁的控件 -->
+        <div
+          v-if="showAppLogo && (isTopMenu || isTopLeftMenu)"
+          class="fa-header-bar__brand mr-4 flex shrink-0 cursor-pointer items-center gap-2"
+          @click="toHome">
+          <FaLogo variant="mark" :size="28" />
+          <span class="fa-header-bar__brand-name max-md:!hidden text-[15px] font-semibold tracking-wide text-g-800">
+            {{ brandName }}
+          </span>
         </div>
 
         <FaLogo
-          v-if="showAppLogo"
+          v-else-if="showAppLogo && !isLeftMenu"
           class="!hidden pl-1.5 overflow-hidden align-[-0.15em] fill-current"
           variant="mark"
           :size="28"
           @click="toHome" />
 
-        <!-- 菜单按钮 -->
+        <!-- 菜单按钮（左侧菜单布局） -->
         <FaIconButton
           v-if="isLeftMenu && shouldShowMenuButton"
           icon="ri:menu-2-fill"
-          class="ml-1 max-sm:ml-1"
+          class="ml-0.5 max-sm:ml-0"
           @click="visibleMenu" />
-
-        <!-- 刷新按钮 -->
-        <FaIconButton
-          v-if="shouldShowRefreshButton"
-          icon="ri:refresh-line"
-          class="!ml-2 refresh-btn max-sm:!hidden"
-          :style="{ marginLeft: !isLeftMenu ? '8px' : '' }"
-          @click="reload" />
 
         <!-- 快速入口 -->
         <FaFastEnter v-if="shouldShowFastEnter && width >= headerBarFastEnterMinWidth">
-          <FaIconButton icon="ri:function-line" class="ml-2" />
+          <FaIconButton icon="ri:apps-2-line" class="ml-1" />
         </FaFastEnter>
 
-        <!-- 面包屑 -->
+        <!-- 面包屑（侧栏 / 双列） -->
         <FaBreadcrumb v-if="(shouldShowBreadcrumb && isLeftMenu) || (shouldShowBreadcrumb && isDualMenu)" />
 
         <!-- 顶部菜单 -->
-        <FaHorizontalMenu v-if="isTopMenu" :list="menuList" />
+        <FaHorizontalMenu v-if="isTopMenu" class="fa-header-bar__nav" :list="menuList" />
 
         <!-- 混合菜单-顶部 -->
         <FaMixedMenu v-if="isTopLeftMenu" :list="menuList" />
       </div>
 
-      <div id="app-header-toolbar" class="fa-header-bar__right flex shrink-0 flex-nowrap items-center gap-2">
-        <!-- 搜索 -->
-        <div
+      <div id="app-header-toolbar" class="fa-header-bar__right flex shrink-0 flex-nowrap items-center gap-0.5">
+        <!-- 搜索：图标按钮，贴近参考密度 -->
+        <FaIconButton
           v-if="shouldShowGlobalSearch"
-          class="flex-cb w-40 h-9 px-2.5 c-p border border-g-400 rounded-custom-sm max-md:!hidden tad-300 hover:-translate-y-0.5 hover:shadow-md"
-          @click="openSearchDialog">
-          <div class="flex-c">
-            <FaSvgIcon icon="ri:search-line" class="text-sm text-g-500" />
-            <span class="ml-1 text-xs font-normal text-g-500">{{ $t('topBar.search.title') }}</span>
-          </div>
-          <div class="flex-c h-5 px-1.5 text-g-500/80 border border-g-400 rounded">
-            <FaSvgIcon v-if="isWindows" icon="vaadin:ctrl-a" class="text-sm" />
-            <FaSvgIcon v-else icon="ri:command-fill" class="text-xs" />
-            <span class="ml-0.5 text-xs">k</span>
-          </div>
-        </div>
+          icon="ri:search-line"
+          class="search-btn max-md:!hidden"
+          :title="$t('topBar.search.title')"
+          @click="openSearchDialog" />
 
-        <!-- 全屏按钮 -->
+        <!-- 刷新 -->
+        <FaIconButton
+          v-if="shouldShowRefreshButton"
+          icon="ri:refresh-line"
+          class="refresh-btn max-sm:!hidden"
+          @click="reload" />
+
+        <!-- 全屏 -->
         <FaIconButton
           v-if="shouldShowFullscreen"
           :icon="isFullscreen ? 'ri:fullscreen-exit-line' : 'ri:fullscreen-fill'"
@@ -81,12 +72,12 @@
           class="max-md:!hidden"
           @click="toggleFullScreen" />
 
-        <!-- 组件尺寸 default/large/small（沿用旧版持久化开关 showSizeSelect） -->
+        <!-- 组件尺寸 -->
         <div v-if="shouldShowSizeSelect" class="flex-cc max-md:!hidden">
           <FaSizeSelect />
         </div>
 
-        <!-- 国际化按钮 -->
+        <!-- 国际化 -->
         <ElDropdown @command="changeLanguage" popper-class="langDropDownStyle" v-if="shouldShowLanguage">
           <FaIconButton icon="ri:translate-2" class="language-btn text-[19px]" />
           <template #dropdown>
@@ -101,7 +92,7 @@
           </template>
         </ElDropdown>
 
-        <!-- 通知按钮 -->
+        <!-- 通知 -->
         <FaIconButton
           v-if="shouldShowNotification"
           icon="ri:notification-2-line"
@@ -110,12 +101,12 @@
           <div class="absolute top-2 right-2 size-1.5 !bg-danger rounded-full"></div>
         </FaIconButton>
 
-        <!-- 聊天按钮 -->
+        <!-- 聊天 -->
         <FaIconButton v-if="shouldShowChat" icon="ri:message-3-line" class="chat-button relative" @click="openChat">
           <div class="breathing-dot absolute top-2 right-2 size-1.5 !bg-success rounded-full"></div>
         </FaIconButton>
 
-        <!-- 设置按钮 -->
+        <!-- 设置 -->
         <div v-if="shouldShowSettings">
           <ElPopover :visible="showSettingGuide" placement="bottom-start" :width="190" :offset="0">
             <template #reference>
@@ -135,14 +126,14 @@
           </ElPopover>
         </div>
 
-        <!-- 主题切换按钮 -->
+        <!-- 主题切换 -->
         <FaIconButton
           v-if="shouldShowThemeToggle"
           @click="themeAnimation"
           :icon="isDark ? 'ri:sun-fill' : 'ri:moon-line'" />
 
         <!-- 用户头像、菜单 -->
-        <FaUserMenu />
+        <FaUserMenu show-name />
       </div>
     </div>
 
@@ -167,13 +158,11 @@ import { mittBus } from '@utils/sys'
 import { themeAnimation } from '@utils/ui'
 import { useCommon } from '@/hooks/core/useCommon'
 import { useHeaderBar } from '@/hooks/core/useHeaderBar'
+import AppEnv from '@/config'
 import FaUserMenu from './widget/FaUserMenu.vue'
 import FaSizeSelect from '@/components/others/fa-size-select/index.vue'
 
 defineOptions({ name: 'FaHeaderBar' })
-
-// 检测操作系统类型
-const isWindows = navigator.userAgent.includes('Windows')
 
 const router = useRouter()
 const { locale } = useI18n()
@@ -183,7 +172,6 @@ const settingStore = useSettingsStore()
 const userStore = useUserStore()
 const menuStore = useMenuStore()
 
-// 顶部栏功能配置
 const {
   shouldShowMenuButton,
   shouldShowRefreshButton,
@@ -209,7 +197,8 @@ const { menuList } = storeToRefs(menuStore)
 const showNotice = ref(false)
 const notice = ref(null)
 
-// 菜单类型判断
+const brandName = computed(() => AppEnv.systemInfo.name || 'Stabx')
+
 const isLeftMenu = computed(() => menuType.value === MenuTypeEnum.LEFT)
 const isDualMenu = computed(() => menuType.value === MenuTypeEnum.DUAL_MENU)
 const isTopMenu = computed(() => menuType.value === MenuTypeEnum.TOP)
@@ -226,16 +215,10 @@ onUnmounted(() => {
   document.removeEventListener('click', bodyCloseNotice)
 })
 
-/**
- * 切换全屏状态
- */
 const toggleFullScreen = (): void => {
   toggleFullscreen()
 }
 
-/**
- * 切换菜单显示/隐藏状态
- */
 const visibleMenu = (): void => {
   settingStore.setMenuOpen(!menuOpen.value)
 }
@@ -243,34 +226,20 @@ const visibleMenu = (): void => {
 const { homePath } = useCommon()
 const { refresh } = useCommon()
 
-/**
- * 跳转到首页
- */
 const toHome = (): void => {
   router.push(homePath.value)
 }
 
-/**
- * 刷新页面
- * @param {number} time - 延迟时间，默认为0毫秒
- */
 const reload = (time: number = 0): void => {
   setTimeout(() => {
     refresh()
   }, time)
 }
 
-/**
- * 初始化语言设置
- */
 const initLanguage = (): void => {
   locale.value = language.value
 }
 
-/**
- * 切换系统语言
- * @param {LanguageEnum} lang - 目标语言类型
- */
 const changeLanguage = (lang: LanguageEnum): void => {
   if (locale.value === lang) return
   locale.value = lang
@@ -278,35 +247,22 @@ const changeLanguage = (lang: LanguageEnum): void => {
   reload(50)
 }
 
-/**
- * 打开设置面板
- */
 const openSetting = (): void => {
   mittBus.emit('openSetting')
 
-  // 隐藏设置引导提示
   if (showSettingGuide.value) {
     settingStore.hideSettingGuide()
   }
 }
 
-/**
- * 打开全局搜索对话框
- */
 const openSearchDialog = (): void => {
   mittBus.emit('openSearchDialog')
 }
 
-/**
- * 点击页面其他区域关闭通知面板
- * @param {Event} e - 点击事件对象
- */
 const bodyCloseNotice = (e: any): void => {
   if (!showNotice.value) return
 
   const target = e.target as HTMLElement
-
-  // 检查是否点击了通知按钮或通知面板内部
   const isNoticeButton = target.closest('.notice-button')
   const isNoticePanel = target.closest('.fa-notification-panel')
 
@@ -315,27 +271,24 @@ const bodyCloseNotice = (e: any): void => {
   }
 }
 
-/**
- * 切换通知面板显示状态
- */
 const visibleNotice = (): void => {
   showNotice.value = !showNotice.value
 }
 
-/**
- * 打开聊天窗口
- */
 const openChat = (): void => {
   mittBus.emit('openChat')
 }
 </script>
 
 <style lang="scss" scoped>
-/* 顶栏工具行：强制单行全宽左右对齐，避免中间多余内边距/换行 */
+.fa-header-bar {
+  background: var(--default-box-color, #fff);
+}
+
 .fa-header-bar__row {
   box-sizing: border-box;
   width: 100%;
-  padding-inline: 0;
+  padding-inline: 12px;
 }
 
 .fa-header-bar__left,
@@ -347,7 +300,14 @@ const openChat = (): void => {
   margin-left: auto;
 }
 
-/* Custom animations */
+.fa-header-bar__brand-name {
+  color: var(--fa-gray-800, #1f2329);
+}
+
+.fa-header-bar__nav {
+  min-width: 0;
+}
+
 @keyframes rotate180 {
   0% {
     transform: rotate(0);
@@ -439,17 +399,13 @@ const openChat = (): void => {
   }
 }
 
-/* Hover animation classes */
-.refresh-btn:hover :deep(.fa-svg-icon) {
+.refresh-btn:hover :deep(.fa-svg-icon),
+.setting-btn:hover :deep(.fa-svg-icon) {
   animation: rotate180 0.5s;
 }
 
 .language-btn:hover :deep(.fa-svg-icon) {
   animation: moveUp 0.4s;
-}
-
-.setting-btn:hover :deep(.fa-svg-icon) {
-  animation: rotate180 0.5s;
 }
 
 .full-screen-btn:hover :deep(.fa-svg-icon) {
@@ -464,29 +420,18 @@ const openChat = (): void => {
   animation: shrink 0.6s forwards;
 }
 
-.notice-button:hover :deep(.fa-svg-icon) {
-  animation: shake 0.5s ease-in-out;
-}
-
+.notice-button:hover :deep(.fa-svg-icon),
 .chat-button:hover :deep(.fa-svg-icon) {
   animation: shake 0.5s ease-in-out;
 }
 
-/* Breathing animation for chat dot */
 .breathing-dot {
   animation: breathing 1.5s ease-in-out infinite;
 }
 
-/* iPad breakpoint adjustments */
-@media screen and (width <= 768px) {
-  .logo2 {
-    display: block !important;
-  }
-}
-
 @media screen and (width <= 640px) {
-  .btn-box {
-    width: 40px;
+  .fa-header-bar__row {
+    padding-inline: 8px;
   }
 }
 </style>

@@ -64,8 +64,8 @@ export const SETTING_DEFAULT_CONFIG = {
   size: ComponentSize.DEFAULT,
   /** 语言 */
   language: LanguageEnum.ZH_CN,
-  /** 主题颜色 */
-  themeColor: '#4080FF',
+  /** 主题颜色（mystabx 品牌蓝） */
+  themeColor: '#1677ff',
   /** 是否显示水印 */
   showWatermark: false,
   /** 水印内容 */
@@ -82,8 +82,8 @@ export const SETTING_DEFAULT_CONFIG = {
   grayMode: false,
   /** 页面切换动画 */
   pageSwitchingAnimation: 'fade-slide',
-  /** 菜单类型 */
-  menuType: MenuTypeEnum.LEFT,
+  /** 菜单类型（默认顶栏导航，贴近工作台体验） */
+  menuType: MenuTypeEnum.TOP,
   /** 菜单展开宽度 */
   menuOpenWidth: 230,
   /** 菜单是否展开 */

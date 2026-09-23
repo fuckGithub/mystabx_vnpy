@@ -12,11 +12,20 @@ const fastEnterConfig: FastEnterConfig = {
   applications: [
     {
       name: '工作台',
+      description: '交易环境与持仓概览',
+      icon: 'ri:home-4-line',
+      iconColor: '#1677ff',
+      enabled: true,
+      order: 1,
+      routeName: 'Home',
+    },
+    {
+      name: '数据概览',
       description: '系统概览与数据统计',
       icon: 'ri:pie-chart-line',
       iconColor: '#377dff',
       enabled: true,
-      order: 1,
+      order: 2,
       routeName: 'DashboardWorkplace',
     },
     {
@@ -25,7 +34,7 @@ const fastEnterConfig: FastEnterConfig = {
       icon: 'ri:game-line',
       iconColor: '#ff3b30',
       enabled: true,
-      order: 2,
+      order: 3,
       routeName: 'DashboardAnalysis',
     },
     {
@@ -34,7 +43,7 @@ const fastEnterConfig: FastEnterConfig = {
       icon: 'ri:loader-line',
       iconColor: '#7A7FFF',
       enabled: true,
-      order: 3,
+      order: 4,
       routeName: 'Fireworks',
     },
     {

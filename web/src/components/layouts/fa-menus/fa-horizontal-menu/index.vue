@@ -87,17 +87,55 @@ const filterMenuItems = (items: AppRouteRecord[]): AppRouteRecord[] => {
 /* Remove el-menu bottom border */
 :deep(.el-menu) {
   border-bottom: none !important;
+  height: 56px;
+  background: transparent !important;
 }
 
-/* Remove default styles for first-level menu items */
-:deep(.el-menu-item[tabindex='0']) {
-  background-color: transparent !important;
-  border: none !important;
+:deep(.el-menu--horizontal > .el-menu-item),
+:deep(.el-menu--horizontal > .el-sub-menu .el-sub-menu__title) {
+  height: 56px !important;
+  line-height: 56px !important;
+  padding: 0 14px !important;
+  margin: 0 !important;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--fa-gray-700, #4e5969) !important;
+  border-bottom: none !important;
+  background: transparent !important;
+}
+
+:deep(.el-menu--horizontal > .el-menu-item:hover),
+:deep(.el-menu--horizontal > .el-sub-menu:hover .el-sub-menu__title) {
+  color: var(--el-color-primary, #1677ff) !important;
+  background: transparent !important;
+}
+
+:deep(.el-menu--horizontal > .el-menu-item.is-active) {
+  color: var(--el-color-primary, #1677ff) !important;
+  font-weight: 500;
+  background: transparent !important;
+  border-bottom: none !important;
+}
+
+:deep(.el-menu--horizontal > .el-sub-menu.is-active .el-sub-menu__title) {
+  color: var(--el-color-primary, #1677ff) !important;
+  border-bottom: none !important;
+}
+
+:deep(.el-menu--horizontal > .el-menu-item .fa-svg-icon),
+:deep(.el-menu--horizontal > .el-sub-menu .el-sub-menu__title .fa-svg-icon) {
+  margin-right: 4px;
+  font-size: 16px;
 }
 
 /* Remove bottom border from submenu titles */
 :deep(.el-menu--horizontal .el-sub-menu__title) {
-  padding: 0 30px 0 10px !important;
   border: 0 !important;
+}
+
+:deep(.el-menu--horizontal .el-sub-menu__icon-arrow) {
+  margin-left: 2px;
+  margin-top: 1px;
+  font-size: 12px;
 }
 </style>

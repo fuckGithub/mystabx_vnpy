@@ -121,7 +121,7 @@ const AppEnv: SystemConfig = {
     },
   ],
   // 系统主色
-  systemMainColor: ['#5D87FF', '#B48DF3', '#1D84FF', '#60C041', '#38C0FC', '#F9901F', '#FF80C8'] as const,
+  systemMainColor: ['#1677ff', '#1890ff', '#5D87FF', '#1D84FF', '#60C041', '#38C0FC', '#F9901F'] as const,
   // 快速入口配置
   fastEnter: fastEnterConfig,
   // 顶部栏功能配置
