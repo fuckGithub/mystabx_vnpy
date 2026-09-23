@@ -38,25 +38,35 @@
     content: "";
   }
 
+  // Beat global el-ui.scss `.el-select-dropdown__item { height: 34px !important }`
+  // so multi-line env options (title + desc + tag) are not vertically clipped.
+  .el-select-dropdown__list {
+    padding: 4px !important;
+  }
+
   .el-select-dropdown__item {
-    height: auto;
-    min-height: 42px;
-    padding: 8px 10px;
-    line-height: 1.2;
-    border-radius: 8px;
-    margin: 2px 0;
+    height: auto !important;
+    min-height: 48px !important;
+    padding: 8px 10px !important;
+    line-height: 1.25 !important;
+    border-radius: 8px !important;
+    margin: 2px 0 !important;
+    overflow: visible !important;
     color: var(--dash-text);
+    box-sizing: border-box;
   }
 
   .el-select-dropdown__item:hover,
-  .el-select-dropdown__item.hover {
+  .el-select-dropdown__item.hover,
+  .el-select-dropdown__item.is-hovering {
     background: color-mix(in srgb, var(--primary) 10%, transparent) !important;
   }
 
   .el-select-dropdown__item.is-selected {
-    font-weight: 600;
+    margin-bottom: 2px !important;
+    font-weight: 600 !important;
     background: color-mix(in srgb, var(--primary) 14%, transparent) !important;
-    color: var(--dash-heading);
+    color: var(--dash-heading) !important;
   }
 
   .el-select-dropdown__item.is-disabled {
