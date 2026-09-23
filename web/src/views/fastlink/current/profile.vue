@@ -291,10 +291,9 @@ async function onAvatarCropConfirm(dataURL: string) {
 
     if (response.data.code === 0 && response.data.data) {
       const fileUrl = response.data.data.file_url
-      updateAvatar(fileUrl)
+      await persistAvatarAndSyncStore(fileUrl)
       uploadRef.value?.clearFiles()
       fileList.value = []
-      ElMessage.success('头像已更新，请保存基本设置以同步资料（如需）')
       avatarCropVisible.value = false
     } else {
       ElMessage.error(response.data.msg || '上传失败')
@@ -422,11 +421,10 @@ const handleUpload = async (options: UploadRequestOptions) => {
 
     if (response.data.code === 0 && response.data.data) {
       const fileUrl = response.data.data.file_url
-      updateAvatar(fileUrl)
+      await persistAvatarAndSyncStore(fileUrl)
       options.onSuccess(response)
       uploadRef.value?.clearFiles()
       fileList.value = []
-      ElMessage.success('头像已更新，请保存基本设置以同步资料（如需）')
     } else {
       const errorMsg = response.data.msg || '上传失败'
       ElMessage.error(errorMsg)
@@ -465,17 +463,70 @@ const handleAvatarFileChange = (file: UploadFile) => {
   fileList.value = []
 }
 
-const updateAvatar = (fileUrl: string) => {
-  if (fileUrl) {
-    infoFormState.avatar = fileUrl
-  } else {
+/** 去掉头像 URL 上的缓存破坏参数，写入后端用干净地址 */
+function stripAvatarCacheBust(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return trimmed
+  try {
+    const u = new URL(trimmed, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+    u.searchParams.delete('t')
+    if (/^https?:\/\//i.test(trimmed)) {
+      const q = u.searchParams.toString()
+      return q ? `${u.origin}${u.pathname}?${q}` : `${u.origin}${u.pathname}`
+    }
+    const q = u.searchParams.toString()
+    return q ? `${u.pathname}?${q}` : u.pathname
+  } catch {
+    return trimmed.split('?')[0] || trimmed
+  }
+}
+
+/** 同路径覆盖上传时强制顶栏/侧栏刷新 */
+function withAvatarCacheBust(url: string): string {
+  const clean = stripAvatarCacheBust(url)
+  if (!clean) return clean
+  const sep = clean.includes('?') ? '&' : '?'
+  return `${clean}${sep}t=${Date.now()}`
+}
+
+/**
+ * 上传成功后：写入表单 → 立即 patch 全局 store（顶栏 FaUserMenu）→ 持久化到后端。
+ * 不再要求用户再点「保存基本设置」才能同步头像。
+ */
+async function persistAvatarAndSyncStore(fileUrl: string) {
+  const cleanUrl = stripAvatarCacheBust(fileUrl)
+  if (!cleanUrl) {
     ElMessage.error('无效的头像URL')
+    return
+  }
+
+  infoFormState.avatar = cleanUrl
+  userStore.setAvatar(withAvatarCacheBust(cleanUrl))
+
+  const response = await UserAPI.updateCurrentUserInfo({
+    name: infoFormState.name,
+    gender: infoFormState.gender,
+    mobile: infoFormState.mobile,
+    email: infoFormState.email,
+    avatar: cleanUrl,
+  })
+  const saved = response.data.data
+  const savedAvatar = saved?.avatar ? stripAvatarCacheBust(saved.avatar) : cleanUrl
+  infoFormState.avatar = savedAvatar
+  // 合并更新，避免 setUserInfo 整表替换丢掉 menus 等运行时字段
+  if (saved) {
+    userStore.setUserInfo({ ...userStore.basicInfo, ...saved, avatar: withAvatarCacheBust(savedAvatar) })
+  } else {
+    userStore.setAvatar(withAvatarCacheBust(savedAvatar))
   }
 }
 
 const initInfoForm = () => {
   const basicInfo = userStore.basicInfo
-  Object.assign(infoFormState, { ...basicInfo })
+  Object.assign(infoFormState, {
+    ...basicInfo,
+    avatar: basicInfo.avatar ? stripAvatarCacheBust(String(basicInfo.avatar)) : basicInfo.avatar,
+  })
 }
 
 const initPasswordForm = () => {
@@ -493,10 +544,17 @@ const handleSave = async () => {
     if (!valid) {
       return false
     }
-    const response = await UserAPI.updateCurrentUserInfo({ ...infoFormState })
-    await userStore.setUserInfo(response.data.data)
+    const payload = {
+      ...infoFormState,
+      avatar: infoFormState.avatar ? stripAvatarCacheBust(infoFormState.avatar) : infoFormState.avatar,
+    }
+    const response = await UserAPI.updateCurrentUserInfo(payload)
+    const data = response.data.data
+    if (data) {
+      const nextAvatar = data.avatar ? withAvatarCacheBust(stripAvatarCacheBust(data.avatar)) : data.avatar
+      userStore.setUserInfo({ ...userStore.basicInfo, ...data, avatar: nextAvatar })
+    }
     initInfoForm()
-    ElMessage.success('个人资料已保存')
     return true
   } catch (e) {
     console.error(e)

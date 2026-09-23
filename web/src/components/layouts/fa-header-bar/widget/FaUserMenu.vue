@@ -15,7 +15,12 @@
       <template #reference>
         <div
           class="fa-user-menu__avatar-ref mr-1.5 max-sm:mr-1.5 c-p flex size-8.5 max-sm:w-6.5 max-sm:h-6.5 shrink-0 items-center justify-center">
-          <img v-if="userAvatar" class="size-full rounded-full object-cover block" :src="userAvatar" alt="avatar" />
+          <img
+            v-if="userAvatar"
+            :key="userAvatar"
+            class="size-full rounded-full object-cover block"
+            :src="userAvatar"
+            alt="avatar" />
           <img v-else class="size-full rounded-full block" src="@imgs/user/avatar.webp" alt="avatar" />
           <!-- 与旧版 NavbarActions.user-profile__online-indicator 一致 -->
           <span class="fa-user-menu__online-dot" aria-hidden="true" />
@@ -26,6 +31,7 @@
           <div class="flex-c pb-1 px-0">
             <img
               v-if="userAvatar"
+              :key="`menu-${userAvatar}`"
               class="w-10 h-10 mr-3 ml-0 overflow-hidden rounded-full float-left object-cover"
               :src="userAvatar"
               alt="" />
