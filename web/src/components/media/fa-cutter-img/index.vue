@@ -371,17 +371,18 @@ function downloadImg() {
   :deep(.dockMain) {
     position: absolute !important;
     right: 0 !important;
-    bottom: -42px !important;
+    bottom: -48px !important;
     left: 0 !important;
     z-index: 20 !important;
     display: flex !important;
-    flex-wrap: nowrap !important;
-    gap: 6px;
+    flex-wrap: wrap !important;
+    gap: 8px;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
     width: 100%;
-    padding: 0 !important;
+    min-height: 32px;
+    padding: 0 4px !important;
     overflow: visible;
     background: transparent !important;
     border-radius: 0 !important;
@@ -391,6 +392,7 @@ function downloadImg() {
   :deep(.dockBtn) {
     display: inline-flex !important;
     flex: 0 0 auto;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     min-width: 28px;
@@ -417,21 +419,37 @@ function downloadImg() {
     }
   }
 
-  /* 旋转滑条改为紧凑宽度，避免撑破横排 */
+  /*
+   * 旋转滑条：固定宽度 + 左右留白。
+   * scrollBarControl 使用 translate(-50%)，端点时手柄会伸出轨道，
+   * 必须用 margin 给翻转按钮留出空间，避免遮挡。
+   */
   :deep(.dockBtnScrollBar) {
+    position: relative !important;
     display: inline-block !important;
-    flex: 0 0 auto;
-    width: 88px !important;
+    flex: 0 0 72px !important;
+    flex-shrink: 0 !important;
+    box-sizing: content-box !important;
+    width: 72px !important;
+    max-width: 72px !important;
     height: 8px !important;
-    margin: 0 2px !important;
+    margin: 0 14px !important;
     vertical-align: middle;
+    overflow: visible !important;
     background-color: var(--el-color-primary-light-5);
+    border-radius: 5px;
   }
 
   :deep(.scrollBarControl) {
+    z-index: 2;
     width: 14px !important;
     height: 14px !important;
     border-color: var(--el-color-primary);
+    box-shadow: 0 0 2px rgb(0 0 0 / 20%);
+  }
+
+  :deep(.scrollBarText) {
+    z-index: 3;
   }
 
   :deep(.selectArea) {
@@ -458,7 +476,7 @@ function downloadImg() {
     width: 100%;
     height: auto !important;
     min-height: 32px;
-    margin-top: 52px !important;
+    margin-top: 58px !important;
     margin-bottom: 0 !important;
     text-align: left;
   }
