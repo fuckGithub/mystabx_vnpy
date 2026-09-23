@@ -5,7 +5,7 @@
       <!-- 左侧卡片 -->
       <div class="w-112 mr-5 max-md:w-full max-md:mr-0">
         <div class="fa-card-sm relative p-9 pb-6 overflow-hidden text-center">
-          <img class="absolute top-0 left-0 w-full h-50 object-cover" src="@imgs/user/bg.webp" alt="" />
+          <div class="profile-cover" aria-hidden="true" />
 
           <div class="relative z-10 mt-30 mx-auto">
             <div class="relative inline-block">
@@ -553,6 +553,16 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+/* 品牌蓝轻渐变封面（#1677ff），替代校园照片；白边头像叠在底边对比足够 */
+.profile-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 12.5rem; /* 对齐原 h-50 */
+  background: linear-gradient(145deg, #69b1ff 0%, #1677ff 48%, #0958d9 100%);
+}
+
 .profile-avatar-upload {
   position: absolute;
   right: 0;
