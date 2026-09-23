@@ -6,10 +6,12 @@ from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config.setting import settings
 from app.core.auth.schema import AuthSchema
-from app.core.base_schema import BatchSetAvailable, UploadResponseSchema
+from app.core.base_schema import BatchSetAvailable
 from app.core.exceptions import CustomException
 from app.core.logger import log
+from app.plugin.module_common.file.service import FileService
 from app.plugin.module_system.dept.crud import DeptCRUD
 from app.plugin.module_system.menu.crud import MenuCRUD
 from app.plugin.module_system.menu.schema import MenuOutSchema
@@ -18,7 +20,6 @@ from app.plugin.module_system.role.crud import RoleCRUD
 from app.utils.common_util import traversal_to_tree
 from app.utils.excel_util import ExcelUtil
 from app.utils.sm_crypto_util import PwdUtil
-from app.utils.upload_util import UploadUtil
 
 from .crud import UserCRUD
 from .model import UserModel
@@ -392,7 +393,10 @@ class UserService:
     @classmethod
     async def upload_avatar_service(cls, base_url: str, file: UploadFile) -> dict:
         """
-        上传用户头像
+        上传用户头像。
+
+        OSS 就绪（``settings.OSS_READY``）时写入阿里云对象存储并返回公网/签名 URL；
+        否则回退到本机静态目录（与 ``FileService.upload_service`` 一致）。
 
         参数:
         - base_url (str): 基础URL
@@ -401,14 +405,10 @@ class UserService:
         返回:
         - Dict: 上传头像响应字典
         """
-        filename, filepath, file_url = await UploadUtil.upload_file(file=file, base_url=base_url)
-
-        return UploadResponseSchema(
-            file_path=f"{filepath}",
-            file_name=filename,
-            origin_name=file.filename,
-            file_url=f"{file_url}",
-        ).model_dump()
+        upload_type = "oss" if settings.OSS_READY else "local"
+        return await FileService.upload_service(
+            base_url=base_url, file=file, upload_type=upload_type
+        )
 
     @classmethod
     async def change_user_password_service(
