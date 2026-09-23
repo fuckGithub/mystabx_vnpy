@@ -4,7 +4,8 @@
     <ElDialog
       v-model="cropVisible"
       :title="cropDialogTitle"
-      width="640px"
+      width="680px"
+      align-center
       append-to-body
       destroy-on-close
       class="single-image-upload__crop-dialog"
@@ -471,5 +472,17 @@ const onError = (error: any) => {
   margin-top: 7px;
   font-size: 12px;
   color: var(--el-text-color-regular);
+}
+</style>
+
+<style lang="scss">
+.single-image-upload__crop-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
+
+  .el-dialog__body {
+    max-height: min(78vh, 680px);
+    padding: 12px 16px 16px;
+    overflow: auto;
+  }
 }
 </style>

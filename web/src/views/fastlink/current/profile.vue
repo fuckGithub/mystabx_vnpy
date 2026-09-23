@@ -81,21 +81,27 @@
       <ElDialog
         v-model="avatarCropVisible"
         title="裁剪头像"
-        width="640px"
+        width="680px"
+        align-center
         append-to-body
         destroy-on-close
+        class="avatar-crop-dialog"
         @closed="onAvatarCropDialogClosed">
         <FaCutterImg
           v-if="avatarCropVisible && avatarCropSrc"
           :key="avatarCropSrc"
           :img-url="avatarCropSrc"
           :box-width="420"
-          :box-height="340"
+          :box-height="320"
           :cut-width="240"
           :cut-height="240"
+          rate="1:1"
+          :size-change="false"
           :quality="0.92"
           :tool="true"
           :show-preview="true"
+          :preview-circle="true"
+          :show-download="false"
           :original-graph="false"
           file-type="jpeg"
           title="调整头像"
@@ -559,6 +565,20 @@ onMounted(async () => {
 
   .upload-trigger {
     box-shadow: 0 1px 4px rgb(0 0 0 / 15%);
+  }
+}
+</style>
+
+<style lang="scss">
+/* append-to-body：弹窗样式需非 scoped */
+.avatar-crop-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
+  margin-top: 8vh !important;
+
+  .el-dialog__body {
+    max-height: min(78vh, 640px);
+    padding: 12px 16px 16px;
+    overflow: auto;
   }
 }
 </style>
