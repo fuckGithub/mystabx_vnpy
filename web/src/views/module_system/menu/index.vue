@@ -16,12 +16,12 @@
       @search="handleSearchBarSearch"
       @reset="onResetSearch" />
 
-    <ElTabs v-model="menuClientTab" class="menu-client-tabs px-1 mb-2" @tab-change="handleMenuClientTabChange">
+    <ElTabs v-model="menuClientTab" class="menu-client-tabs px-1" @tab-change="handleMenuClientTabChange">
       <ElTabPane label="PC 桌面菜单管理" name="pc" />
       <ElTabPane label="APP 移动端菜单管理" name="app" />
     </ElTabs>
 
-    <ElCard class="fa-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
+    <ElCard class="fa-table-card menu-table-card">
       <FaTableHeader
         v-model:columns="columnChecks"
         v-model:showSearchBar="showSearchBar"
@@ -1091,5 +1091,20 @@ onMounted(() => {
 <style scoped lang="scss">
 :deep(.menu-table-actions .inline-flex) {
   vertical-align: middle;
+}
+
+/* Tab 仅作筛选切换：收起默认 header 下边距与空 content，收紧与工具栏间距 */
+.menu-client-tabs {
+  :deep(.el-tabs__header) {
+    margin-bottom: 0;
+  }
+
+  :deep(.el-tabs__content) {
+    display: none;
+  }
+}
+
+.menu-table-card {
+  margin-top: 4px !important;
 }
 </style>
