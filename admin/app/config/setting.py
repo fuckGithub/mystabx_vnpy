@@ -302,7 +302,9 @@ class Settings(BaseSettings):
     OSS_REGION: str = "cn-beijing"
     """区域（如 cn-beijing）"""
     OSS_CUSTOM_DOMAIN: str = ""
-    """自定义域名 / CDN（可选，用于生成公开访问 URL）"""
+    """自定义域名 / CDN（可选；公有读时作直链主机，私有桶签名 URL 也会改写到此域名）"""
+    OSS_PUBLIC_READ: bool = False
+    """桶/前缀是否允许匿名读。False（默认）时始终返回签名 URL，避免私有桶 + 自定义域名直链 403"""
     OSS_PREFIX: str = "upload/"
     """对象键前缀（默认 upload/，与本地 static/upload 语义对齐）"""
     OSS_SIGN_URL_EXPIRE_SECONDS: int = 3600

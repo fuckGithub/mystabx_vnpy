@@ -6,6 +6,7 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    field_serializer,
     field_validator,
     model_validator,
 )
@@ -67,7 +68,9 @@ class CurrentUserUpdateSchema(BaseModel):
     @classmethod
     def validate_avatar(cls, value: str | None):
         """
-        校验头像地址为合法的 HTTP/HTTPS URL。
+        校验头像地址为合法的 HTTP/HTTPS URL，并规范为可持久化地址。
+
+        私有 OSS 桶的签名参数会过期且过长，写入前剥离为 canonical URL。
 
         参数:
         - value (str | None): 头像 URL。
@@ -80,9 +83,13 @@ class CurrentUserUpdateSchema(BaseModel):
         """
         if not value:
             return value
-        parsed = urlparse(value)
+        from app.config.setting import settings
+        from app.utils.oss_util import OssUtil
+
+        stored = OssUtil.to_storage_url(value) if settings.OSS_READY else value.strip()
+        parsed = urlparse(stored or "")
         if parsed.scheme in ("http", "https") and parsed.netloc:
-            return value
+            return stored
         raise ValueError("头像地址需为有效的HTTP/HTTPS URL")
 
     @model_validator(mode="after")
@@ -263,6 +270,16 @@ class UserOutSchema(UserUpdateSchema, BaseSchema, UserBySchema, TenantBySchema):
     positions: list[CommonSchema] | None = Field(default=[], description="岗位")
     roles: list[RoleOutSchema] | None = Field(default=[], description="角色")
     menus: list[MenuOutSchema] | None = Field(default=[], description="菜单")
+
+    @field_serializer("avatar")
+    def serialize_avatar(self, value: str | None) -> str | None:
+        """私有 OSS 头像输出为当前可用的签名 URL。"""
+        from app.config.setting import settings
+        from app.utils.oss_util import OssUtil
+
+        if not value or not settings.OSS_READY:
+            return value
+        return OssUtil.ensure_browser_url(value)
 
 
 class UserQueryParam:

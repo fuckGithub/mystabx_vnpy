@@ -12,11 +12,28 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from app.config.setting import settings
 from app.core.exceptions import CustomException
 from app.core.logger import log
+
+# 写入 DB / 持久化时应剥离的 OSS 签名与缓存破坏参数
+_OSS_EPHEMERAL_QUERY_KEYS = frozenset(
+    {
+        "t",
+        "expires",
+        "signature",
+        "ossaccesskeyid",
+        "security-token",
+        "x-oss-credential",
+        "x-oss-date",
+        "x-oss-expires",
+        "x-oss-signature",
+        "x-oss-signature-version",
+        "x-oss-security-token",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -120,14 +137,127 @@ class OssUtil:
         return k.strip("/")
 
     @classmethod
-    def public_or_signed_url(cls, key: str, *, expire: int | None = None) -> str:
-        """生成访问 URL（自定义域名优先，否则签名 URL）。"""
+    def default_bucket_host(cls) -> str:
+        """默认 Bucket 公网主机（无协议），如 ``stabx-dev.oss-cn-beijing.aliyuncs.com``。"""
+        bucket = settings.OSS_BUCKET_NAME.strip()
+        endpoint = settings.OSS_ENDPOINT.strip().rstrip("/")
+        parsed = urlparse(endpoint if "://" in endpoint else f"https://{endpoint}")
+        host = (parsed.netloc or parsed.path).strip()
+        if host.startswith("oss-") and bucket:
+            return f"{bucket}.{host}"
+        return host
+
+    @classmethod
+    def canonical_url(cls, key: str) -> str:
+        """持久化用的无签名绝对 URL（自定义域名优先，否则默认 Bucket 域名）。"""
+        k = key.lstrip("/")
         custom = settings.OSS_CUSTOM_DOMAIN.strip().rstrip("/")
         if custom:
-            return f"{custom}/{key.lstrip('/')}"
+            return f"{custom}/{k}"
+        host = cls.default_bucket_host()
+        scheme = "https"
+        endpoint = settings.OSS_ENDPOINT.strip()
+        if endpoint.startswith("http://"):
+            scheme = "http"
+        return f"{scheme}://{host}/{k}"
+
+    @classmethod
+    def key_from_url_or_path(cls, value: str) -> str | None:
+        """从对象键、相对路径或本桶 URL 解析对象键；非本桶资源返回 None。"""
+        raw = (value or "").strip()
+        if not raw:
+            return None
+        if not raw.startswith(("http://", "https://")):
+            try:
+                return cls.to_object_key(raw)
+            except CustomException:
+                return None
+
+        parsed = urlparse(raw)
+        host = (parsed.netloc or "").lower()
+        path = (parsed.path or "").lstrip("/")
+        bucket = settings.OSS_BUCKET_NAME.strip()
+        custom = settings.OSS_CUSTOM_DOMAIN.strip().rstrip("/")
+        custom_host = urlparse(custom).netloc.lower() if custom else ""
+        default_host = cls.default_bucket_host().lower()
+        known_hosts = {h for h in (custom_host, default_host) if h}
+        if host not in known_hosts:
+            # ``bucket.oss-region.aliyuncs.com`` 变体或 path-style
+            if bucket and (host.startswith(f"{bucket}.") or path.startswith(f"{bucket}/")):
+                if path.startswith(f"{bucket}/"):
+                    path = path[len(bucket) + 1 :]
+            else:
+                return None
+        if bucket and path.startswith(f"{bucket}/"):
+            path = path[len(bucket) + 1 :]
+        return path or None
+
+    @classmethod
+    def to_storage_url(cls, value: str | None) -> str | None:
+        """写入 DB 的稳定地址：剥离签名/缓存参数；本桶资源规范为 canonical URL。"""
+        if value is None:
+            return None
+        raw = value.strip()
+        if not raw:
+            return raw
+        key = cls.key_from_url_or_path(raw)
+        if key and settings.OSS_READY:
+            return cls.canonical_url(key)
+        if not raw.startswith(("http://", "https://")):
+            return raw
+        parsed = urlparse(raw)
+        kept = [
+            (k, v)
+            for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+            if k.lower() not in _OSS_EPHEMERAL_QUERY_KEYS
+        ]
+        query = urlencode(kept)
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", query, ""))
+
+    @classmethod
+    def public_or_signed_url(cls, key: str, *, expire: int | None = None) -> str:
+        """生成浏览器可加载的访问 URL。
+
+        - ``OSS_PUBLIC_READ=True``：自定义域名/默认域名直链（公有读桶）。
+        - 否则（默认）：签名 URL；若配置了 ``OSS_CUSTOM_DOMAIN`` 则改写主机名。
+        """
+        k = key.lstrip("/")
+        if settings.OSS_PUBLIC_READ:
+            return cls.canonical_url(k)
+
         expires = expire if expire is not None else settings.OSS_SIGN_URL_EXPIRE_SECONDS
         bucket = cls._bucket()
-        return bucket.sign_url("GET", key, expires)
+        signed = bucket.sign_url("GET", k, expires)
+        custom = settings.OSS_CUSTOM_DOMAIN.strip().rstrip("/")
+        if not custom:
+            return signed
+        signed_parsed = urlparse(signed)
+        custom_parsed = urlparse(custom if "://" in custom else f"https://{custom}")
+        return urlunparse(
+            (
+                custom_parsed.scheme or "https",
+                custom_parsed.netloc or custom_parsed.path,
+                signed_parsed.path,
+                "",
+                signed_parsed.query,
+                "",
+            )
+        )
+
+    @classmethod
+    def ensure_browser_url(cls, value: str | None, *, expire: int | None = None) -> str | None:
+        """将库内头像/文件地址转为当前可加载 URL（私有桶重新签名）。"""
+        if value is None:
+            return None
+        raw = value.strip()
+        if not raw:
+            return raw
+        if not settings.OSS_READY:
+            return raw
+        key = cls.key_from_url_or_path(raw)
+        if not key:
+            return raw
+        return cls.public_or_signed_url(key, expire=expire)
 
     @classmethod
     def _list_sync(cls, dir_prefix: str) -> list[OssListEntry]:

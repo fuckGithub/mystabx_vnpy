@@ -463,7 +463,7 @@ const handleAvatarFileChange = (file: UploadFile) => {
   fileList.value = []
 }
 
-/** 去掉头像 URL 上的缓存破坏参数，写入后端用干净地址 */
+/** 去掉头像 URL 上的缓存破坏参数，保留 OSS 签名查询串 */
 function stripAvatarCacheBust(url: string): string {
   const trimmed = url.trim()
   if (!trimmed) return trimmed
@@ -481,10 +481,56 @@ function stripAvatarCacheBust(url: string): string {
   }
 }
 
-/** 同路径覆盖上传时强制顶栏/侧栏刷新 */
+/** 是否为 OSS 签名 URL（追加任意 query 会使签名失效） */
+function isOssSignedUrl(url: string): boolean {
+  return /[?&](Signature|Expires|OSSAccessKeyId|x-oss-signature)=/i.test(url)
+}
+
+/**
+ * 写入后端的稳定头像地址：剥离签名与缓存参数。
+ * 私有桶签名会过期，库内只存 canonical 直链；读接口再签发。
+ */
+function toStoredAvatarUrl(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return trimmed
+  const ephemeral = new Set(
+    [
+      't',
+      'expires',
+      'signature',
+      'ossaccesskeyid',
+      'security-token',
+      'x-oss-credential',
+      'x-oss-date',
+      'x-oss-expires',
+      'x-oss-signature',
+      'x-oss-signature-version',
+      'x-oss-security-token',
+    ].map((k) => k.toLowerCase())
+  )
+  try {
+    const u = new URL(trimmed, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+    for (const key of [...u.searchParams.keys()]) {
+      if (ephemeral.has(key.toLowerCase())) {
+        u.searchParams.delete(key)
+      }
+    }
+    if (/^https?:\/\//i.test(trimmed)) {
+      const q = u.searchParams.toString()
+      return q ? `${u.origin}${u.pathname}?${q}` : `${u.origin}${u.pathname}`
+    }
+    const q = u.searchParams.toString()
+    return q ? `${u.pathname}?${q}` : u.pathname
+  } catch {
+    return trimmed.split('?')[0] || trimmed
+  }
+}
+
+/** 同路径覆盖上传时强制顶栏/侧栏刷新；签名 URL 不可追加 t= */
 function withAvatarCacheBust(url: string): string {
   const clean = stripAvatarCacheBust(url)
   if (!clean) return clean
+  if (isOssSignedUrl(clean)) return clean
   const sep = clean.includes('?') ? '&' : '?'
   return `${clean}${sep}t=${Date.now()}`
 }
@@ -494,30 +540,31 @@ function withAvatarCacheBust(url: string): string {
  * 不再要求用户再点「保存基本设置」才能同步头像。
  */
 async function persistAvatarAndSyncStore(fileUrl: string) {
-  const cleanUrl = stripAvatarCacheBust(fileUrl)
-  if (!cleanUrl) {
+  const displayUrl = stripAvatarCacheBust(fileUrl)
+  const storeUrl = toStoredAvatarUrl(fileUrl)
+  if (!storeUrl) {
     ElMessage.error('无效的头像URL')
     return
   }
 
-  infoFormState.avatar = cleanUrl
-  userStore.setAvatar(withAvatarCacheBust(cleanUrl))
+  infoFormState.avatar = displayUrl
+  userStore.setAvatar(withAvatarCacheBust(displayUrl))
 
   const response = await UserAPI.updateCurrentUserInfo({
     name: infoFormState.name,
     gender: infoFormState.gender,
     mobile: infoFormState.mobile,
     email: infoFormState.email,
-    avatar: cleanUrl,
+    avatar: storeUrl,
   })
   const saved = response.data.data
-  const savedAvatar = saved?.avatar ? stripAvatarCacheBust(saved.avatar) : cleanUrl
-  infoFormState.avatar = savedAvatar
+  const savedDisplay = saved?.avatar ? stripAvatarCacheBust(saved.avatar) : displayUrl
+  infoFormState.avatar = savedDisplay
   // 合并更新，避免 setUserInfo 整表替换丢掉 menus 等运行时字段
   if (saved) {
-    userStore.setUserInfo({ ...userStore.basicInfo, ...saved, avatar: withAvatarCacheBust(savedAvatar) })
+    userStore.setUserInfo({ ...userStore.basicInfo, ...saved, avatar: withAvatarCacheBust(savedDisplay) })
   } else {
-    userStore.setAvatar(withAvatarCacheBust(savedAvatar))
+    userStore.setAvatar(withAvatarCacheBust(savedDisplay))
   }
 }
 
